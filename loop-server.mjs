@@ -223,9 +223,13 @@ const compileAgentSystem = (m) => {
   return `你是「${role}」。目标:${goal}。
 【固定轨道】这是创作者定义的工作流,按它推进,不要偏离:
 ${steps}
-${qs.length ? "【需要从消费者收集的输入】" + qs.join(" / ") : ""}
+${qs.length ? "【消费者已在开始前一次性填好的输入项】" + qs.join(" / ") : ""}
 【适用范围/边界】${bounds};输入疑似超出范围时,诚实告知消费者,不要硬做。
-【交互方式】引导式对话:一次只问 1-2 个问题,收集够了再动手;动手时简述你在做什么;产出后支持消费者多轮微调,复用上一稿、不重来。
+【澄清规则(重要)】消费者已在开始前用表单一次性提供输入(见用户消息)。
+- 先用这些输入 + 可推断默认值(分支默认 main、关注点默认全面等)自己补齐,【直接开始动手,不要逐个反问】。
+- 只有当某个"缺它根本无法开始"的关键信息缺失时,才用 ask_user,且【一次把所有真正必要的问题问全(≤3 个),禁止串行多轮追问】。
+- 可假设的次要信息直接用默认值,并在产物里标注"我按 X 做了,不对可改"。
+【动手与产出】动手时简述你在做什么、为什么调某工具;产出后支持在产物上多轮微调,复用上一稿、不重来。
 最终给出 artifact(markdown),并简述你做了什么、在什么边界内。`;
 };
 // 取网页文本 —— 走 curl(自动用 HTTPS_PROXY 本地代理;node 原生 http/undici 默认不读代理 → 外网不通)。
@@ -554,9 +558,10 @@ const server = http.createServer(async (req, res) => {
     res.on("finish", () => log(`← ${res.statusCode} ${u.pathname} ${((Date.now() - t0) / 1000).toFixed(1)}s`));
   }
   try {
-    if (u.pathname === "/" || u.pathname === "/consume") { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(HTML); }
+    if (u.pathname === "/") { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(HTML); }
     if (u.pathname === "/anchor") { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(fs.readFileSync(path.join(__dir, "anchor.html"), "utf8")); }
-    if (u.pathname === "/miniapp") { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(fs.readFileSync(path.join(__dir, "miniapp.html"), "utf8")); }
+    // 消费侧 = agentic mini-app(/consume 与 /miniapp 都指向它;旧的一次性 consumer 已弃用)
+    if (u.pathname === "/miniapp" || u.pathname === "/consume") { res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }); return res.end(fs.readFileSync(path.join(__dir, "miniapp.html"), "utf8")); }
 
     // ① 一键导入全部历史(真扫 ~/.claude/projects)
     if (u.pathname === "/api/import-history" && req.method === "POST") {
@@ -726,7 +731,7 @@ const server = http.createServer(async (req, res) => {
       if (capId) { const anc = (a.anchors || []).find((c) => c.id === capId); if (anc) { anc.token = token; anc.published = true; } }
       a.manifest = pk.manifest;  // 兼容创作者 eval/preview
       save();
-      return json(res, 200, { token, link: "/consume?token=" + token, slug: pk.manifest.manifest.mini_app_id });
+      return json(res, 200, { token, link: "/miniapp?token=" + token, slug: pk.manifest.manifest.mini_app_id });
     }
     // ⑤ 消费侧 / 试用:取 app(token → published 索引;裸 id 仅创作者本人预览)
     if (u.pathname === "/api/app") {
@@ -759,8 +764,11 @@ const server = http.createServer(async (req, res) => {
       s.agent = createAgent({ systemPrompt: compileAgentSystem(f.manifest), tools: miniappTools(s) });   // 含外部工具
       sessions.set(sid, s); wireAgentSSE(s);
       const m = f.manifest;
+      // intake 字段:required_context(槽 key)配 review_questions(友好问法);第一项设为必填,其余可选(可推断默认)。
+      const rc = m.interaction.required_context || []; const rq = m.interaction.review_questions || [];
+      const fields = rc.map((key, i) => ({ key, label: rq[i] || key, required: i === 0 }));
       log(`miniapp start ${sid} · ${m.manifest.name}`);
-      return json(res, 200, { sessionId: sid, title: m.manifest.name, tagline: m.interaction.ui_profile?.summary || "", scope: m.agent.boundaries || [], starters: m.interaction.starter_prompts || [], steps: (m.skill_set?.[0]?.steps || []).slice(0, 6) });
+      return json(res, 200, { sessionId: sid, title: m.manifest.name, tagline: m.interaction.ui_profile?.summary || "", scope: m.agent.boundaries || [], fields, starters: m.interaction.starter_prompts || [], steps: (m.skill_set?.[0]?.steps || []).slice(0, 6) });
     }
     if (u.pathname === "/api/miniapp/stream") {                                 // SSE 长连
       const sid = u.searchParams.get("sessionId"); const s = sessions.get(sid); if (!s) return json(res, 404, { error: "no session" });
