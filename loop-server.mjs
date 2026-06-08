@@ -115,11 +115,16 @@ function importHistory() {
 
 const __dir = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4190;
-const DB = path.join(__dir, "apps-db.json");
+// DB_PATH(如挂载的持久卷 /data/apps-db.json)→ 跨重启/重部署保留状态;否则落本地(开发)。
+const DB = process.env.DB_PATH || path.join(__dir, "apps-db.json");
+try { fs.mkdirSync(path.dirname(DB), { recursive: true }); } catch {}
 const HTML = fs.readFileSync(path.join(__dir, "loop.html"), "utf8");
-let apps = fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB, "utf8")) : {};
-for (const k in apps) if (apps[k] && apps[k].extracting) apps[k].extracting = false;   // 清启动前残留的萃取中标志(崩溃/重启的僵尸)
+let apps = {};
+try { if (fs.existsSync(DB)) apps = JSON.parse(fs.readFileSync(DB, "utf8")); } catch (e) { console.error("apps-db 读取失败,从空开始:", e.message); }
+let _zombies = 0;
+for (const k in apps) if (apps[k] && apps[k].extracting) { apps[k].extracting = false; _zombies++; }   // 清启动前残留的萃取中标志(崩溃/重启的僵尸)
 const save = () => fs.writeFileSync(DB, JSON.stringify(apps, null, 2));
+if (_zombies) save();   // 落盘,别让磁盘留 stale extracting=true
 const uid = () => (Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36)).slice(-8);
 const STRUCTURE_TIMEOUT = 40000;
 async function readBody(req) { let b = ""; for await (const c of req) b += c; return b ? JSON.parse(b) : {}; }

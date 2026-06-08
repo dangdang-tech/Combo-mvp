@@ -348,18 +348,19 @@ function step1(){
       if(L)L.fail(m);else{const h=$("#imphint");if(h)h.textContent=m}
     }
   }
-  // 复访:逐个重读已授权过的文件夹句柄,合并上传(权限仍在则零点击)
+  // 复访:重读已授权过的文件夹句柄,合并上传。每条路径都有出口(成功 / 失败带重试),绝不冻结。
   async function fsRevisit(){
+    let L=null;
     try{
-      const dirs=await fsGetHandles();if(!dirs.length)return false;
+      const dirs=await fsGetHandles();
       const granted=[];for(const h of dirs){try{if((await h.queryPermission({mode:"read"}))==="granted")granted.push(h)}catch{}}
-      if(!granted.length){bimport.innerHTML="⚡ 继续导入(上次已授权)";return false}
-      const L=importLoader(PHASES_FS);L.enter('scan');L.indet("检测到上次授权,正在自动读取…");
-      let all=[];const agg={claude:0,codex:0};let first=true;
-      for(const h of granted){const s=await fsCollectHome(h,(p)=>{if(first){L.enter('parse');first=false}agg.claude=Math.max(agg.claude,p.sources.claude);agg.codex=Math.max(agg.codex,p.sources.codex);L.sources(p.sources)});all=all.concat(s)}
-      if(!all.length){L.stop();return false}
-      await uploadSessions(all,L);return true;
-    }catch{return false}
+      if(!granted.length){step1();const t=$("#imphint");if(t)t.innerHTML="上次的授权需要重新确认 —— 点「⚡ 一键导入」再授权一次。";return}
+      L=importLoader(PHASES_FS);L.enter('scan');L.indet("读取上次授权的文件夹…");
+      let all=[];let first=true;
+      for(const h of granted){const s=await fsCollectHome(h,(p)=>{if(first){L.enter('parse');first=false}L.sources(p.sources)});all=all.concat(s)}
+      if(!all.length){L.fail("上次授权的文件夹里没读到会话(可能被移动/清空)。点「重新开始」重新选文件夹。");return}
+      await uploadSessions(all,L);
+    }catch(e){ const m="读取出错:"+(e&&e.name==="NotAllowedError"?"授权已失效":(e?.message||e))+"。点「重新开始」再来。"; if(L)L.fail(m); else{step1();const t=$("#imphint");if(t)t.textContent=m;} }
   }
 
   if(!HOSTED){ // 本地开发:服务器直扫最省事(加载态指示),扫不到回退选文件夹
@@ -374,7 +375,10 @@ function step1(){
     bupload.innerHTML="📁 改用选文件夹";bupload.onclick=()=>openPicker(PICK_MSG);
     bconnect.style.display="";bconnect.onclick=connectFlow;
     $("#imphint").innerHTML='ℹ️ 网页出于安全不能自己读你硬盘,得你授权一个文件夹。两种方式:<br>· <b>一键导入</b>:弹框里按 <b>⌘⇧G</b> 粘 <b>~/.claude/projects</b> 回车「打开」(<b>别选整个主目录,Chrome 会拦</b>);导完再按提示加 Codex。<br>· <b>🔌 连接本机(零选择)</b>:终端粘一行命令,<b>一个目录都不用选</b>,最省事。';
-    fsRevisit();   // 复访:权限仍在 → 自动重读已授权文件夹
+    (async()=>{ // 复访:有授权过的文件夹 → 给个"继续"按钮(不自动弹加载态,避免惊讶/卡住)
+      try{const dirs=await fsGetHandles();if(!dirs.length)return;let g=0;for(const h of dirs){try{if((await h.queryPermission({mode:"read"}))==="granted")g++}catch{}}if(!g)return;
+        const row=$("#imphint");if(row&&!$("#brevisit"))row.insertAdjacentHTML("beforebegin",`<div style="margin:6px 0 2px"><button class="btn ghost" id="brevisit">↻ 用上次授权的文件夹继续(${g} 个)</button></div>`);const br=$("#brevisit");if(br)br.onclick=()=>fsRevisit();
+      }catch{} })();
   } else { // 托管 + Safari/Firefox:回退到选文件夹 + 连接本机(零选择)
     bimport.innerHTML="📁 选文件夹导入 Claude + Codex";
     bimport.onclick=()=>openPicker('<b>你的浏览器不支持一键授权(建议用 Chrome/Edge)。</b><br>'+PICK_MSG);
@@ -425,7 +429,14 @@ async function step2load(){
   const cleanup=()=>{try{es&&es.close()}catch{}; if(pollTimer)clearInterval(pollTimer); if(L)L.stop();};
   const finish=(r)=>{ if(settled)return; settled=true; cleanup(); renderCandidates(r); };
   const fail=(msg)=>{ if(settled)return; settled=true; cleanup(); if(L)L.fail(msg); else $("#o2").innerHTML=`<div class="err">${esc(msg)}</div>`; };
-  async function pull(){ if(settled)return; const r=await api("/api/extract/result?id="+encodeURIComponent(id),null,15000); if(r&&r.candidates)finish(r); /* 202/网络抖动→继续等 */ }
+  // 会话状态没了(服务重启过 / app 不存在)→ 快速回第一步重新导入,别傻等
+  const failGone=()=>{ if(settled)return; settled=true; cleanup(); if(L){L.fail("会话状态丢失了(服务可能重启过)。点下面回第一步重新导入。");const rb=document.querySelector("#o2 .ldr-retry");if(rb){rb.textContent="← 回第一步重新导入";rb.onclick=()=>{S.id=null;S.step=1;render();};}} else {S.id=null;S.step=1;render();} };
+  let retriggered=false;
+  async function pull(){ if(settled)return; const r=await api("/api/extract/result?id="+encodeURIComponent(id),null,15000);
+    if(r&&r.candidates){finish(r);return}
+    if(r&&r.error==="no app"){failGone();return}
+    if(r&&r.error==="not extracted"&&!retriggered){ retriggered=true; if(L)L.stat("萃取像是被中断了,正在重新开始…"); api("/api/extract",{id},30000); }  // app 在但没在跑也没结果(被重启打断)→ 自愈重触发一次
+  }
   try{
     es=new EventSource("/api/extract/progress?id="+encodeURIComponent(id));
     await new Promise((r)=>{es.onopen=r;es.onerror=r;setTimeout(r,600);});   // 订阅就绪再发起,避免错过 done
@@ -439,10 +450,11 @@ async function step2load(){
   // 触发(短超时;只等 {started} / 缓存 / 粘贴态降级直接拿到结果)
   const post=await api("/api/extract",{id},30000);
   if(post&&post.candidates){ finish(post); return; }                       // 缓存命中 或 粘贴态降级 → 直接渲染
+  if(post&&post.error==="no app"){ failGone(); return; }                   // app 没了(服务重启)→ 回第一步
   if(post&&post.error&&!post.started&&!post._clientFail){ fail(post.error); return; }
-  // 兜底轮询:万一 done 错过(SSE 断/窗口),每 15s 拉一次;8 分钟总上限
+  // 兜底轮询:万一 done 错过(SSE 断/窗口),每 15s 拉一次;6 分钟总上限(已完成会秒回缓存)
   let waited=0;
-  pollTimer=setInterval(async()=>{ if(settled)return; waited+=15; await pull(); if(!settled&&waited>=480){ clearInterval(pollTimer); fail("萃取太久了(>8 分钟)——点重试(已完成会秒回)"); } },15000);
+  pollTimer=setInterval(async()=>{ if(settled)return; waited+=15; await pull(); if(!settled&&waited>=360){ clearInterval(pollTimer); fail("萃取等太久了(>6 分钟)——点重试(已完成会秒回,没完成会重跑)。"); } },15000);
 }
 function step3(){const c=S.candidates;
   $("#root").innerHTML=shell(`<div class="eyebrow">STEP 3 · 选择</div><h1 class="serif">选择你想发布的能力</h1>
@@ -519,8 +531,11 @@ async function saveAndGo5(){
 function step5(){$("#root").innerHTML=shell(`<div class="eyebrow">STEP 5 · 发布与试用</div><h1 class="serif">发成 mini-app，先在这里完整试用</h1>
    <div class="lede">它本身就带 GUI——右侧是真实可交互的 mini-app,发布前用真实输入跑一遍、确认产物没问题,再一键发布。</div>
    <div id="o5"><div class="spin" style="margin-top:24px">Pi 在做 Auto-Eval(校验 + 试跑一次) <span class="dots"><i></i><i></i><i></i></span></div></div>`);}
+function step5error(msg,toStep){$("#o5").innerHTML=`<div class="banner" style="border-color:var(--gold);margin-top:18px"><b>${esc(msg)}</b></div><div class="foot" style="margin-top:14px"><button class="btn" style="margin:0" id="e5retry">重试</button> <button class="btn ghost" id="e5back">${toStep===1?"← 回第一步重新导入":"← 回上一步"}</button></div>`;const r=$("#e5retry");if(r)r.onclick=()=>step5load();const b=$("#e5back");if(b)b.onclick=()=>{if(toStep===1){S.id=null;S.step=1}else{S.step=4};render();};}
 async function step5load(){step5();
+  if(!S.manifest||!S.manifest.manifest){step5error("还没有结构化规范(可能状态丢失了)。",4);return}   // 防 S.manifest 为空时白屏/卡转圈
   const ev=await api("/api/eval",{id:S.id},90000);S.evalRes=ev;
+  if(ev&&ev.error==="no app"){step5error("会话状态丢失了(服务可能重启过)。",1);return}            // app 没了 → 回第一步,别卡转圈
   const app=await api("/api/app?id="+S.id);
   const slug=(S.manifest.manifest.mini_app_id);
   $("#o5").innerHTML=`<div class="pub">
