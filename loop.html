@@ -160,6 +160,17 @@ function parseSession(txt,fname,lastModified){
   const out=[];for(const line of txt.split("\n")){if(!line)continue;let d;try{d=JSON.parse(line)}catch{continue}const m=d.message;if(!m||m.role!=="user")continue;const c=m.content;let t=typeof c==="string"?c:Array.isArray(c)?c.map(b=>b?.text||"").join(""):"";t=t.trim();if(t&&!t.startsWith("<")&&!t.startsWith("Caveat"))out.push("用户: "+t.slice(0,400));if(out.length>=12)break}
   return {title,count,date,content:out.join("\n").slice(0,6000),project:parts.length>1?parts[parts.length-2]:"claude",source:"claude"};
 }
+// ── 浏览器内一键授权读取(File System Access API · Chromium)──
+// 用户授权一次「用户主目录」→ 我们直接定位 ~/.claude/projects 与 ~/.codex/sessions 两个子目录读取
+// (不遍历整个 home,只读这两处)。句柄存 IndexedDB,复访权限仍在则零点击自动导入。
+function fsIdb(){return new Promise((res,rej)=>{const r=indexedDB.open("agora-fs",1);r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function fsIdbSet(k,v){const db=await fsIdb();return new Promise((res,rej)=>{const t=db.transaction("h","readwrite");t.objectStore("h").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+async function fsIdbGet(k){const db=await fsIdb();return new Promise((res,rej)=>{const t=db.transaction("h","readonly");const q=t.objectStore("h").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+async function fsPerm(handle,ask){const o={mode:"read"};try{if((await handle.queryPermission(o))==="granted")return true;if(ask&&(await handle.requestPermission(o))==="granted")return true}catch{}return false}
+async function fsGetDeep(h,...names){let d=h;for(const n of names){try{d=await d.getDirectoryHandle(n)}catch{return null}}return d}
+async function fsCollectJsonl(dir,out,onProg,depth,prefix){if(depth<0)return;for await(const [name,handle] of dir.entries()){const p=prefix?prefix+"/"+name:name;if(handle.kind==="directory"){await fsCollectJsonl(handle,out,onProg,depth-1,p)}else if(name.endsWith(".jsonl")){try{const f=await handle.getFile();const txt=await f.text();const s=parseSession(txt,p,f.lastModified);if(s){out.push(s);if(onProg&&out.length%20===0)onProg(out.length)}}catch{}}}}
+async function fsCollectHome(home,onProg){const out=[];let found=false;for(const [a,b,pfx] of [[".claude","projects",".claude/projects"],[".codex","sessions",".codex/sessions"]]){const d=await fsGetDeep(home,a,b);if(d){found=true;await fsCollectJsonl(d,out,onProg,6,pfx)}}if(!found)await fsCollectJsonl(home,out,onProg,4,"");if(onProg)onProg(out.length);return out}
+
 function step1(){
   $("#root").innerHTML=shell(`<div class="eyebrow">STEP 1 · 导入</div><h1 class="serif">导入你的对话历史</h1>
    <div class="lede">先把你的完整对话历史一键导入,生成一份可供萃取的 raw data。整个过程仅你可见。</div>
@@ -171,37 +182,76 @@ function step1(){
      <div id="imphint" class="fl2" style="margin-top:8px;font-size:12px"></div>
      <textarea id="raw" rows="4" placeholder="(可选)粘贴一段对话/工作记录" style="margin-top:12px"></textarea>
      <div class="foot"><span class="fl2">raw data 仅你可见 · 第 1 步,共 5 步</span><button class="btn ghost" id="b1">用粘贴的导入 →</button></div></div>`);
-  // 托管站(非 localhost):服务器读不到你电脑文件 → 一键导入直接走浏览器本地解析;本地:服务器直扫,扫不到再回退到选文件夹。
   const HOSTED=!/^(localhost|127(\.|$)|0\.0\.0\.0|\[?::1|::1)$/.test(location.hostname);
-  const PICK_MSG='选你本机的 <b>~/.claude/projects</b>(Claude Code)或 <b>~/.codex/sessions</b>(Codex)文件夹 —— Finder 里 <b>⌘⇧G</b> 粘路径直达。两种格式自动识别;导入完一个会提示「➕ 再导入另一个」,Claude 和 Codex 都加进来。解析在你浏览器本地完成,只上传提取后的文本。';
+  const FS_OK=!!window.showDirectoryPicker;
+  const PICK_MSG='选你本机的 <b>~/.claude/projects</b>(Claude Code)或 <b>~/.codex/sessions</b>(Codex)文件夹 —— Finder 里 <b>⌘⇧G</b> 粘路径直达。两种格式自动识别;导入完一个会提示「➕ 再导入另一个」。解析在你浏览器本地完成,只上传提取后的文本。';
   const openPicker=(msg)=>{$("#imphint").innerHTML=msg;$("#dir").click();};
   const bimport=$("#bimport"),bupload=$("#bupload");
-  if(HOSTED){
-    bimport.onclick=()=>openPicker('<b>这是托管站,服务器读不到你电脑里的历史 → 用你浏览器在本地导入。</b><br>'+PICK_MSG);
-    bupload.style.display="none"; // 托管下合并成一个入口,避免两个按钮迷惑
-  } else {
+  const FS_LABEL="⚡ 一键导入(授权读取 Claude + Codex)";
+
+  // 上传 + 渲染 + 智能「再导一个来源」提示(FS 路一次拿全两源,通常不出现)
+  async function uploadSessions(sessions,h){
+    if(!sessions.length){h.textContent="没解析到会话。";return}
+    const byS={};sessions.forEach(s=>byS[s.source]=(byS[s.source]||0)+1);
+    h.innerHTML=`上传 ${sessions.length} 段(${Object.entries(byS).map(([k,v])=>k+' '+v).join(' · ')})…`;
+    const r=await api("/api/import-uploaded",S.id?{sessions,appendTo:S.id}:{sessions});
+    if(r.error){h.textContent="导入失败:"+r.error;return}
+    S.id=r.id;showImported(r.stats,r.sessions,"已导入(共 "+r.stats.segments+" 段)");
+    const bs=r.stats.by_source||{};const hasC=bs.claude>0,hasX=bs.codex>0;
+    if(!(hasC&&hasX)){const miss=!hasX?"Codex(~/.codex/sessions)":"Claude(~/.claude/projects)";
+      setTimeout(()=>{const im=$("#imp");if(im&&!$("#addsrc"))im.insertAdjacentHTML("beforeend",`<div style="margin-top:10px"><button class="btn ghost" id="addsrc">➕ 再导入 ${miss}</button><span class="fl2" style="font-size:12px;margin-left:10px">建议两边都导入,萃取更全</span></div>`);const a=$("#addsrc");if(a)a.onclick=()=>openPicker(PICK_MSG);},50);}
+  }
+  // 浏览器内一键授权:有句柄走句柄(权限在则零弹框),无则弹一次目录授权(定位 home)
+  async function fsImport(gesture){
+    const h=$("#imphint");
+    try{
+      let home=await fsIdbGet("home").catch(()=>null);
+      if(home&&!(await fsPerm(home,gesture))){ if(!gesture){bimport.innerHTML="⚡ 继续导入(上次已授权)";return} home=null; }
+      if(!home){ if(!gesture)return;
+        h.innerHTML="浏览器会弹授权框,已为你定位到<b>用户主目录</b> —— 直接点「打开 / Open」即可。我们只读 <b>~/.claude</b> 与 <b>~/.codex</b>,别的不碰。";
+        home=await window.showDirectoryPicker({id:"agora",mode:"read",startIn:"home"});
+        if(!(await fsPerm(home,true))){h.textContent="未授权,无法读取。再点一次即可。";return}
+        try{await fsIdbSet("home",home)}catch{}
+      }
+      bimport.disabled=true;bimport.innerHTML='读取你的历史中… <span class="dots"><i></i><i></i><i></i></span>';
+      h.innerHTML="在 ~/.claude 与 ~/.codex 本地解析…";
+      const sessions=await fsCollectHome(home,(n)=>{h.innerHTML=`本地解析 ${n} 个会话…`});
+      bimport.disabled=false;bimport.innerHTML=FS_LABEL;
+      if(!sessions.length){h.innerHTML="没在 ~/.claude / ~/.codex 找到会话 —— 确认你授权的是<b>用户主目录</b>,或点「📁 改用选文件夹」。";return}
+      await uploadSessions(sessions,h);
+    }catch(e){bimport.disabled=false;bimport.innerHTML=FS_LABEL;
+      h.textContent=(e&&e.name==="AbortError")?"已取消授权。再点一次「一键导入」即可。":("出错:"+(e?.message||e));}
+  }
+
+  if(!HOSTED){ // 本地开发:服务器直扫最省事,扫不到再回退
     bimport.innerHTML="⚡ 一键导入(本机直读 ~/.claude + ~/.codex)";
     bimport.onclick=async()=>{const b=bimport;b.disabled=true;b.innerHTML='扫描你的会话历史中… <span class="dots"><i></i><i></i><i></i></span>';
       const r=await api("/api/import-history",{});
       if(r.error){b.disabled=false;b.innerHTML="⚡ 一键导入(本机直读 ~/.claude + ~/.codex)";openPicker("本机没扫到 AI 历史 —— 改用选文件夹导入:<br>"+PICK_MSG);return}
       S.id=r.id;showImported(r.stats,r.sessions,"已导入全部对话历史(多 agent)");};
     bupload.onclick=()=>openPicker(PICK_MSG);
+  } else if(FS_OK){ // 托管 + Chromium:一键授权读取
+    bimport.innerHTML=FS_LABEL;bimport.onclick=()=>fsImport(true);
+    bupload.innerHTML="📁 改用选文件夹";bupload.onclick=()=>openPicker(PICK_MSG);
+    (async()=>{ // 复访:权限仍在 → 零点击自动导;要复确认 → 改文案
+      try{const home=await fsIdbGet("home");if(!home)return;
+        if((await home.queryPermission({mode:"read"}))==="granted"){const h=$("#imphint");h.innerHTML="检测到上次授权,正在自动导入…";bimport.disabled=true;
+          const sessions=await fsCollectHome(home,(n)=>{h.innerHTML=`本地解析 ${n} 个会话…`});bimport.disabled=false;bimport.innerHTML=FS_LABEL;
+          if(sessions.length)await uploadSessions(sessions,h);}
+        else bimport.innerHTML="⚡ 继续导入(上次已授权)";}catch{}})();
+  } else { // 托管 + Safari/Firefox:回退到选文件夹
+    bimport.innerHTML="📁 选文件夹导入 Claude + Codex";
+    bimport.onclick=()=>openPicker('<b>你的浏览器不支持一键授权(建议用 Chrome/Edge)。</b><br>'+PICK_MSG);
+    bupload.style.display="none";
   }
+
   $("#dir").onchange=async(e)=>{const files=[...e.target.files].filter(f=>f.name.endsWith(".jsonl"));const h=$("#imphint");
     if(!files.length){h.textContent="没找到 .jsonl —— 请选 ~/.claude/projects 文件夹(里面是各项目的 .jsonl)。";return}
     h.innerHTML=`本地解析 ${files.length} 个会话文件… <span class="dots"><i></i><i></i><i></i></span>`;
     const sessions=[];let done=0;
     for(const f of files){try{const txt=await f.text();const fname=f.webkitRelativePath||f.name;const s=parseSession(txt,fname,f.lastModified);if(s)sessions.push(s);}catch{}
       done++;if(done%20===0)h.innerHTML=`本地解析 ${done}/${files.length}… <span class="dots"><i></i><i></i><i></i></span>`;}
-    const byS={};sessions.forEach(s=>byS[s.source]=(byS[s.source]||0)+1);
-    h.innerHTML=`上传 ${sessions.length} 段(${Object.entries(byS).map(([k,v])=>k+' '+v).join(' · ')})…`;
-    const r=await api("/api/import-uploaded",S.id?{sessions,appendTo:S.id}:{sessions});
-    if(r.error){h.textContent="导入失败:"+r.error;return}
-    S.id=r.id;showImported(r.stats,r.sessions,"已上传导入(共 "+r.stats.segments+" 段)");
-    const bs=r.stats.by_source||{};const hasC=bs.claude>0,hasX=bs.codex>0;
-    const miss=!hasX?"Codex(~/.codex/sessions)":!hasC?"Claude(~/.claude/projects)":"另一个文件夹";
-    const label=(hasC&&hasX)?"➕ 再加一个来源":`➕ 再导入 ${miss}`;
-    setTimeout(()=>{const im=$("#imp");if(im&&!$("#addsrc"))im.insertAdjacentHTML("beforeend",`<div style="margin-top:10px"><button class="btn ghost" id="addsrc">${label}</button>${(hasC&&hasX)?"":`<span class="fl2" style="font-size:12px;margin-left:10px">建议 Claude + Codex 都导入,能力萃取更全</span>`}</div>`);const a=$("#addsrc");if(a)a.onclick=()=>openPicker(PICK_MSG);},50);};
+    await uploadSessions(sessions,h);};
   $("#b1").onclick=async()=>{const raw=$("#raw").value.trim();if(!raw){const t=$("#raw");if(t){t.style.borderColor="#b8863b";t.focus();}return}const b=$("#b1");b.disabled=true;b.textContent="导入中…";
     const r=await api("/api/import",{text:raw});S.id=r.id;showImported(r.stats,null,"已导入对话历史");};
 }
