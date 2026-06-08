@@ -394,30 +394,44 @@ function showImported(st,sessions,title){
 function step2(){$("#root").innerHTML=shell(`<div class="eyebrow">STEP 2 · 提取</div><h1 class="serif">从 raw data 提取能力项</h1>
    <div class="lede">AI 扫描你的 raw data,识别出反复出现、值得打包成 mini-app 的能力。下一步你来选要发哪个。</div>
    <div id="o2"></div>`);}
-async function step2load(){
-  step2();
-  const L=extractLoader();
-  let es=null;
-  try{
-    es=new EventSource("/api/extract/progress?id="+encodeURIComponent(S.id));
-    await new Promise((r)=>{es.onopen=r;es.onerror=r;setTimeout(r,600);});   // 确保订阅就绪再发起萃取
-    es.addEventListener("phase",(e)=>{const d=JSON.parse(e.data);if(!L)return;L.enter(d.k);if(d.k==="read")L.stat("精读会话中…");else{L.indet();L.stat(d.k==="taxonomy"?"归纳能力图谱…":d.k==="verify"?"多轮校验中…":"排序产出…");}});
-    es.addEventListener("progress",(e)=>{const d=JSON.parse(e.data);if(L&&d.phase==="read")L.progress(d.done,d.total);});
-    es.addEventListener("taxonomy",(e)=>{const d=JSON.parse(e.data);if(L){L.indet();L.stat("归纳出 "+d.count+" 类能力,开始校验…");}});
-    es.addEventListener("round",(e)=>{const d=JSON.parse(e.data);if(L){L.indet();L.stat("多轮校验 第 "+d.k+"/"+d.total+" 轮(稳定性)…");}});
-    es.addEventListener("done",()=>{try{es.close()}catch{}});
-  }catch{}
-  const r=await api("/api/extract",{id:S.id},240000);
-  if(es){try{es.close()}catch{}} if(L)L.stop();
-  if(r.error){if(L)L.fail(r.error);else $("#o2").innerHTML=`<div class="err">${esc(r.error)}</div>`;return}
+function renderCandidates(r){
   S.candidates=r.candidates;
   if(!r.candidates||!r.candidates.length){$("#o2").innerHTML=`<div class="banner" style="border-color:var(--gold)"><b>这批 raw data 没萃取出足够稳定的能力项</b>${r.fallback?"":" —— 多导入一些历史(Claude+Codex 都导),或换更聚焦的会话再试。"}</div><div class="foot"><span class="fl2">第 2 步,共 5 步</span><button class="btn ghost" id="b2back">← 回去多导一些</button></div>`;const bb=$("#b2back");if(bb)bb.onclick=()=>{S.step=1;render();};return;}
-  $("#o2").innerHTML=`<div class="banner"><b>✓ 已分析 raw data</b> 识别出 ${r.candidates.length} 个能力项,按可打包度排序:</div>
+  $("#o2").innerHTML=`<div class="banner"><b>✓ 已分析 raw data</b> 识别出 ${r.candidates.length} 个能力项,按可打包度排序:${r.cached?' <span class="fl2" style="font-size:12px">(上次结果)</span>':""}</div>
     ${r.candidates.map((c,i)=>`<div class="cand"><div class="ic serif">${esc((c.name||"?")[0])}</div>
       <div><div class="cn serif">${esc(c.name)} <span class="badge ${c.confidence==="高"?"b-hi":"b-mid"}">置信 ${esc(c.confidence)}</span> <span class="badge b-ty">${esc(c.type)}</span></div><div class="cd">${esc(c.tagline)}</div></div>
       <div class="from">来自 ${c.from_segments||"?"} 段</div></div>`).join("")}
     <div class="foot"><span class="fl2">识别 ${r.candidates.length} 个 · 第 2 步,共 5 步</span><button class="btn" id="b2">下一步:选择发布内容 →</button></div>`;
   $("#b2").onclick=()=>{S.step=3;render();};
+}
+// 萃取很慢(120 段可达 4+ 分钟)。结果经 SSE done 通知 → GET 拉取,不靠这条 HTTP 撑到结束(去掉超时天花板)。
+// 结果落盘 → 断线/超时重试都秒回缓存。并发防抖在后端。
+async function step2load(){
+  step2();
+  const L=extractLoader();
+  const id=S.id;
+  let es=null, pollTimer=null, settled=false;
+  const cleanup=()=>{try{es&&es.close()}catch{}; if(pollTimer)clearInterval(pollTimer); if(L)L.stop();};
+  const finish=(r)=>{ if(settled)return; settled=true; cleanup(); renderCandidates(r); };
+  const fail=(msg)=>{ if(settled)return; settled=true; cleanup(); if(L)L.fail(msg); else $("#o2").innerHTML=`<div class="err">${esc(msg)}</div>`; };
+  async function pull(){ if(settled)return; const r=await api("/api/extract/result?id="+encodeURIComponent(id),null,15000); if(r&&r.candidates)finish(r); /* 202/网络抖动→继续等 */ }
+  try{
+    es=new EventSource("/api/extract/progress?id="+encodeURIComponent(id));
+    await new Promise((r)=>{es.onopen=r;es.onerror=r;setTimeout(r,600);});   // 订阅就绪再发起,避免错过 done
+    es.addEventListener("phase",(e)=>{const d=JSON.parse(e.data);if(!L)return;L.enter(d.k);if(d.k==="read")L.stat("精读会话中…");else{L.indet();L.stat(d.k==="taxonomy"?"归纳能力图谱…":d.k==="verify"?"多轮校验中…":"排序产出…");}});
+    es.addEventListener("progress",(e)=>{const d=JSON.parse(e.data);if(L&&d.phase==="read")L.progress(d.done,d.total);});
+    es.addEventListener("taxonomy",(e)=>{const d=JSON.parse(e.data);if(L){L.indet();L.stat("归纳出 "+d.count+" 类能力,开始校验…");}});
+    es.addEventListener("round",(e)=>{const d=JSON.parse(e.data);if(L){L.indet();L.stat("多轮校验 第 "+d.k+"/"+d.total+" 轮(稳定性)…");}});
+    es.addEventListener("done",()=>{pull();});
+    es.addEventListener("error",(e)=>{ if(!e||!e.data)return; let m="萃取失败,请重试"; try{m=JSON.parse(e.data).msg||m}catch{} fail(m); });  // 有 data 才是后端错误;无 data 是连接抖动(会自动重连)→忽略
+  }catch{}
+  // 触发(短超时;只等 {started} / 缓存 / 粘贴态降级直接拿到结果)
+  const post=await api("/api/extract",{id},30000);
+  if(post&&post.candidates){ finish(post); return; }                       // 缓存命中 或 粘贴态降级 → 直接渲染
+  if(post&&post.error&&!post.started&&!post._clientFail){ fail(post.error); return; }
+  // 兜底轮询:万一 done 错过(SSE 断/窗口),每 15s 拉一次;8 分钟总上限
+  let waited=0;
+  pollTimer=setInterval(async()=>{ if(settled)return; waited+=15; await pull(); if(!settled&&waited>=480){ clearInterval(pollTimer); fail("萃取太久了(>8 分钟)——点重试(已完成会秒回)"); } },15000);
 }
 function step3(){const c=S.candidates;
   $("#root").innerHTML=shell(`<div class="eyebrow">STEP 3 · 选择</div><h1 class="serif">选择你想发布的能力</h1>

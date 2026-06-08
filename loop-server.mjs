@@ -118,6 +118,7 @@ const PORT = process.env.PORT || 4190;
 const DB = path.join(__dir, "apps-db.json");
 const HTML = fs.readFileSync(path.join(__dir, "loop.html"), "utf8");
 let apps = fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB, "utf8")) : {};
+for (const k in apps) if (apps[k] && apps[k].extracting) apps[k].extracting = false;   // 清启动前残留的萃取中标志(崩溃/重启的僵尸)
 const save = () => fs.writeFileSync(DB, JSON.stringify(apps, null, 2));
 const uid = () => (Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36)).slice(-8);
 const STRUCTURE_TIMEOUT = 40000;
@@ -251,7 +252,7 @@ function buildUploadedApp(sessions, appendTo) {
   const bySrc = {}; idx.forEach((s) => bySrc[s.source] = (bySrc[s.source] || 0) + 1);
   const stats = { segments: idx.length, messages: totalMsgs, span: times.length ? fmt(Math.min(...times)) + "–" + fmt(Math.max(...times)) : "—", projects: new Set(idx.map((s) => s.project)).size, by_source: bySrc };
   const id = (appendTo && apps[appendTo]) ? appendTo : uid();
-  apps[id] = { ...(apps[id] || {}), id, raw: idx.slice(0, 80).map((s) => `[${s.count}条] ${s.title}`).join("\n"), status: "imported", stats, sessions: idx.slice(0, 8), sessionIndex: idx, source: "upload", draft: undefined, createdAt: apps[id]?.createdAt || Date.now() }; save();
+  apps[id] = { ...(apps[id] || {}), id, raw: idx.slice(0, 80).map((s) => `[${s.count}条] ${s.title}`).join("\n"), status: "imported", stats, sessions: idx.slice(0, 8), sessionIndex: idx, source: "upload", draft: undefined, extraction: undefined, candidates: undefined, extracting: false, createdAt: apps[id]?.createdAt || Date.now() }; save();
   return { id, stats, sessions: idx.slice(0, 6) };
 }
 // 提取进度的 SSE 总线:id -> Set<res>。runExtraction 经 onProgress 推阶段/进度,网页订阅显示加载态。
@@ -713,19 +714,44 @@ const server = http.createServer(async (req, res) => {
       req.on("close", () => { clearInterval(ping); set.delete(res); if (!set.size) extractBus.delete(id); });
       return;
     }
+    // 已存结果的拉取(SSE done 后前端来取;断线/超时兜底也走它)。202=仍在跑,404=没结果。
+    if (u.pathname === "/api/extract/result") {
+      const id = u.searchParams.get("id"); const a = apps[id]; if (!a) return json(res, 404, { error: "no app" });
+      if (a.extraction && a.candidates) return json(res, 200, { candidates: a.candidates, unstable: a.extraction.unstable, stability: a.extraction.stability, metrics: a.extraction.metrics, cached: true });
+      if (a.extracting) return json(res, 202, { extracting: true });
+      if (a.candidates) return json(res, 200, { candidates: a.candidates, fallback: true });  // 降级态结果
+      return json(res, 404, { error: "not extracted" });
+    }
     if (u.pathname === "/api/extract" && req.method === "POST") {
-      const { id, rounds, sampleN } = await readBody(req); const a = apps[id]; if (!a) return json(res, 404, { error: "no app" });
-      if (Array.isArray(a.sessionIndex) && a.sessionIndex.length) {
-        try {
-          const out = await runExtraction(a, { rounds: rounds || 3, sampleN: sampleN || 120, onProgress: (ev, d) => extractEmit(id, ev, d) });
-          a.candidates = out.candidates; a.extraction = out; a.observedPaths = out.observedPaths; a.status = "extracted"; save();
-          extractEmit(id, "done", { candidates: out.candidates.length, unstable: out.unstable.length });
-          return json(res, 200, { candidates: out.candidates, unstable: out.unstable, stability: out.stability, metrics: out.metrics });
-        } catch (e) {
-          console.error("[extract v2] 失败 →", e && (e.stack || e.message || e)); // 落到下方降级,永不 500
-        }
+      const { id, rounds, sampleN, force } = await readBody(req); const a = apps[id]; if (!a) return json(res, 404, { error: "no app" });
+      const sig = Array.isArray(a.sessionIndex) ? a.sessionIndex.length : 0;
+      // 缓存命中:已萃取且会话集未变 → 秒回(救回"前端超时但后端已完成"的情形)
+      if (a.extraction && a.candidates && a.extraction.sessionSig === sig && !force) {
+        extractEmit(id, "done", { candidates: a.candidates.length, cached: true });
+        return json(res, 200, { candidates: a.candidates, unstable: a.extraction.unstable, stability: a.extraction.stability, metrics: a.extraction.metrics, cached: true });
       }
-      // 降级:粘贴态 / v2 失败 → 标题摘要单次补全
+      // 并发防抖:已在跑 → 不重复启动,前端靠 SSE/轮询拿结果
+      if (a.extracting) return json(res, 200, { started: true, alreadyRunning: true });
+      if (Array.isArray(a.sessionIndex) && a.sessionIndex.length) {
+        // 异步触发即返回:后台跑,经 SSE 推进度 + done/error;前端不依赖这条 HTTP 撑到结束(去掉 240s 超时天花板)
+        a.extracting = true; save();
+        runExtraction(a, { rounds: rounds || 3, sampleN: sampleN || 120, onProgress: (ev, d) => extractEmit(id, ev, d) })
+          .then((out) => {
+            out.sessionSig = sig;
+            a.candidates = out.candidates; a.extraction = out; a.observedPaths = out.observedPaths; a.status = "extracted"; a.extracting = false; save();
+            extractEmit(id, "done", { candidates: out.candidates.length, unstable: out.unstable.length });
+          })
+          .catch((e) => {
+            a.extracting = false; save();
+            console.error("[extract v2] 失败 → 降级", e && (e.stack || e.message || e));
+            // 失败降级:标题摘要单次补全(后台完成后也经 SSE 通知)
+            run({ label: "extract-fallback", systemPrompt: "你只输出 JSON 数组。", userInput: extractPrompt(a.raw) })
+              .then(({ text }) => { let c = firstJson(text); if (!Array.isArray(c)) c = [c]; a.candidates = c.map((x) => ({ ...x, from_segments: Array.isArray(x.from_segments) ? x.from_segments.length : x.from_segments })); a.status = "extracted"; save(); extractEmit(id, "done", { candidates: a.candidates.length, fallback: true }); })
+              .catch((e2) => { console.error("[extract fallback] 也失败 →", e2 && (e2.message || e2)); extractEmit(id, "error", { msg: "萃取失败,请重试" }); });
+          });
+        return json(res, 200, { started: true });
+      }
+      // 无 sessionIndex(粘贴态):同步降级,快,直接走 HTTP 响应
       const { text } = await run({ label: "extract-fallback", systemPrompt: "你只输出 JSON 数组。", userInput: extractPrompt(a.raw) });
       let cands = firstJson(text); if (!Array.isArray(cands)) cands = [cands];
       cands = cands.map((c) => ({ ...c, from_segments: Array.isArray(c.from_segments) ? c.from_segments.length : c.from_segments }));
