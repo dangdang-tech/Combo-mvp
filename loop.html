@@ -146,14 +146,33 @@ function render(){({1:step1,2:step2,3:step3,4:step4,5:step5})[S.step]();}
 function step1(){
   $("#root").innerHTML=shell(`<div class="eyebrow">STEP 1 · 导入</div><h1 class="serif">导入你的对话历史</h1>
    <div class="lede">先把你的完整对话历史一键导入,生成一份可供萃取的 raw data。整个过程仅你可见。</div>
-   <div id="imp"><div style="margin-top:22px;display:flex;gap:12px;align-items:center">
-       <button class="btn" id="bimport" style="margin-left:0">⚡ 一键导入全部对话历史(Claude · Codex · opencode)</button>
-       <span class="fl2">或在下方粘贴一段</span></div>
+   <div id="imp"><div style="margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+       <button class="btn" id="bimport" style="margin-left:0">⚡ 一键导入(本机直读 ~/.claude)</button>
+       <button class="btn ghost" id="bupload" style="margin-left:0">📁 上传我的历史(Claude 文件夹)</button>
+       <span class="fl2">或下方粘贴</span></div>
+     <input type="file" id="dir" webkitdirectory directory multiple style="display:none">
+     <div id="imphint" class="fl2" style="margin-top:8px;font-size:12px"></div>
      <textarea id="raw" rows="4" placeholder="(可选)粘贴一段对话/工作记录" style="margin-top:12px"></textarea>
      <div class="foot"><span class="fl2">raw data 仅你可见 · 第 1 步,共 5 步</span><button class="btn ghost" id="b1">用粘贴的导入 →</button></div></div>`);
   $("#bimport").onclick=async()=>{const b=$("#bimport");b.disabled=true;b.innerHTML='扫描你的会话历史中… <span class="dots"><i></i><i></i><i></i></span>';
-    const r=await api("/api/import-history",{});if(r.error){b.disabled=false;b.innerHTML="⚡ 一键导入全部对话历史";const t=$("#raw");if(t){t.style.borderColor="#b8863b";t.placeholder="本机没找到 AI 历史 —— 在这里粘贴一段对话/工作记录即可开始";t.focus();}return}
+    const r=await api("/api/import-history",{});if(r.error){b.disabled=false;b.innerHTML="⚡ 一键导入(本机直读 ~/.claude)";const h=$("#imphint");if(h)h.textContent="本机没找到 AI 历史 —— 用「📁 上传我的历史」选 ~/.claude/projects 文件夹,或下方粘贴。";const t=$("#raw");if(t)t.style.borderColor="#b8863b";return}
     S.id=r.id;showImported(r.stats,r.sessions,"已导入全部对话历史(多 agent)");};
+  $("#bupload").onclick=()=>{$("#imphint").innerHTML="提示:在 Finder 里按 ⌘⇧G 输入 <b>~/.claude/projects</b>,选中整个 projects 文件夹。解析在你浏览器本地完成,只上传提取后的文本。";$("#dir").click();};
+  $("#dir").onchange=async(e)=>{const files=[...e.target.files].filter(f=>f.name.endsWith(".jsonl"));const h=$("#imphint");
+    if(!files.length){h.textContent="没找到 .jsonl —— 请选 ~/.claude/projects 文件夹(里面是各项目的 .jsonl)。";return}
+    h.innerHTML=`本地解析 ${files.length} 个会话文件… <span class="dots"><i></i><i></i><i></i></span>`;
+    const sessions=[];let done=0;
+    for(const f of files){try{const txt=await f.text();
+      let title="(无标题会话)";const tm=txt.match(/"aiTitle"\s*:\s*"((?:[^"\\]|\\.)*)"/);if(tm){try{title=JSON.parse('"'+tm[1]+'"')}catch{title=tm[1]}}
+      const count=(txt.match(/"role":\s*"user"/g)||[]).length;if(count<2){done++;continue}
+      const out=[];for(const line of txt.split("\n")){if(!line)continue;let d;try{d=JSON.parse(line)}catch{continue}const m=d.message;if(!m||m.role!=="user")continue;const c=m.content;let t=typeof c==="string"?c:Array.isArray(c)?c.map(b=>b?.text||"").join(""):"";t=t.trim();if(t&&!t.startsWith("<")&&!t.startsWith("Caveat"))out.push("用户: "+t.slice(0,400));if(out.length>=12)break}
+      const parts=(f.webkitRelativePath||f.name).split("/");const project=parts.length>1?parts[parts.length-2]:"upload";
+      sessions.push({title,count,date:new Date(f.lastModified).toISOString().slice(0,10),content:out.join("\n").slice(0,6000),project});
+    }catch{}done++;if(done%20===0)h.innerHTML=`本地解析 ${done}/${files.length}… <span class="dots"><i></i><i></i><i></i></span>`;}
+    h.innerHTML=`上传 ${sessions.length} 段提取结果…`;
+    const r=await api("/api/import-uploaded",{sessions});
+    if(r.error){h.textContent="导入失败:"+r.error;return}
+    S.id=r.id;showImported(r.stats,r.sessions,"已上传导入(共 "+r.stats.segments+" 段)");};
   $("#b1").onclick=async()=>{const raw=$("#raw").value.trim();if(!raw){const t=$("#raw");if(t){t.style.borderColor="#b8863b";t.focus();}return}const b=$("#b1");b.disabled=true;b.textContent="导入中…";
     const r=await api("/api/import",{text:raw});S.id=r.id;showImported(r.stats,null,"已导入对话历史");};
 }

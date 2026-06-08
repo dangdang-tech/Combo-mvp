@@ -127,6 +127,7 @@ const json = (res, code, obj) => { res.writeHead(code, { "Content-Type": "applic
 // 按来源(claude/codex/opencode/hermes)分发,统一返回"用户: …"多行文本。
 function readSessionContent(s, maxChars = 3000) {
   const src = typeof s === "string" ? { source: "claude", path: s } : s;     // 兼容老调用(传 path 字符串)
+  if (src.content != null) return String(src.content).slice(0, maxChars) || "(无内容)";   // 上传态:内容已在客户端抽好,直接用,不读 FS
   const out = [], push = (t) => { t = (t || "").trim(); if (t && !t.startsWith("<") && !t.startsWith("Caveat")) out.push("用户: " + t.slice(0, 400)); };
   try {
     if (src.source === "opencode") {
@@ -572,6 +573,23 @@ const server = http.createServer(async (req, res) => {
       // sessionIndex(带 path)给提取 agent 用工具读真实内容
       apps[id] = { id, raw: digest, status: "imported", stats: h.stats, sessions: h.sessions.slice(0, 8), sessionIndex: h.sessions.slice(0, 300), source: "history", createdAt: Date.now() }; save();
       return json(res, 200, { id, stats: h.stats, sessions: h.sessions.slice(0, 6) });
+    }
+    // ① 上传导入(公网):客户端已就地解析 ~/.claude,只传精简数据(标题/条数/日期/用户消息文本)。
+    if (u.pathname === "/api/import-uploaded" && req.method === "POST") {
+      const { sessions } = await readBody(req);
+      const arr = (Array.isArray(sessions) ? sessions : []).filter((s) => s && s.content && (s.count || 0) >= 2);
+      if (!arr.length) return json(res, 400, { error: "没解析到可用会话(需 ≥2 条用户消息的 .jsonl)" });
+      // 统一成与本地导入同构的 sessionIndex(source=upload,带 content;path 仅作去重键)
+      const idx = arr.map((s, i) => ({ title: s.title || "(无标题会话)", count: s.count || 0, date: (s.date || new Date().toISOString()).slice(0, 10), path: "upload:" + i, source: "upload", project: s.project || "upload", content: String(s.content).slice(0, 6000) }))
+        .sort((a, b) => b.count - a.count).slice(0, 300);
+      const totalMsgs = idx.reduce((n, s) => n + s.count, 0);
+      const times = idx.map((s) => Date.parse(s.date)).filter((n) => n); const fmt = (t) => new Date(t).toISOString().slice(0, 7);
+      const projects = new Set(idx.map((s) => s.project));
+      const stats = { segments: idx.length, messages: totalMsgs, span: times.length ? fmt(Math.min(...times)) + "–" + fmt(Math.max(...times)) : "—", projects: projects.size, by_source: { upload: idx.length } };
+      const id = uid();
+      apps[id] = { id, raw: idx.slice(0, 80).map((s) => `[${s.count}条] ${s.title}`).join("\n"), status: "imported", stats, sessions: idx.slice(0, 8), sessionIndex: idx, source: "upload", createdAt: Date.now() }; save();
+      log(`上传导入 ${id} · ${idx.length} 段`);
+      return json(res, 200, { id, stats, sessions: idx.slice(0, 6) });
     }
     // ① 导入(粘贴)
     if (u.pathname === "/api/import" && req.method === "POST") {
