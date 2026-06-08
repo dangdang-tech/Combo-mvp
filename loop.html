@@ -195,6 +195,9 @@ function parseSession(txt,fname,lastModified){
 function fsIdb(){return new Promise((res,rej)=>{const r=indexedDB.open("agora-fs",1);r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function fsIdbSet(k,v){const db=await fsIdb();return new Promise((res,rej)=>{const t=db.transaction("h","readwrite");t.objectStore("h").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
 async function fsIdbGet(k){const db=await fsIdb();return new Promise((res,rej)=>{const t=db.transaction("h","readonly");const q=t.objectStore("h").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+// 存"已授权过的来源文件夹"句柄数组(可能是 .claude/projects、.codex/sessions 等),复访逐个重读
+async function fsGetHandles(){const a=await fsIdbGet("dirs").catch(()=>null);return Array.isArray(a)?a:[]}
+async function fsAddHandle(h){try{const a=await fsGetHandles();if(!a.some(x=>x&&x.name===h.name))a.push(h);await fsIdbSet("dirs",a.slice(-5))}catch{}}
 async function fsPerm(handle,ask){const o={mode:"read"};try{if((await handle.queryPermission(o))==="granted")return true;if(ask&&(await handle.requestPermission(o))==="granted")return true}catch{}return false}
 async function fsGetDeep(h,...names){let d=h;for(const n of names){try{d=await d.getDirectoryHandle(n)}catch{return null}}return d}
 async function fsWalk(dir,depth,prefix,onFile){if(depth<0)return;for await(const [name,handle] of dir.entries()){const p=prefix?prefix+"/"+name:name;if(handle.kind==="directory"){await fsWalk(handle,depth-1,p,onFile)}else if(name.endsWith(".jsonl")){await onFile(name,handle,p)}}}
@@ -294,7 +297,7 @@ function step1(){
     S.id=r.id;showImported(r.stats,r.sessions,"已导入(共 "+r.stats.segments+" 段)");   // 替换 #imp,加载态自然消失
     const bs=r.stats.by_source||{};const hasC=bs.claude>0,hasX=bs.codex>0;
     if(!(hasC&&hasX)){const miss=!hasX?"Codex(~/.codex/sessions)":"Claude(~/.claude/projects)";
-      setTimeout(()=>{const im=$("#imp");if(im&&!$("#addsrc"))im.insertAdjacentHTML("beforeend",`<div style="margin-top:10px"><button class="btn ghost" id="addsrc">➕ 再导入 ${miss}</button><span class="fl2" style="font-size:12px;margin-left:10px">建议两边都导入,萃取更全</span></div>`);const a=$("#addsrc");if(a)a.onclick=()=>openPicker(PICK_MSG);},50);}
+      setTimeout(()=>{const im=$("#imp");if(im&&!$("#addsrc"))im.insertAdjacentHTML("beforeend",`<div style="margin-top:10px"><button class="btn ghost" id="addsrc">➕ 再导入 ${miss}</button><span class="fl2" style="font-size:12px;margin-left:10px">建议两边都导入,萃取更全</span></div>`);const a=$("#addsrc");if(a)a.onclick=()=>(window.showDirectoryPicker?fsImport(true):openPicker(PICK_MSG));},50);}
   }
   // 连接本机(零选择):铸配对码 → 显示一行命令 → 轮询本机助手上传 → 自动进下一步
   async function connectFlow(){
@@ -321,31 +324,42 @@ function step1(){
     };
     poll();
   }
-  // 浏览器内一键授权 + 分阶段加载态。fromHandle:复访自动导入(权限已在,无需弹框/手势)
-  async function fsImport(gesture,fromHandle){
+  // 浏览器内授权读取一个来源文件夹(~/.claude/projects 或 ~/.codex/sessions)。Chrome 禁止选主目录(含系统文件),
+  // 所以引导用户用 ⌘⇧G 直接定位到具体子目录(子目录不在黑名单)。多源经「➕ 再导入」追加。
+  const FS_PICK_TIP='弹框里按 <b>⌘⇧G</b> → 粘贴 <b>~/.claude/projects</b> → 回车 → 「打开」。<br>(导完会提示再导 Codex:同样 ⌘⇧G 粘 <b>~/.codex/sessions</b>)';
+  async function fsImport(gesture){
+    if(!gesture)return;
     let L=null;
     try{
-      let home=fromHandle||await fsIdbGet("home").catch(()=>null);
-      let needPick=false;
-      if(home){ if(!fromHandle && !(await fsPerm(home,gesture))){ if(!gesture){bimport.innerHTML="⚡ 继续导入(上次已授权)";return} home=null;needPick=true; } }
-      else needPick=true;
-      if(needPick&&!gesture)return;
       L=importLoader(PHASES_FS);
-      if(needPick){
-        L.enter('auth');L.indet("在弹框里选<b>用户主目录</b>(⌘⇧H,或 ⌘⇧G 粘 ~)→ 点「打开」。只读 .claude / .codex。");
-        home=await window.showDirectoryPicker({id:"agora",mode:"read"});
-        if(!(await fsPerm(home,true))){L.fail("未授权,无法读取。点「重新开始」再来一次。");return}
-        try{await fsIdbSet("home",home)}catch{}
-      }
-      L.enter('scan');L.indet("正在定位 ~/.claude 与 ~/.codex …");
+      L.enter('auth');L.indet("授权一个历史文件夹 —— "+FS_PICK_TIP);
+      let dir;
+      try{ dir=await window.showDirectoryPicker({id:"agora",mode:"read"}); }
+      catch(e){ if(e&&e.name==="AbortError"){L.fail("已取消(或选到了被保护的文件夹)。<br>请点「重新开始」,这次用 <b>⌘⇧G</b> 直接粘 <b>~/.claude/projects</b> —— <b>别选整个主目录</b>(Chrome 不允许)。");return} throw e; }
+      if(!(await fsPerm(dir,true))){L.fail("未授权。点「重新开始」再来。");return}
+      await fsAddHandle(dir);
+      L.enter('scan');L.indet("读取所选文件夹…");
       let first=true;
-      const sessions=await fsCollectHome(home,(p)=>{if(first){L.enter('parse');first=false}L.progress(p.done,p.total);L.sources(p.sources)});
-      if(!sessions.length){try{await fsIdbSet("home",null)}catch{} L.fail("没在 ~/.claude / ~/.codex 找到会话 —— 确认授权的是<b>用户主目录</b>,或点「重新开始」改用选文件夹。");return}
+      const sessions=await fsCollectHome(dir,(p)=>{if(first){L.enter('parse');first=false}L.progress(p.done,p.total);L.sources(p.sources)});
+      if(!sessions.length){L.fail("这个文件夹里没找到会话(.jsonl)。<br>确认选的是 <b>~/.claude/projects</b> 或 <b>~/.codex/sessions</b>(⌘⇧G 直接定位最稳)。");return}
       await uploadSessions(sessions,L);
     }catch(e){
-      const m=(e&&e.name==="AbortError")?"已取消。点「重新开始」可再来一次。":("出错:"+(e?.message||e));
+      const m=(e&&e.name==="AbortError")?"已取消。点「重新开始」再来。":("出错:"+(e?.message||e));
       if(L)L.fail(m);else{const h=$("#imphint");if(h)h.textContent=m}
     }
+  }
+  // 复访:逐个重读已授权过的文件夹句柄,合并上传(权限仍在则零点击)
+  async function fsRevisit(){
+    try{
+      const dirs=await fsGetHandles();if(!dirs.length)return false;
+      const granted=[];for(const h of dirs){try{if((await h.queryPermission({mode:"read"}))==="granted")granted.push(h)}catch{}}
+      if(!granted.length){bimport.innerHTML="⚡ 继续导入(上次已授权)";return false}
+      const L=importLoader(PHASES_FS);L.enter('scan');L.indet("检测到上次授权,正在自动读取…");
+      let all=[];const agg={claude:0,codex:0};let first=true;
+      for(const h of granted){const s=await fsCollectHome(h,(p)=>{if(first){L.enter('parse');first=false}agg.claude=Math.max(agg.claude,p.sources.claude);agg.codex=Math.max(agg.codex,p.sources.codex);L.sources(p.sources)});all=all.concat(s)}
+      if(!all.length){L.stop();return false}
+      await uploadSessions(all,L);return true;
+    }catch{return false}
   }
 
   if(!HOSTED){ // 本地开发:服务器直扫最省事(加载态指示),扫不到回退选文件夹
@@ -355,15 +369,12 @@ function step1(){
       if(r.error){L.fail("本机没扫到 AI 历史 —— 点「重新开始」用选文件夹或粘贴。");return}
       L.enter('parse');L.sources(r.stats.by_source||{});S.id=r.id;showImported(r.stats,r.sessions,"已导入全部对话历史(多 agent)");};
     bupload.onclick=()=>openPicker(PICK_MSG);
-  } else if(FS_OK){ // 托管 + Chromium:一键授权读取(或连接本机零选择)
+  } else if(FS_OK){ // 托管 + Chromium:授权读取一个历史文件夹(或连接本机零选择)
     bimport.innerHTML=FS_LABEL;bimport.onclick=()=>fsImport(true);
     bupload.innerHTML="📁 改用选文件夹";bupload.onclick=()=>openPicker(PICK_MSG);
     bconnect.style.display="";bconnect.onclick=connectFlow;
-    $("#imphint").innerHTML='ℹ️ 网页出于安全不能自己读你硬盘。两种方式:<br>· <b>一键导入</b>:浏览器弹一次授权框,选你的<b>主目录</b>(⌘⇧H 或 ⌘⇧G 粘 ~)点「打开」—— 这一下就是授权,只需一次。<br>· <b>🔌 连接本机(零选择)</b>:在终端粘一行命令,本机助手替你读全部历史,<b>一个目录都不用选</b>。';
-    (async()=>{ // 复访:权限仍在 → 零点击自动导(带加载态);要复确认 → 改文案
-      try{const home=await fsIdbGet("home");if(!home)return;
-        if((await home.queryPermission({mode:"read"}))==="granted")fsImport(false,home);
-        else bimport.innerHTML="⚡ 继续导入(上次已授权)";}catch{}})();
+    $("#imphint").innerHTML='ℹ️ 网页出于安全不能自己读你硬盘,得你授权一个文件夹。两种方式:<br>· <b>一键导入</b>:弹框里按 <b>⌘⇧G</b> 粘 <b>~/.claude/projects</b> 回车「打开」(<b>别选整个主目录,Chrome 会拦</b>);导完再按提示加 Codex。<br>· <b>🔌 连接本机(零选择)</b>:终端粘一行命令,<b>一个目录都不用选</b>,最省事。';
+    fsRevisit();   // 复访:权限仍在 → 自动重读已授权文件夹
   } else { // 托管 + Safari/Firefox:回退到选文件夹 + 连接本机(零选择)
     bimport.innerHTML="📁 选文件夹导入 Claude + Codex";
     bimport.onclick=()=>openPicker('<b>你的浏览器不支持一键授权(建议用 Chrome/Edge)。</b><br>'+PICK_MSG);
