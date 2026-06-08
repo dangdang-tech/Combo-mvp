@@ -51,7 +51,7 @@ Vercel serverless 函数无常驻进程、SSE 受限 → 不适合。Railway 跑
 
 ## 给同事的体验路径(验收)
 1. 打开 `https://<你的>.up.railway.app` → 输访问码。
-2. 「上传我的历史」→ 选 `~/.claude/projects` 或 `~/.codex/sessions`(两格式自动识别,浏览器本地解析,只上传精简文本)→ 可「➕ 再加一个来源」。
+2. **Chrome/Edge**:点「⚡ 一键导入(授权读取 Claude + Codex)」→ 浏览器弹目录授权框(已定位主目录)→ 点「打开」→ 自动读 `~/.claude` + `~/.codex` 全部 → 上传 → 进下一步。**首次两下,复访零点击**(句柄存 IndexedDB,权限仍在自动导)。Safari/Firefox 自动回退「选文件夹」。详见 [`docs/研究-一键导入的技术边界与方案.md`](研究-一键导入的技术边界与方案.md)。
 3. 锚定页:看真实会话归纳的能力(带证据+适用范围)→ 勾选/改名/打包。
 4. 打包成 mini-app → 发布拿 `/miniapp?token=` → 打开 = agentic app:结构化表单一次填全 → agent 可见干活(会调 fetch_url 等)→ 出产物 → 产物上微调。
    - 这个 `/miniapp?token=` 链接**不需要访问码**,可单独分享给最终用户。
