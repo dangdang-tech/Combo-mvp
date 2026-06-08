@@ -3,6 +3,14 @@
 > 目标:从「隧道临时 URL + 本机在线」升级到**固定 https 地址、机器关了也在**。
 > 按流程:研究 → 设计 → 代码 → 测试 → 复盘。本篇是「代码 + 操作手册」一段。
 
+## ✅ 已上线(2026-06-08)
+- **URL**:https://agora-production-519f.up.railway.app
+- **访问码**:`agora2026`(创作者面用;改:`railway variables --service agora --set ACCESS_CODE=新码`)
+- **项目/服务**:Railway `agora-mvp` / service `agora`(workspace: BENZEMA's Projects)
+- **线上验收全绿**:创作者面弹码闸、错码 401、对码下发 cookie、cookie 解锁创作者面、消费侧 `/miniapp` 放行。
+- 给同事:发 URL + 访问码 → 输码 → 「上传我的历史」选 `~/.claude/projects` 或 `~/.codex/sessions` → 走完整链路。
+- 重新部署:`cd ~/dev/agora && railway up --service agora --ci`。
+
 ## 为什么 Railway(而非 Vercel)
 mini-app 是**有状态长进程**:SSE 事件流(agent 可见地干活)+ 内存会话(`sessions` Map)。
 Vercel serverless 函数无常驻进程、SSE 受限 → 不适合。Railway 跑常驻 Node,天然支持。
