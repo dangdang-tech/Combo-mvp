@@ -164,17 +164,29 @@ function step1(){
   $("#root").innerHTML=shell(`<div class="eyebrow">STEP 1 · 导入</div><h1 class="serif">导入你的对话历史</h1>
    <div class="lede">先把你的完整对话历史一键导入,生成一份可供萃取的 raw data。整个过程仅你可见。</div>
    <div id="imp"><div style="margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-       <button class="btn" id="bimport" style="margin-left:0">⚡ 一键导入(本机直读 ~/.claude)</button>
-       <button class="btn ghost" id="bupload" style="margin-left:0">📁 上传我的历史(Claude 文件夹)</button>
+       <button class="btn" id="bimport" style="margin-left:0">⚡ 一键导入 Claude + Codex 历史</button>
+       <button class="btn ghost" id="bupload" style="margin-left:0">📁 选文件夹导入</button>
        <span class="fl2">或下方粘贴</span></div>
      <input type="file" id="dir" webkitdirectory directory multiple style="display:none">
      <div id="imphint" class="fl2" style="margin-top:8px;font-size:12px"></div>
      <textarea id="raw" rows="4" placeholder="(可选)粘贴一段对话/工作记录" style="margin-top:12px"></textarea>
      <div class="foot"><span class="fl2">raw data 仅你可见 · 第 1 步,共 5 步</span><button class="btn ghost" id="b1">用粘贴的导入 →</button></div></div>`);
-  $("#bimport").onclick=async()=>{const b=$("#bimport");b.disabled=true;b.innerHTML='扫描你的会话历史中… <span class="dots"><i></i><i></i><i></i></span>';
-    const r=await api("/api/import-history",{});if(r.error){b.disabled=false;b.innerHTML="⚡ 一键导入(本机直读 ~/.claude)";const h=$("#imphint");if(h)h.textContent="本机没找到 AI 历史 —— 用「📁 上传我的历史」选 ~/.claude/projects 文件夹,或下方粘贴。";const t=$("#raw");if(t)t.style.borderColor="#b8863b";return}
-    S.id=r.id;showImported(r.stats,r.sessions,"已导入全部对话历史(多 agent)");};
-  $("#bupload").onclick=()=>{$("#imphint").innerHTML="选 <b>~/.claude/projects</b>(Claude Code)或 <b>~/.codex/sessions</b>(Codex)文件夹 —— Finder 里 ⌘⇧G 输入路径。两种格式自动识别;导入后可「➕ 再加一个来源」把另一个也加进来。解析在你浏览器本地完成,只上传提取后的文本。";$("#dir").click();};
+  // 托管站(非 localhost):服务器读不到你电脑文件 → 一键导入直接走浏览器本地解析;本地:服务器直扫,扫不到再回退到选文件夹。
+  const HOSTED=!/^(localhost|127(\.|$)|0\.0\.0\.0|\[?::1|::1)$/.test(location.hostname);
+  const PICK_MSG='选你本机的 <b>~/.claude/projects</b>(Claude Code)或 <b>~/.codex/sessions</b>(Codex)文件夹 —— Finder 里 <b>⌘⇧G</b> 粘路径直达。两种格式自动识别;导入完一个会提示「➕ 再导入另一个」,Claude 和 Codex 都加进来。解析在你浏览器本地完成,只上传提取后的文本。';
+  const openPicker=(msg)=>{$("#imphint").innerHTML=msg;$("#dir").click();};
+  const bimport=$("#bimport"),bupload=$("#bupload");
+  if(HOSTED){
+    bimport.onclick=()=>openPicker('<b>这是托管站,服务器读不到你电脑里的历史 → 用你浏览器在本地导入。</b><br>'+PICK_MSG);
+    bupload.style.display="none"; // 托管下合并成一个入口,避免两个按钮迷惑
+  } else {
+    bimport.innerHTML="⚡ 一键导入(本机直读 ~/.claude + ~/.codex)";
+    bimport.onclick=async()=>{const b=bimport;b.disabled=true;b.innerHTML='扫描你的会话历史中… <span class="dots"><i></i><i></i><i></i></span>';
+      const r=await api("/api/import-history",{});
+      if(r.error){b.disabled=false;b.innerHTML="⚡ 一键导入(本机直读 ~/.claude + ~/.codex)";openPicker("本机没扫到 AI 历史 —— 改用选文件夹导入:<br>"+PICK_MSG);return}
+      S.id=r.id;showImported(r.stats,r.sessions,"已导入全部对话历史(多 agent)");};
+    bupload.onclick=()=>openPicker(PICK_MSG);
+  }
   $("#dir").onchange=async(e)=>{const files=[...e.target.files].filter(f=>f.name.endsWith(".jsonl"));const h=$("#imphint");
     if(!files.length){h.textContent="没找到 .jsonl —— 请选 ~/.claude/projects 文件夹(里面是各项目的 .jsonl)。";return}
     h.innerHTML=`本地解析 ${files.length} 个会话文件… <span class="dots"><i></i><i></i><i></i></span>`;
@@ -186,7 +198,10 @@ function step1(){
     const r=await api("/api/import-uploaded",S.id?{sessions,appendTo:S.id}:{sessions});
     if(r.error){h.textContent="导入失败:"+r.error;return}
     S.id=r.id;showImported(r.stats,r.sessions,"已上传导入(共 "+r.stats.segments+" 段)");
-    setTimeout(()=>{const im=$("#imp");if(im&&!$("#addsrc"))im.insertAdjacentHTML("beforeend",`<div style="margin-top:10px"><button class="btn ghost" id="addsrc">➕ 再加一个来源(如 Codex / 另一个文件夹)</button></div>`);const a=$("#addsrc");if(a)a.onclick=()=>$("#dir").click();},50);};
+    const bs=r.stats.by_source||{};const hasC=bs.claude>0,hasX=bs.codex>0;
+    const miss=!hasX?"Codex(~/.codex/sessions)":!hasC?"Claude(~/.claude/projects)":"另一个文件夹";
+    const label=(hasC&&hasX)?"➕ 再加一个来源":`➕ 再导入 ${miss}`;
+    setTimeout(()=>{const im=$("#imp");if(im&&!$("#addsrc"))im.insertAdjacentHTML("beforeend",`<div style="margin-top:10px"><button class="btn ghost" id="addsrc">${label}</button>${(hasC&&hasX)?"":`<span class="fl2" style="font-size:12px;margin-left:10px">建议 Claude + Codex 都导入,能力萃取更全</span>`}</div>`);const a=$("#addsrc");if(a)a.onclick=()=>openPicker(PICK_MSG);},50);};
   $("#b1").onclick=async()=>{const raw=$("#raw").value.trim();if(!raw){const t=$("#raw");if(t){t.style.borderColor="#b8863b";t.focus();}return}const b=$("#b1");b.disabled=true;b.textContent="导入中…";
     const r=await api("/api/import",{text:raw});S.id=r.id;showImported(r.stats,null,"已导入对话历史");};
 }
