@@ -1,0 +1,84 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>被问式 · advisor</title>
+<style>
+:root{--ember:#A73718;--ink:#14141A;--line:#E1D8CA;--paper:#FBF8F1;--raised:#fff;--mut:#6b6457}
+*{box-sizing:border-box}body{margin:0;font-family:"Noto Sans SC",system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.65}
+.top{border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;background:var(--paper);z-index:2}
+.top a{color:var(--mut);text-decoration:none;font-size:13px}.tag{font-size:11px;font-family:"Geist Mono",monospace;color:var(--ember);border:1px solid var(--ember);border-radius:999px;padding:1px 8px}
+.wrap{max-width:720px;margin:0 auto;padding:20px}
+.intro{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px}
+.intro h2{font-family:"Noto Serif SC",serif;font-size:18px;margin:0 0 4px}.intro p{margin:0;color:var(--mut);font-size:13.5px}
+.starters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{cursor:pointer;font-size:13px;border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 12px}.chip:hover{border-color:var(--ember)}
+.msg{margin:14px 0}.msg .role{font-size:12px;color:var(--mut);margin-bottom:3px}
+.msg.user .bub{background:var(--ink);color:#fff;border-radius:12px 12px 4px 12px;padding:10px 14px;display:inline-block;max-width:85%}
+.msg.bot .bub{background:var(--raised);border:1px solid var(--line);border-radius:12px 12px 12px 4px;padding:12px 15px;white-space:pre-wrap}
+.cites{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px}
+.cite{font-size:11.5px;font-family:"Geist Mono",monospace;border-radius:6px;padding:2px 8px;border:1px solid}
+.cite.guardrail{color:var(--ember);border-color:var(--ember);background:#a737180d}
+.cite.taste{color:#7a5b12;border-color:#caa94e;background:#caa94e1a}
+.cite.case{color:#1d6b4f;border-color:#1d6b4f;background:#1d6b4f12}
+.oos{font-size:12px;color:#a35;margin-top:6px}
+.composer{position:sticky;bottom:0;background:var(--paper);padding:12px 0;border-top:1px solid var(--line)}
+.composer form{display:flex;gap:8px}
+textarea{flex:1;resize:none;font:inherit;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--raised)}
+button{font:inherit;background:var(--ember);color:#fff;border:0;border-radius:10px;padding:0 18px;cursor:pointer}button:disabled{opacity:.5}
+.hint{font-size:12px;color:var(--mut);margin-top:6px}
+</style></head><body>
+<div class="top"><a href="/">← 实验台</a><span class="tag">stance = advisor</span><span style="font-size:13px;color:var(--mut)">被问式 · 纯对话(无表单、无产物卡)</span></div>
+<div class="wrap">
+  <div class="intro"><h2 id="introTitle">…</h2><p id="introDesc"></p>
+    <div class="starters" id="starters"></div></div>
+  <div id="thread"></div>
+  <div class="composer">
+    <form id="f"><textarea id="inp" rows="2" placeholder="直接问他,比如:我手里两个 offer 该怎么权衡？"></textarea><button id="send">问</button></form>
+    <div class="hint">继续追问就是「调整」—— 这是从答案节点指回提问节点的环,不是重新开始。</div>
+  </div>
+</div>
+<script>
+const $=s=>document.querySelector(s); let sid=null,started=false,blocks={},botBub=null,buf="";
+const kindLabel={guardrail:"守则",taste:"品味",case:"案例"};
+async function boot(){
+  const e=await (await fetch("/api/experience")).json();
+  $("#introTitle").textContent=`我是「${e.ownerName}」,可以问我:${e.title}`;
+  $("#introDesc").textContent="我不是泛泛的 AI —— 我复用的是这个人反复表现出的判断模式。每条回答旁会标出命中了他的哪条守则/品味/案例。";
+  e.blocks.forEach(b=>blocks[b.id]={label:b.label,kind:b.kind});
+  const st=["我手里 A、B 两个 offer,B 多 30%,怎么选？","想从大厂去早期创业,该考虑什么？","主要因为受不了老板想跳槽,你怎么看？"];
+  st.forEach(t=>{const c=document.createElement("div");c.className="chip";c.textContent=t;c.onclick=()=>{$("#inp").value=t;ask();};$("#starters").appendChild(c)});
+  const s=await (await fetch("/api/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({stance:"advisor"})})).json();
+  sid=s.sessionId; openSSE();
+}
+function openSSE(){
+  const es=new EventSource("/api/events?sessionId="+sid);
+  es.onmessage=ev=>{const d=JSON.parse(ev.data);
+    if(d.type==="task.accepted"){buf="";botBub=addBot();botBub.textContent="正在按他的判断想…";}
+    if(d.type==="task.progress"){buf+=d.delta||"";if(botBub)botBub.textContent=stripJson(buf);}
+    if(d.type==="task.failed"){if(botBub)botBub.textContent="(出错了:"+d.error+")";}
+    if(d.type==="task.completed"&&d.answerTurn){finalize(d.answerTurn);}
+  };
+}
+function stripJson(t){return t.replace(/```json[\s\S]*?```/g,"").replace(/```json[\s\S]*$/,"").trim()||"正在按他的判断想…";}
+function addUser(t){const m=el("msg user",`<div class="role">你</div><div class="bub"></div>`);m.querySelector(".bub").textContent=t;$("#thread").appendChild(m);scroll();}
+function addBot(){const m=el("msg bot",`<div class="role">${$("#introTitle")?"他":"他"}的判断</div><div class="bub"></div>`);$("#thread").appendChild(m);scroll();return m.querySelector(".bub");}
+function finalize(a){
+  if(botBub)botBub.textContent=a.text||"(无内容)";
+  const wrap=botBub.parentElement;
+  if(a.citedBlockIds&&a.citedBlockIds.length){
+    const c=document.createElement("div");c.className="cites";
+    a.citedBlockIds.forEach(id=>{const b=blocks[id];if(!b)return;const s=document.createElement("span");s.className="cite "+b.kind;s.textContent=`${kindLabel[b.kind]||b.kind}·${b.label}`;c.appendChild(s)});
+    wrap.appendChild(c);
+  }
+  if(a.outOfScope){const o=document.createElement("div");o.className="oos";o.textContent="⚠ 这块超出他沉淀过的经验,以上是外推,谨慎参考。";wrap.appendChild(o);}
+  if(a.confidence!=null){const h=document.createElement("div");h.className="hint";h.textContent="把握度 "+Math.round(a.confidence*100)+"%";wrap.appendChild(h);}
+  botBub=null;$("#send").disabled=false;scroll();
+}
+function el(cls,html){const d=document.createElement("div");d.className=cls;d.innerHTML=html;return d;}
+function scroll(){window.scrollTo(0,document.body.scrollHeight);}
+async function ask(){
+  const t=$("#inp").value.trim();if(!t||!sid)return;$("#inp").value="";$("#send").disabled=true;addUser(t);
+  const ep=started?"/api/message":"/api/run";started=true;
+  await fetch(ep,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(started&&ep==="/api/message"?{sessionId:sid,text:t}:{sessionId:sid,intentText:t})});
+}
+$("#f").onsubmit=e=>{e.preventDefault();ask();};
+boot();
+</script></body></html>
