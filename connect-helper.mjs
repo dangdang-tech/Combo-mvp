@@ -5,6 +5,7 @@
 // __BASE__ 由服务器按请求 Host 注入。
 import fs from "node:fs"; import os from "node:os"; import path from "node:path";
 import http from "node:http"; import https from "node:https";
+import { execSync } from "node:child_process";
 const BASE = "__BASE__";
 const code = (process.argv[2] || "").trim().toUpperCase();
 const HOME = os.homedir();
@@ -26,16 +27,36 @@ const mtime = (f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; 
 // 解析器由服务器注入(parse-sessions.mjs 唯一真源);本地运行时此处会被替换成 parseClaude/parseCodex 等。
 /*__PARSERS__*/
 
+// opencode(SQLite,需本机有 sqlite3):标题+用户消息数+前若干用户消息文本。失败/无 sqlite3 → 跳过。
+function scanOpencode() {
+  const db = path.join(HOME, ".local", "share", "opencode", "opencode.db");
+  if (!fs.existsSync(db)) return [];
+  const q = (sql) => { try { const o = execSync("sqlite3 -json " + JSON.stringify(db) + " " + JSON.stringify(sql), { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] }); return o.trim() ? JSON.parse(o) : []; } catch { return []; } };
+  const rows = q("select s.id id, s.title title, s.directory dir, s.time_created tc, (select count(*) from message m where m.session_id=s.id and json_extract(m.data,'$.role')='user') uc from session s");
+  const out = [];
+  for (const s of rows) {
+    const count = s.uc || 0; if (count < 2) continue;
+    const msgs = q("select data from message where session_id='" + String(s.id).replace(/'/g, "''") + "' and json_extract(data,'$.role')='user' order by id limit 12");
+    const lines = [];
+    for (const m of msgs) { try { const d = JSON.parse(m.data); let t = typeof d.content === "string" ? d.content : Array.isArray(d.content) ? d.content.map((b) => (b && b.text) || "").join("") : Array.isArray(d.parts) ? d.parts.map((b) => (b && b.text) || "").join("") : ""; t = String(t).trim(); if (t && !t.startsWith("<")) lines.push("用户: " + t.slice(0, 400)); } catch {} }
+    const t = Number(s.tc);
+    out.push({ title: s.title || "(opencode 会话)", count, date: (t > 0 ? new Date(t) : new Date()).toISOString().slice(0, 10), content: lines.join("\n").slice(0, 6000) || ("(opencode:" + (s.title || "") + ")"), project: s.dir ? baseName(s.dir) : "opencode", source: "opencode" });
+  }
+  return out;
+}
 async function main() {
   if (!code) { console.error("\n  缺配对码。用法:  curl -fsSL " + BASE + "/connect.mjs | node - <配对码>\n"); process.exit(1); }
-  const sessions = []; let cN = 0, xN = 0;
-  const cRoot = path.join(HOME, ".claude", "projects"), xRoot = path.join(HOME, ".codex", "sessions");
+  const sessions = []; const by = { claude: 0, codex: 0, opencode: 0 };
   const D = (f) => new Date(mtime(f)).toISOString().slice(0, 10);
-  if (fs.existsSync(cRoot)) for (const f of walk(cRoot)) { try { const s = parseClaude(fs.readFileSync(f, "utf8"), { date: D(f), project: path.basename(path.dirname(f)) }); if (s) { sessions.push(s); cN++; } } catch {} }
-  if (fs.existsSync(xRoot)) for (const f of walk(xRoot)) { try { const s = parseCodex(fs.readFileSync(f, "utf8"), { date: D(f) }); if (s) { sessions.push(s); xN++; } } catch {} }
+  // 多候选位置,程序化扫描(不靠用户手选),覆盖标准 + 常见非标准路径
+  const claudeRoots = [path.join(HOME, ".claude", "projects"), path.join(HOME, ".config", "claude", "projects")];
+  const codexRoots = [path.join(HOME, ".codex", "sessions"), path.join(HOME, ".config", "codex", "sessions")];
+  for (const root of claudeRoots) if (fs.existsSync(root)) for (const f of walk(root)) { try { const s = parseClaude(fs.readFileSync(f, "utf8"), { date: D(f), project: path.basename(path.dirname(f)) }); if (s) { sessions.push(s); by.claude++; } } catch {} }
+  for (const root of codexRoots) if (fs.existsSync(root)) for (const f of walk(root)) { try { const s = parseCodex(fs.readFileSync(f, "utf8"), { date: D(f) }); if (s) { sessions.push(s); by.codex++; } } catch {} }
+  try { for (const s of scanOpencode()) { sessions.push(s); by.opencode++; } } catch {}
   console.log("\n  Agora 本机助手");
-  console.log("  扫到 Claude " + cN + " 段 · Codex " + xN + " 段 · 共 " + sessions.length + " 段");
-  if (!sessions.length) { console.error("  没在 ~/.claude / ~/.codex 找到会话(需 ≥2 条用户消息)。\n"); process.exit(1); }
+  console.log("  扫到 Claude " + by.claude + " · Codex " + by.codex + " · opencode " + by.opencode + " · 共 " + sessions.length + " 段");
+  if (!sessions.length) { console.error("  没在 ~/.claude / ~/.codex / opencode 找到会话(需 ≥2 条用户消息)。\n"); process.exit(1); }
   sessions.sort((a, b) => b.count - a.count);
   const top = sessions.slice(0, 400);
   console.log("  上传到 " + BASE + " …");

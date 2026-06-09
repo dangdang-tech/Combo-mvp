@@ -285,26 +285,33 @@ function extractLoader(){
 function step1(){
   const HOSTED=!/^(localhost|127(\.|$)|0\.0\.0\.0|\[?::1|::1)$/.test(location.hostname);
   const FS_OK=!!window.showDirectoryPicker;
-  const descA=!HOSTED?"直接扫描这台机器上的 ~/.claude 与 ~/.codex,全自动,无需选文件夹。":(FS_OK?"在浏览器里授权一次本地文件夹,自动读取你的 Claude / Codex 历史。会一步步教你选哪个。":"你的浏览器不支持(建议 Chrome / Edge)。请用右边的「CURL 命令」方式。");
+  // 主卡 = 能拿"全部、不漏"的方式;副卡 = 快但可能不全。本机直扫/CURL 才是程序化全量,FS 手选只读你指的那个文件夹。
+  const cardCurl=`<div class="impcard reco">
+       <div class="ich">🖥</div>
+       <div class="ity serif">连接本机 · 导入全部<span class="tag">推荐 · 最全</span></div>
+       <div class="idesc">复制一行命令到终端运行,自动扫描你本机<b>全部</b> Claude / Codex / opencode 历史并上传。<b>一个文件夹都不用选,也不会漏</b>。</div>
+       <button class="btn" id="bconnect">生成命令 →</button>
+       <div class="ibadge">程序化全量扫描 · 零选择 · 需本机已装 Node</div></div>`;
+  const cardScan=`<div class="impcard reco">
+       <div class="ich">⚡</div>
+       <div class="ity serif">一键导入(本机直读)<span class="tag">推荐 · 最全</span></div>
+       <div class="idesc">直接扫描这台机器上的 <b>全部</b> ~/.claude、~/.codex、opencode —— 全自动,无需选文件夹,不会漏。</div>
+       <button class="btn" id="bimport">开始导入 →</button>
+       <div class="ibadge">程序化全量扫描 · 无需选文件夹</div></div>`;
+  const cardFS=`<div class="impcard">
+       <div class="ich">⚡</div>
+       <div class="ity serif">浏览器内快速导入</div>
+       <div class="idesc">${FS_OK?'在浏览器里授权一个文件夹快速读取。<b>注意:只读你授权的那一个目录</b>(比如只 Claude),其它来源会漏 —— 想要全的用左边「连接本机」。':'你的浏览器不支持一键(建议 Chrome / Edge),请用左边「连接本机」。'}</div>
+       <button class="btn ghost" id="bimport">开始 →</button>
+       <div class="ibadge">快,但只覆盖你选的那个文件夹</div></div>`;
+  const grid=!HOSTED?(cardScan+`<div class="impcard">
+       <div class="ich">🖥</div><div class="ity serif">通过 CURL 命令导入</div>
+       <div class="idesc">换台机器、或想要可复制的命令:粘一行到终端即可。同样全量、零选择。</div>
+       <button class="btn ghost" id="bconnect">生成命令 →</button><div class="ibadge">全量 · 零选择 · 需 Node</div></div>`):(cardCurl+cardFS);
   $("#root").innerHTML=shell(`<div class="eyebrow">STEP 1 · 导入</div><h1 class="serif">导入你的对话历史</h1>
-   <div class="lede">把你真实的 AI 对话历史(Claude Code / Codex)导进来,Agora 从中萃取你反复在做的能力。整个过程仅你可见。</div>
+   <div class="lede">把你真实的 AI 对话历史(Claude Code / Codex / opencode)导进来,Agora 从中萃取你反复在做的能力。整个过程仅你可见。</div>
    <div id="imp">
-     <div class="impgrid">
-       <div class="impcard reco">
-         <div class="ich">⚡</div>
-         <div class="ity serif">一键导入本地历史<span class="tag">推荐</span></div>
-         <div class="idesc">${descA}</div>
-         <button class="btn" id="bimport">开始导入 →</button>
-         <div class="ibadge">浏览器内解析 · 原始日志不出本机</div>
-       </div>
-       <div class="impcard">
-         <div class="ich">🖥</div>
-         <div class="ity serif">通过 CURL 命令导入</div>
-         <div class="idesc">复制一行命令到终端运行,自动读取并上传你的全部历史 —— <b>一个文件夹都不用选</b>,最稳。</div>
-         <button class="btn ghost" id="bconnect">生成命令 →</button>
-         <div class="ibadge">零选择 · 任何系统 · 需本机已装 Node</div>
-       </div>
-     </div>
+     <div class="impgrid">${grid}</div>
      <div id="imphint" class="fl2" style="margin-top:16px;font-size:12.5px;max-width:760px;line-height:1.7"></div>
    </div>`);
   const PICK_MSG='选你本机的 <b>~/.claude/projects</b>(Claude Code)或 <b>~/.codex/sessions</b>(Codex)文件夹 —— Finder 里 <b>⌘⇧G</b> 粘路径直达。两种格式自动识别;导入完一个会提示「➕ 再导入另一个」。';
