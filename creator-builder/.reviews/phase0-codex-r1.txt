@@ -1,0 +1,39 @@
+VERDICT: FAIL
+
+阻塞项按严重度：
+
+1. 【P0】【creator-builder/docs/01-详细技术方案.md:194,274,287-299,349-354,376】Logto 已拍板，但方案仍写 Logto/Supabase 二选一，compose 服务清单也没有 `logto`。  
+   【修法】B-08 改成“Logto 自托管”唯一方案；O-02/6.1/6.2 增加 `logto` 容器、回调域名/JWKS/issuer/env、Logto 初始化与健康检查；删除第 8 节 Auth 待拍板项。
+
+2. 【P0】【creator-builder/docs/01-详细技术方案.md:37,166-167,233,237,251,351,369-370】usage 已拍板本期置空/占位，但方案仍按计量回流、daily 聚合、活跃消费者真实口径推进，还把它挂到工作台/主页实现。  
+   【修法】B-36 改为“schema 冻结，不跑 MeteringConsumer、不聚合”；B-32/F-05/B-33/F-06 明确本月消耗、调用量、活跃消费者、主页总调用量显示“暂无数据/上线后填充”；列出被改判/挂起的 P0/P1 用例。
+
+3. 【P0】【creator-builder/docs/01-详细技术方案.md:350,241,267,68,139】试用已拍板“不做，按钮落到本期未开放，只冻结 schema”，但方案仍规划 Runtime API、SSE、runtime chunk 骨架。  
+   【修法】删除本期可执行 runtime API/UI chunk 交付项；只保留表结构和事件 schema 冻结；F-14/F-05 的试用按钮统一跳到“本期未开放”占位，不进入 runtime session。
+
+4. 【P0】【creator-builder/docs/01-详细技术方案.md:153,215-216；docs/测试验收-创作者中心主链路.md:173,227,336】`session_segments` 用 `(user_id, content_hash)` 去重会破坏“重新导入生成新快照，旧快照仍保留”。同一用户重导相同内容时，新快照无法拥有自己的段级血缘，提取结果会串快照。  
+   【修法】改为 `session_segments(snapshot_id, content_hash)` 唯一，或拆 `segment_contents` 全局去重 + `snapshot_segments(snapshot_id, segment_content_id)` 关联表；所有候选证据必须能回溯到具体 snapshot。
+
+5. 【P0】【creator-builder/docs/01-详细技术方案.md:201-207,215,221,341】job 重入队缺少执行租约/fencing token。sweeper 可能把超时 running job 重入队，旧 worker 后续又写 completed/progress，造成重复候选、重复字段、旧状态覆盖新状态。  
+   【修法】`jobs` 增加 `attempt_no/lease_owner/lease_until/fence_token`；worker 所有写入都带 `WHERE job_id=? AND fence_token=?`；sweeper 只在 lease 过期后递增 attempt 并重入队；取消也走同一 fencing。
+
+6. 【P0】【creator-builder/docs/01-详细技术方案.md:349,226,265,290-298】STEP⑤ 已拍板，但方案第 8 节仍说发布门、Auto-Eval、拒绝 UI “需拍板”。B-30 也没有把“简单拒绝态”落到工作台/主页/发布页的可见状态。  
+   【修法】删除待拍板；固定为“发布即上架 Alpha 审核中，拒绝后有上一版回退、无上一版下架，创作者侧显示简单拒绝原因与重试/编辑入口”；Auto-Eval 仅 schema/开关预留，不进本期路径。
+
+7. 【P0】【creator-builder/docs/01-详细技术方案.md:225,263,281,353；docs/测试验收-创作者中心主链路.md:264,380】批量发布仍是半定义状态。它没有明确逐项失败不连坐、逐项重试、失败项如何回到补齐字段，且 B-29 依赖漏了 B-28/B-09。  
+   【修法】B-29 升为明确 P0：每个 item 独立 idempotency key、独立状态机、失败只标该 item、可重试该 item；依赖补 B-28/B-09/B-26；前端 F-14 增加批量结果列表与失败项补齐入口。
+
+8. 【P0】【creator-builder/docs/01-详细技术方案.md:234,252,352；docs/测试验收-创作者中心主链路.md:120-130】个人主页已拍板全六分区，但方案仍把 B-33 标 P1、且第 8 节还问“最小页还是六分区”。  
+   【修法】B-33/F-06 改为本期必做；六分区逐项落表/API/UI；能力网络仅缩略、无展开；usage 类指标在主页同样占位并同步调整验收口径。
+
+9. 【P1】【creator-builder/docs/01-详细技术方案.md:207】B-16 依赖写成 `B-10,B-13,B-16依赖B-05`，出现自依赖，功能点无法独立 commit。  
+   【修法】改为依赖 `B-05,B-10,B-13`；同时明确 sweeper 不承担 consumer 保序，只做 job 对账、orphan 清理、outbox 滞留告警/补投递。
+
+10. 【P1】【creator-builder/docs/01-详细技术方案.md:175,274,287-299】Redis 写“逻辑两实例”，compose 却只有一个 `redis`。BullMQ 要 `noeviction+AOF`，热态缓存/Streams/锁/限流的策略不同，混一个实例会互相污染。  
+   【修法】compose 拆 `redis_queue` 与 `redis_hot`，分别配置持久化、maxmemory、eviction；健康检查和 env 全部拆开。
+
+11. 【P1】【creator-builder/docs/01-详细技术方案.md:23,205,300】consumer 只靠文档说“不可多实例”，没有运行时防重。一次误 scale 就可能并发消费同 topic，破坏顺序语义。  
+   【修法】每个 topic consumer 启动时拿 PG advisory lock 或 Redis lease；拿不到直接退出/只报 degraded；cursor 更新与事件处理在事务里完成。
+
+12. 【P1】【creator-builder/docs/01-详细技术方案.md:35,221,239】结构化 B-25 说“读经验体”，但 ExperiencePack 生成 B-38 又在 B-25 之后且标 P1，依赖倒挂。  
+   【修法】二选一：要么 B-38 前置为 P0 并成为 B-25 依赖；要么 B-25 明确直接读 `candidate_evidence/session_segments`，ExperiencePack 本期只冻 schema、不参与结构化主链路。

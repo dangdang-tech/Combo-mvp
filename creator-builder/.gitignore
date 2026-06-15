@@ -1,0 +1,9 @@
+# Codex 对抗评审的完整流式日志(每个数百 KB)不入库;仅保留 .reviews/*.txt 结论作审计轨迹
+.reviews/*.log
+
+# 依赖/构建产物(脚手架阶段补充)
+node_modules/
+dist/
+build/
+.env
+.env.local
