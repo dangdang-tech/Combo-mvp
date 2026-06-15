@@ -1,0 +1,242 @@
+# 合并一致性校验报告（创作者中心主链路契约）
+
+> 范围：[`contracts/`](./) 下脊柱 [`00-约定与状态机.md`](./00-约定与状态机.md) + 七个域契约（10/20/30/40/50/60/70）+ [`_index.md`](./_index.md)。
+>
+> **本轮 = Codex 对抗 R1 落地后的【合并刷新校验】**：脊柱新增 §11.A~F 六条跨域共识硬规则（Codex 17 项裁定的权威化），各域据此修订。本报告逐条复核 17 项是否真正落地、跨文件是否自洽，并直接修正发现的残留缺口。
+>
+> **结论：17 项全部已落地（17/17）。合并刷新轮发现并修复 2 处跨域残留缺口（20 域缺 `uq_session_segments_id_snapshot`、40 域缺 `capability_versions.reject_reason`/`rejected_at`），另补 1 处文档完整性（70 sweeper §11.A 显式引用）+ 1 处域口径补齐（50 域 §11.B `userMessage` 注）。当前无阻断性残留。可进入 Codex 复审。**
+>
+> **【R2 复审收口】** Codex 第二轮（`.reviews/phase1-codex-r2.txt`）判 FAIL，给出 6 条残留阻塞项。**已逐条修复（6/6），见 §0。**
+>
+> **【R3 复审收口】** Codex 第三轮（`.reviews/phase1-codex-r3.txt`）判 FAIL，给出 4 条残留阻塞项（含 R2「全目录无残留」声明被证伪）。**本轮已逐条修复（4/4），见 §0bis。** 据实更正 R2-1 的「`message` 残留清零」过度声明。
+>
+> **【R4 复审收口】** Codex 第四轮（`.reviews/phase1-codex-r4.txt`）判 R3 四项「均已实质闭合」，但全局回归发现 2 条新 P0（均为前几轮修复的级联：drafts 落点引用列 / STEP③ selection 端点未回写建表顺序与端点清单）。**本轮已逐条修复（2/2），见 §0ter。** 迁移顺序闭合（基表 → 后置 ALTER，无 FK 引用到未建表）已自核验。
+>
+> **【R5 复审收口】** Codex 第五轮（`.reviews/phase1-codex-r5.txt`）判架构本身已过，给 5 条口径不一致（局部 wording/口径分裂）。**本轮全部采纳、逐项「全目录 grep 扫除」（不只改点名行），已逐条修复（5/5），见 §0quater。** 每项附 grep 自核验命令 + 剩余命中均为合法非冲突。本轮新增全域裁定：社交 DELETE 固定 scope = `social.unfollow` / `social.unlike`；脊柱 §4.1「所有写命令（POST/PATCH/DELETE）必带 Idempotency-Key」（DELETE 不豁免）；40 域普通 HTTP 统一 `requireAuth`+`requireRole('creator')`+owner，唯 SSE 端点 D 走同源 Cookie-only；import/structure 两条 SSE 流 `error` 帧外形统一为完整 `ErrorEnvelope`（`data: {"error": {...}}`）。
+>
+> **【R6 复审收口】** Codex 第六轮（`.reviews/phase1-codex-r6.txt`）判 FAIL，给 2 条残留（均为前几轮裁定的级联未闭合）：①本报告 §0ter / §1.8（`_consistency-report.md:58`/`:193`）仍把 `PATCH /drafts/{draftId}/selection` 写成「同源 Cookie」，与 R5-4 权威口径（40 域普通 HTTP = Role + owner，唯 SSE 端点 D 走 Cookie-only）冲突；②`POST /api/v1/import/connect/pair`（铸码、写 `import_pairings` 行 = 写命令）`Idempotency-Key` 仍标「可选」，与脊柱 §4.1「所有写命令必带」冲突。**本轮已逐条修复（2/2），见 §0quinquies。** 两项各做一次全量扫除（selection/Cookie + 全写端点 × Idempotency-Key）；并新增 `_index.md §2.10` 写端点 × scope 总表防再漏。当前无阻断性残留。
+>
+> **【R7 复审收口】** Codex 第七轮（`.reviews/phase1-codex-r7.txt`）判 FAIL，给 1 条残留（前几轮幂等收口的级联未对齐）：`auth/callback` 在豁免清单（`00:189`/`_index:157`）写成 `POST /auth/callback`，但真实端点（`10:97`/`10:101`/`_index:41`）均为 `GET /api/v1/auth/callback`（OIDC browser redirect、code/state 一次性），端点方法与幂等豁免口径不自洽。**本轮已修复（1/1），见 §0sexies。** 两处改为 `GET /api/v1/auth/callback`，从「POST 写命令豁免」语境移出、单列「GET 回调例外」；并做 callback 全量自核验（`grep -rn "callback"` 全 11 处方法均为 GET、无 POST 残留）+ 复核豁免清单 logout/presign/preview 方法标注与各域端点表一致（均 POST，不动、确认一致）。当前无阻断性残留。
+
+---
+
+## 0. Codex R2 六条残留阻塞项逐条修复（本轮）
+
+> 来源：[`creator-builder/.reviews/phase1-codex-r2.txt`](../../.reviews/phase1-codex-r2.txt)（精确 文件:行）。全部采纳、逐条修复；跨文件自洽、代码围栏平衡。
+
+| R2# | 阻塞项（Codex 精确定位） | 状态 | 修复落点（文件:小节） |
+|---|---|---|---|
+| **R2-1** | `00:120-133`/`:501-509` ErrorEnvelope schema 仍用 `message`，与 §11.B `userMessage` 分裂 | ✅（**R2 声明的「全目录清零」过度，20 域有遗漏，R3 已补**） | 脊柱 00 §3.1 JSON 示例 + 硬约束、§9 `ErrorEnvelope` TS 类型 `message`→`userMessage`（并补 `failureId?`）、§3.3 表头、§3.4 / 三条硬规则前言文案统一 `userMessage`；§11.B **删除「`message` 同义/人读镜像」说法**、改为「唯一权威 `userMessage`，全契约不再有 `message` 字段」。30/40/50/60 错误用例表头「人话 message」→「人话 userMessage」、30 两处「场景/message」、40 表头统一（40 zod `.refine({message})` 是 zod 校验参数、非 ErrorEnvelope 字段，保留）；`_index.md` §5 硬约束 + §8 §11.B 行同步。**⚠️ 当时漏改 20 域错误人话列/错误字段/文案（`20:7/:95/:205/:296/:721/:727`），「全目录无残留」实为过度声明，已于 R3#1 据实补齐（见 §0bis）。** |
+| **R2-2** | `20:44`/`:246` 导入 SSE 鉴权写 `Bearer`，与同源 Cookie 决策 / §11.C 冲突 | ✅ | 20 端点表 #7（`GET /jobs/{jobId}/events`）鉴权列 `Bearer`→`同源 Cookie`（注禁 query/header token）；20 §4.1 重写鉴权段（同源 Cookie 会话、中间件先校验登录+job 属主、**鉴权/权限失败建流前以 HTTP `ErrorEnvelope` 401/403 escalate**、error 帧不表鉴权、流中途过期不强断），遵 §11.C。20 内其余 Bearer 均为普通 HTTP 端点（Logto JWT，_index 约定 Cookie/Authorization 双源）或配对码 Bearer（B-21 助手链路），非 SSE、不在本项；该文件 SSE Bearer 残留已清。`_index.md` §2.8 job SSE 行改「同源 Cookie」。 |
+| **R2-3** | `20:166`/`:533` pairing 哈希化后「只提交 code」miss 场景无行可更新，`attempt_count += 1` 不成立 | ✅ | 20 §3.3 上传鉴权改**绑 `pairId + code`**：`pairId` 走表单字段定位 `import_pairings` 行（PK）、`code` 走 `Authorization: Bearer` 再校验该行 `pairing_code_hash`；码 hash 不匹配 = 对该行 `attempt_count += 1`（按 pairId 计数可成立 + 限流，达 `max_attempts` 置 `expired`）。§3.2 脚本注入 `pairId`、§7 `ConnectUploadForm` 加 `pairId`；§6.4 DDL 加 `updated_at`、重写兑换语义（先 `pairId` 定位 `FOR UPDATE` → 校验码 hash → 失败计数单语句 UPDATE，无 TOCTOU）、把原 `idx_pairings_code_lookup` 改注为「定位走 pairId=主键」。`_index.md` §3 表 `import_pairings` 行同步。 |
+| **R2-4** | `50:37`/`:56-57`/`:624` 拒绝态真源不单一：`review_rejected` 终态却被发布事务直接置 `published`；`:624` `currentVersionId`「恒为 published」注释错 | ✅ | 50 §1.2 发布门事务步 1 改「**只接受 `draft`**」+ 新增「被拒重发先从 rejected version 派生新 draft、原 rejected version 终态不可变、本事务不触碰」铁律；步 2 改「只有 draft 能推到 published」；§2.1 错误表「状态非 draft（review_rejected/superseded）→ 409 STATE_CONFLICT」；§6 `PublicationView.currentVersionId` 注释修正（语义随 `reviewStatus` 而定，首发被拒下架时指被拒版、并非恒 published）。被拒线（`capability_versions.status/reject_reason/rejected_at` 被拒版自身、不可变）与当前对外版线（`publications.current_version_id` 回退上一 published / 无则下架）两线单一真源清晰。 |
+| **R2-5** | `50:553-556` 批量发布受保护写入只口头要求 CTE、无契约级模板 | ✅（**R3-4 进一步幂等化，见 §0bis**） | 50 §5 `publish_batch_items` DDL 之后新增「受保护写入契约级 CTE 模板」模板 A/B（经 `item→batch→job` 联表守 fence + `FOR UPDATE`、fence 三要素内联数据源、单语句、`rowCount=0` 安全退出，遵 §11.A）。**⚠️ R2 的模板 B 缺「刚从非终态进终态」防重条件，终态回写重复执行会重复递增计数；R3-4 已把 item 终态迁移与 batch 计数合成单条 CTE（`moved` UPDATE 带 `state NOT IN ('published','failed')` RETURNING、计数只按实际迁移行递增），计数现已幂等。** |
+| **R2-6** | `70:668-672` `runtime_sessions` 单列 FK 不能证明 version 属该 capability | ✅ | 70 §9.4 B-40 块两条单列 FK（`capability_id→capabilities`、`version_id→capability_versions(id)`）**删除**，改单条复合 FK `fk_runtime_sessions_capability_version (capability_id, version_id) → capability_versions(capability_id, id)`，复用 §11.E 注册的 `uq_capability_versions_capability_id` 父级唯一键。脊柱 00 §11.E 注册表加该 FK 行（引用域 70）+ 约束声明、`uq_capability_versions_capability_id` 引用域加 70；40 §「下游复合 FK」加 70 referencer；§9.4 引言 + `_index.md`（§3 表 runtime_sessions / capability_versions 行、§3 后置 FK 建序、§8 §11.E 行）同步。 |
+
+> **R2 跨文件影响**：R2-1 触及 00 + 30/40/50/60 + _index（错误字段全目录统一）；R2-6 触及 70 + 00 §11.E + 40 + _index（新增第 8 条注册约束）。R2-2/3/4/5 各自域内 + _index 索引同步，无新增跨域依赖（复合 FK 复用既有 40 唯一键、批量 CTE 复用既有 fence 血缘路径）。
+
+---
+
+## 0bis. Codex R3 四条残留阻塞项逐条修复（本轮）
+
+> 来源：[`creator-builder/.reviews/phase1-codex-r3.txt`](../../.reviews/phase1-codex-r3.txt)（精确 文件:行）。全部采纳、逐条修复；跨文件自洽、代码围栏平衡。
+
+| R3# | 阻塞项（Codex 精确定位） | 状态 | 修复落点（文件:小节） |
+|---|---|---|---|
+| **R3-1** | `20:95`/`:205`/`:296`/`:727`（+`:7`/`:721`）错误人话列/错误字段/文案仍写 `message`，而 `_index:7` 谎称「全目录无残留」 | ✅ | 20 §2.2 错误表头「message（人话）」→「userMessage（人话）」（:95）；§3.3 错误用例前言「`message` 列即…userMessage」→「`userMessage` 列即…人话」（:205）；§4.5 空结果「…，message『…』」→「…，userMessage『…』」（:296）；§8 文案口径「端点 message」→「端点 `userMessage`」（:721）、「错误 `message` 永远人话」→「错误 `userMessage` 永远人话」（:727）；文首隐私口径「错误 message」→「错误 userMessage」（:7）。**改后 `grep -rn "message" contracts/` 自检**：仅剩 `messageCount`/`message_count` 数据字段、zod `.refine({message})` 校验参数、规则声明 prose（00/30 刻意提及以禁用）三类合法非 schema 残留，**无任何 ErrorEnvelope `message` schema 字段、无文案类「错误/端点 message」**。`_index.md` §0 R3 行 + 据实「`message` 残留分类」段，修正 R2「全目录无残留」过度声明。 |
+| **R3-2** | `40:350-356`/`:374-376` + `50:57` 被拒重发派生路径不通：建版入口只支持 `sourceCandidateId`/`capabilityId`（且后者要求 published），首发被拒无路、有上一版时从上一 published 派生而非从被拒版 | ✅ | 40 §4.A `CreateCapabilityBody` 加 `fromVersionId?`（zod + TS），`.refine` 改「候选/能力体/被拒版三选一」+ 互斥校验；§4.A 行为加③分支：校验源版属本人且 `status='review_rejected'`、在**同一 capability** 下复制软字段 bump minor 建新 `draft`、原被拒版不触碰；错误表加 `403`（非本人版本）、`409 STATE_CONFLICT` 文案含 `fromVersionId` 需 review_rejected；§2.4 加「被拒后编辑重发派生新 draft（含首发被拒，不要求 published 版）」；§1 端点 A 描述 + B-26 覆盖行同步。50 §1.1 状态机图/注/铁律 + 步1注 + §2.6.2 响应注：重试/编辑入口**指向 40 端点 A 带 `fromVersionId`**，明确「首发被拒同样可派生」，闭环「被拒→派生新 draft→重新发布」成立。 |
+| **R3-3** | `10:56`/`:200`/`:459` 说 B-21 connect/upload 走「配对码换短时 Bearer/JWT 中间件」，与 `20:161`/`:166`/`:504` 的 PairAuth（`pairId`+`pairingCode`+`pairing_code_hash`）冲突，双套鉴权 | ✅ | **统一采用 20 的 PairAuth**：10 §2 会话承载段（:56）改「B-21 不进 Logto JWT 中间件、走独立 PairAuth（`pairId`+`pairingCode`），失败计数绑定 pairing 校验阶段，口径以 20 §3.3/§6.4 为唯一真源」；§3.4 token 来源列表（:200）删 B-21、加「B-21 不在此列」callout（携带的 Bearer 是一次性配对码非 JWT、无 token exchange）；§10.1 覆盖表注（:459）改「B-21 不依赖本域 JWT 链路、走独立 PairAuth」。删尽 10 域「配对码换 JWT/token exchange/短时 Bearer token」表述。10↔20 对 B-21 鉴权口径完全一致（PairAuth、不进 JWT、失败计数在 pairing 阶段）。 |
+| **R3-4** | `50:588-633` 批量计数模板 B 缺「该 item 是否刚从非终态进入终态」防重条件，item 终态回写重复执行会重复递增 `published_count/failed_count` | ✅ | 50 §5 模板重写为 **A（中间态推进，带 `state NOT IN ('published','failed')` 不回退终态）+ B（item 终态迁移 + batch 计数合成单条 CTE）**：B 用 `WITH guard(fence,FOR UPDATE OF bi,b) → moved(UPDATE … WHERE state NOT IN ('published','failed') RETURNING) → UPDATE publish_batches`，计数**只按 `moved` RETURNING 实际迁移行**递增（`+(SELECT count(*) FROM moved WHERE state='published')`）、`WHERE EXISTS(moved)`（0 行迁移整条不改批次）。给出备选「从 items 聚合重算 counters」（天然幂等）。仍经 item→batch→job 守 fence（§11.A）。表注释 + `_index.md` 批量 CTE 行 + 附录摘要同步。终态回写重复执行不重复计数，「全部发布不漏不重」成立。 |
+
+> **R3 跨文件影响**：R3-1 触及 20 + 30（顺带两处 prose）+ _index（据实残留分类）；R3-2 触及 40（端点/schema/状态/覆盖）+ 50（重试入口/状态机）+ _index（端点表）；R3-3 触及 10（三处）+ 20（已有 PairAuth，无改）+ _index（B-21 行已是 Pair，无改）；R3-4 触及 50（模板 + 表注）+ _index（批量 CTE 行 + 摘要）。无新增跨域依赖（派生分支复用 40 既有 `(capability_id,id)` 唯一键与 capability 归属；批量计数复用既有 fence 血缘路径）。
+
+---
+
+## 0ter. Codex R4 两条残留阻塞项逐条修复（本轮）
+
+> 来源：[`creator-builder/.reviews/phase1-codex-r4.txt`](../../.reviews/phase1-codex-r4.txt)（精确 文件:行）。R3 四项 Codex 判「均已实质闭合」；全局回归发现 2 条新 P0（均为前几轮修复的级联：R3 给 drafts 加落点引用列 / 给 STEP③ 加 selection 端点后，未回写建表顺序与端点清单）。全部采纳、逐条修复；跨文件自洽、代码围栏平衡。
+
+| R4# | 阻塞项（Codex 精确定位） | 状态 | 修复落点（文件:小节） |
+|---|---|---|---|
+| **R4-1** | `00:428`/`_index:164` `drafts` 建表顺序 / FK 闭合不可落地：`drafts` 内联引用后建的 `raw_snapshots`/`capability_versions`、迁移序未排 `drafts`，与 20 `import_pairings.draft_id→drafts(id)` 形成建表顺序环；`batch_id` 缺 `publish_batches(id)` FK | ✅ | **沿用冻结表「先建基表 + 后置 ALTER」模式**。00 §8.4：`drafts` 改为基表（仅内联 `owner_user_id→users`/`extract_job_id→jobs` 两条指向已建核心表的 FK），`snapshot_id`/`version_id`/`batch_id` 只声明列、跨域 FK 后置；表头加「基表 + 后置 ALTER」说明 + 后置 ALTER 代码块。00 新增 **§11.G 后置 FK 闭合清单**（固定约束名 `fk_drafts_snapshot`/`fk_drafts_version`/`fk_drafts_batch`【补齐缺失 FK】/`fk_pairings_draft`，并列全既有 40/70 后置 FK，证全 38 表无环）；§11 章末导航 + 附录引用清单加 §11.G。20 §6.4：`import_pairings.draft_id` 改列声明、FK 后置（DDL 后加注）。`_index`：迁移顺序章节重写为「阶段一基表建序（含 `drafts`/`import_pairings` 入序）→ 阶段二后置 ALTER FK 闭合清单（4 条本轮 + 40/70 既有）」、复合 FK 建序约束并入、§8 硬规则表加 §11.G 行。 |
+| **R4-2** | `_index:66`/`40:301` 全局端点清单仍声明 STEP③「无 API」，但 40 已新增 `PATCH /api/v1/drafts/{draftId}/selection`，56 端点索引/鉴权/幂等覆盖口径失真 | ✅ | `_index` §2.4：删「STEP③ 纯前端无 API」前言、改「选择切换不写库无 API，保存草稿/进入下一步有 API（`PATCH .../selection`）」；端点表补入该端点行（鉴权 = `requireAuth`+`requireRole('creator')`+owner（普通 HTTP，**非 SSE 不走 §11.C**；后由 R5-4 统一裁定，此处口径已更正，不再写「同源 Cookie」）、幂等 scope=`draft.selection.patch`、PATCH 最后写赢无 If-Match、失败 `ErrorEnvelope`，与 40 §4.G 一一核对一致）。§2 头加**端点计数声明**（§2.1–§2.8 由 52 → 53 行端点，含 `/health`+`/ready` 合行；§2.9 三冻结读端点不计入）。§7 功能点速查「STEP③ 选择」条改「选择切换无 API、保存草稿有 API」。 |
+
+> **R4 跨文件影响**：R4-1 触及 00（§8.4 drafts 基表 + 新增 §11.G + §11 导航/附录）+ 20（§6.4 `import_pairings.draft_id` 列+后置 FK）+ _index（迁移顺序章节 + §8 §11.G 行）；R4-2 触及 _index（§2 计数声明 + §2.4 前言/端点行 + §7 STEP③ 条）+ 40（仅核对 §4.G，无改）。无新增跨域依赖（后置 FK 复用既有「先建基表 + ALTER」模式与既有被引用表；selection 端点 R3 已在 40 定义，本轮仅回写全局清单与计数）。
+
+---
+
+## 0quater. Codex R5 五条口径不一致逐项「全目录扫除」（本轮）
+
+> 来源：[`creator-builder/.reviews/phase1-codex-r5.txt`](../../.reviews/phase1-codex-r5.txt)（精确 文件:行）。Codex 判架构本身已过，5 条均为局部 wording / 口径分裂。**全部采纳，逐项 grep 全目录扫除（不止改点名行），改完每项 grep 自核验、剩余命中均为合法非冲突。** 跨文件自洽、代码围栏平衡（00/10/40/60 fence 偶数；_index 无 fence）。
+
+| R5# | 口径不一致（Codex 精确定位） | 状态 | 修复落点 + 全目录扫除 |
+|---|---|---|---|
+| **R5-1** | `_index:22`/`40:16` STEP③ 总口径仍写「纯前端无 API / 无 API」，与新增 `PATCH /drafts/{draftId}/selection` 冲突 | ✅ | 两处总口径改为「选择切换不写库、无 API；保存草稿 / 进入下一步有 API（`PATCH /api/v1/drafts/{draftId}/selection`）」：`40:16` 节标题、`_index:22` 域导航行。`_index:68`/`:239` 早已是双口径（保留）。其余 `纯前端/不写库` 命中（`40:24/49/262/344/749`、`30:6/683`、`00:414`）均**仅描述「选择切换动作」本身**（确为无 API），非总口径，不动。 |
+| **R5-2** | `_index:183` 「SSE 端点共三个」与 `_index:31` 「两个 SSE 流端点」冲突（第三个 session 为 B-40 冻结、本期无端点） | ✅ | `_index:183` 重写为「SSE **流类型三型** `job\|structure\|session`（脊柱 §9）；**本期可调用 SSE 端点两个**（① `/jobs/{id}/events` kind=job、② `/versions/{id}/structure/events` kind=structure）；第三型 session 为 B-40 冻结、本期无端点、不可调用；三型 ≠ 三端点」，与 `:31`「两个 SSE 流端点」对齐。其余「三型」命中（`00:233/247/268/883`、`_index:18`、`70:5`）均指 `state_snapshot` 流类型三型，正确、不动。 |
+| **R5-3** | `60:577`/`:599`、`_index:104`/`:106` 把社交 DELETE 写成「无需 Idempotency-Key / 仅幂等」，与脊柱 `00:848` POST/DELETE 都需 key 冲突 | ✅ | **裁定：follow/like 的 POST 与 DELETE 都是写命令、统一必带 Idempotency-Key + 固定 scope，DELETE 不因天然幂等而豁免。** 固定 scope：`POST /follows`=`social.follow`、`DELETE /follows`=**`social.unfollow`**、`POST /likes`=`social.like`、`DELETE /likes`=**`social.unlike`**。改：`60:577`/`:599`（DELETE 段）、`60:825-828`（端点列表）、`60:846`（scope 速记）、`_index:103-106`（端点表四行）、`_index:256`（§11.F 行）、`00:848-849`（§11.F 裁定补 DELETE scope）；并把**脊柱 §4.1（`00:189`）从「所有 POST 写命令」收紧为「所有写命令 POST/PATCH/DELETE」+「DELETE 不因天然幂等豁免」**——堵住上游口径漏洞。`60:619/677` 是「事务+UNIQUE+幂等键三重防重」prose，与 key 必带不矛盾，不动。 |
+| **R5-4** | `40:299/303/346/421/494/535/767` 把 40 域**全部普通 HTTP 端点**写成「同源 Cookie / §11.C」，但 §11.C 只管 SSE；与 `10:300`/`_index:33` 普通 HTTP Bearer/Role 分层冲突 | ✅ | **裁定：40 域所有普通 HTTP 端点（A/B/E/F/G 及 selection PATCH）= `requireAuth` + `requireRole('creator')` + handler owner 校验（Bearer JWT，10-auth §6.2/§6.3）；唯一例外 = SSE 端点 D（`/structure/events`）= 同源 Cookie-only（§11.C，EventSource 无自定义头）。** 改：`40` §4 头（299）重写为分层声明、六个普通 HTTP 端点鉴权行（303 selection / 350 capabilities / 407 GET manifest / 425 structure / 498 manifest PATCH / 539 regenerate）全改 `requireAuth+requireRole('creator')+owner`、§7 鉴权口径小结（771）改分层；SSE 端点 D（488/492）维持 Cookie-only 不动。`_index`：selection 行（71）鉴权列 `同源 Cookie`→`Role`、GET manifest 行（73）`Bearer`→`Role`（与 40 对齐）；SSE 行（75）维持「同源 Cookie」。10-auth §6.3 早已是 `requireRole('creator')`+owner，无改。 |
+| **R5-5** | `40:214/276/281/284` SSE `error` 帧发**裸 `ErrorEnvelope.error`**，但脊柱 `00:116/256` 规定 SSE `error` 帧出**完整 `ErrorEnvelope`**（`data: {"error": {...}}`） | ✅ | 改 `40` §3.2 事件表（214）、§3.4 prose（276/284）、字面示例（280-281 `data: {"code":...}`→`data: {"error":{...}}`）、§7 TS 注释（735）为**完整 `ErrorEnvelope` 外形**；并注「DB `structure_state[field].error` 可继续存内层 `ErrorEnvelope['error']`，但 SSE 线上帧必须完整信封」。**两条 SSE 流 error 帧外形一致确认**：import/job 流（`20:274`、`30:293`、`50:412`）与脊柱 §5.3（`00:256`）早已描述为 `ErrorEnvelope`（= 完整信封），structure 流现统一为完整信封——全域唯一 `event: error` 字面示例（`40:281`）已是 `data: {"error":{...}}`。注意：`30:321/361`、`50:270` 等 `item.error` 是 `item-appended`/`state_snapshot` 帧**内 item 字段**（合法内层 `error` 对象），非流级 `error` 帧，不动。 |
+
+> **R5 跨文件影响**：R5-1 触及 40 + _index；R5-2 触及 _index；R5-3 触及 00（§4.1 + §11.F）+ 60 + _index；R5-4 触及 40 + _index（10-auth 已合规无改）；R5-5 触及 40（import/job 流早合规无改）。无新增跨域依赖、无 schema/DDL/FK 变更（纯口径 wording + 鉴权列 + scope 命名）。
+
+### 0quater-bis. R5 每项 grep 自核验（命令 + 剩余命中判定）
+
+> 工作目录 `creator-builder/docs/contracts/`，统一 `| grep -v _consistency-report`（本报告自身刻意复述这些口径，不计）。
+
+- **R5-1** `grep -rn "无 API" *.md`：剩 4 处 = `_index:22/68/239`（均「选择切换无 API + 保存草稿/进入下一步有 API」双口径）+ `_index:240`（B-01/O-01 基础设施「无 API 契约面」，与 STEP③ 无关）+ `40:16`（节标题双口径）。**无单边「STEP③ 无 API」总口径残留。** ✅
+- **R5-2** `grep -rn "SSE" *.md | grep -E "三个|两个|三端点|两端点"`：剩 2 处 = `_index:31`「两个 SSE 流端点」+ `_index:183`「三型 ≠ 三端点、本期两个」，互相一致。`三型` 其余命中（`00:233/247/268/883`、`_index:18`、`70:5`）均为 `state_snapshot` 流类型，正确。**无「端点共三个」残留。** ✅
+- **R5-3** `grep -rn "无需 Idempotency|DELETE 天然幂等|幂等" *.md | grep -iE "follow|like|社交|unfollow|unlike"`：剩 8 处均为**新正向口径**（`00:189/849`、`_index:256`、`60:577/599/846` = 「不因 DELETE 天然幂等而豁免、必带 key + 固定 scope」）+ `60:619/677`（事务/UNIQUE/幂等键三重防重 prose，与必带 key 不矛盾）。**无「DELETE 无需 key」矛盾残留。** ✅
+- **R5-4** `grep -n "同源 Cookie|§11.C" 40-step3-4-structure.md`：剩命中仅在 §4 头分层声明（299/301）、SSE 端点 D（488/492）、§7 SSE 例外小结（773），及六个普通 HTTP 端点行里「**非 SSE 不走 §11.C**」的显式否定句（303/350/407/425/498/539）。**无任何普通 HTTP 端点把鉴权写成「同源 Cookie / 受 §11.C 管」。** ✅
+- **R5-5** `grep -rn -A1 "event: error" *.md | grep "data:"`：全域唯一字面 SSE `error` 帧 = `40:281` `data: {"error":{...}}`（完整信封）。`grep "ErrorEnvelope.error" 40`：剩 214/276/284 均已是「完整 `ErrorEnvelope`（`data: {"error": {...}}`）」+ 内层字段限定 prose，非「帧体 = 裸 error」。import/job 流（`20:274`/`30:293`/`50:412`/`00:256`）描述为 `ErrorEnvelope` = 完整信封，与 structure 流一致。**两条流 error 帧外形一致。** ✅
+
+---
+
+## 0quinquies. Codex R6 两条残留阻塞项逐条修复 + 两次全量扫除（本轮）
+
+| 编号 | Codex 点名（文件:行） | 状态 | 修复落点（含全量扫除结论） |
+|---|---|---|---|
+| **R6-1** | `_consistency-report.md:58`/`:193` 仍把 `PATCH /drafts/{draftId}/selection` 写成「同源 Cookie」，与 R5-4 权威口径（40 域普通 HTTP = `requireAuth`+`requireRole('creator')`+owner，唯 SSE 端点 D 走 Cookie-only）冲突 | ✅ | **两处改为 Role 口径**：§0ter 行（58）selection 端点「鉴权=同源 Cookie」→「鉴权 = `requireAuth`+`requireRole('creator')`+owner（普通 HTTP，**非 SSE 不走 §11.C**；后由 R5-4 统一裁定，此处口径已更正，不再写同源 Cookie）」；§1.8 行（193）「`PATCH /drafts/{draftId}/selection`…同源 Cookie…」改同口径并注「R5-4 统一裁定后此处不再写同源 Cookie」。**全量扫除**见 §0quinquies-bis：全域唯一仍写「同源 Cookie」的 selection 残留就是这两处（本报告自身），改后全域**无任何普通 HTTP / selection 端点把鉴权写成同源 Cookie**；剩余「同源 Cookie」命中全部挂在 SSE 端点（`/jobs/{id}/events`、`/structure/events`）或 §11.C 定义/引用。 |
+| **R6-2** | `20:140` `POST /api/v1/import/connect/pair`（铸码、写 `import_pairings` 行 = 写命令）`Idempotency-Key` 仍标「可选」，与脊柱 `00:189`「所有写命令 POST/PATCH/DELETE 必带」冲突 | ✅ | `20` §3.1（140）「可选」→「**必带** `Idempotency-Key`，scope=`import.connect.pair`」+ 补 §3.1 错误用例表（含「缺 `Idempotency-Key`→400 `VALIDATION_FAILED`/`change_input`」+ 423 租约/409 冲突/401 未登录）；`_index:50` 端点备注补「写命令、必带 Idempotency-Key、scope `import.connect.pair`、缺 key→400」。**全量扫除**见 §0quinquies-bis：列出全部写端点逐个核对，另发现并收紧 `POST /jobs/{jobId}/cancel`（00/20，补「必带」+ scope `job.cancel`）、`POST /import/connect/upload`（「带」→「必带」）、`POST /notifications/read-all`（「带」→「须带」）、`POST /publish-batches`/`item.retry`/`review`（「带」→「必带」）+ 50 §2 头总口径「带」→「必带 + 固定 scope」；脊柱 §4.1（`00:189`）写命令枚举补「取消 Job、配对铸码、标已读」并新增「唯一豁免」清单（logout/callback + 不写库的带体只读 POST presign/preview）。新增 **`_index.md §2.10` 写端点 × `Idempotency-Key` scope 总表**（22 写端点全 ✅ + 4 项已标注豁免）防再漏。presign/preview 口径同步收紧为「不写库、非写命令」（非「写命令但可选」），堵口径漏洞。 |
+
+### 0quinquies-bis. R6 两项全量扫除（命令 + 逐项自核验）
+
+> 工作目录 `creator-builder/docs/contracts/`。
+
+**扫除①（selection / 同源 Cookie，防普通 HTTP 残留）** `grep -rn "selection" *.md` + `grep -rn "同源 Cookie" *.md`：
+- `selection` × `cookie` 共现仅 3 行，全在**本报告**（`_consistency-report.md:58/73/193`），且全为 Role 口径 + 「不再写同源 Cookie」更正句，非端点定义。
+- `同源 Cookie` 全部剩余命中逐个确认：`00:227/776/781/889`（§11.C 定义/导航）、`10:12/276/280/511`（SSE 鉴权落地）、`20:44/212/245/256`（job SSE 流端点 #7 + 网页侧订阅）、`30:19/282/721/737`（job SSE）、`40:301/488/773`（**仅** SSE 端点 D + §4 头分层声明里的 SSE 例外）、`_index:35/75/120/253`（SSE 鉴权统一说明 + 两条 SSE 行）、本报告若干复述。**无任何普通 HTTP / selection 端点把鉴权写成同源 Cookie。** ✅
+- `40` 域 selection PATCH（§4.G 307）鉴权 = `requireAuth`+`requireRole('creator')`+owner（Bearer JWT，非 SSE 不走 §11.C）；`_index:71` selection 行鉴权列 = `Role`。两处一致，无 Cookie。✅
+
+**扫除②（全写端点 × Idempotency-Key，防再漏其它端点）** `grep -rnE "(POST|PATCH|DELETE) /api/v1" *.md` 列全写端点 + `grep -rn "Idempotency-Key" *.md` 核对：见 `_index.md §2.10` 总表——**22 个写端点全部「必带 + 固定 scope」**（本轮收紧 connect/pair、jobs/cancel、connect/upload、notifications/read-all、publish-batches 系列共 6 处「可选/带/未明」→「必带」）。`grep -rnE "可选.*Idempotency|不需.*Idempotency|无需.*Idempotency|可不带.*Idempotency"` 剩余命中**全是已标注豁免**：`10:72`（GET login 读）、`10:145`（logout 会话销毁例外）、`50:164`（market-card/preview 不写库）、`20:59`（presign 不写库）+ 本报告 O-4 行。**无写命令端点仍标可选/无需。** ✅
+
+---
+
+## 0sexies. Codex R7 一条残留阻塞项逐条修复 + callback 全量自核验（本轮）
+
+> 来源：[`creator-builder/.reviews/phase1-codex-r7.txt`](../../.reviews/phase1-codex-r7.txt)（精确 文件:行）。R6 两项 Codex 判「本身已闭合」（selection = Role + owner、connect/pair 必带 key scope）。本轮唯一阻塞 = `auth/callback` 方法标注与幂等豁免口径不自洽。全部采纳、逐条修复；跨文件自洽、代码围栏平衡。
+
+| 编号 | Codex 点名（文件:行） | 状态 | 修复落点（含全量自核验结论） |
+|---|---|---|---|
+| **R7-1** | `00:189`/`_index:157` 把 `auth/callback` 写成 `POST /auth/callback` 列在 POST 写命令豁免清单，但真实端点在 `10:97`/`10:101`/`_index:41` 均为 `GET /api/v1/auth/callback`（OIDC browser redirect、code/state 一次性），端点方法与幂等豁免口径不自洽 | ✅ | **两处改为 `GET /api/v1/auth/callback` 并从「POST 写命令豁免」语境移出，单列「GET 回调例外」**：脊柱 `00:189` §4.1 唯一豁免句删去 `POST /auth/callback`、句尾新增「**GET 回调例外**：`GET /api/v1/auth/callback`（OIDC browser redirect、code/state 一次性，§10-auth）本就是 GET，不属于 POST/PATCH/DELETE 写命令 `Idempotency-Key` 体系，一次性由 OAuth code/state 语义自带，无需 key」。`_index:157` 豁免清单删去 `POST /api/v1/auth/callback` 行、另起「**GET 回调例外**」小节列 `GET /api/v1/auth/callback`（注明非 POST 写命令、code/state 一次性、端点表见 §2.1 / 10-auth §3.2）。豁免清单方法标注现与 10 域 §3.2 端点表一致。 |
+
+### 0sexies-bis. R7 callback 全量自核验（grep + 逐项方法一致性）
+
+> 工作目录 `creator-builder/docs/contracts/`。
+
+**自核验①（callback 方法全 GET、无 POST 残留）** `grep -rn "callback" *.md`：全部 11 处命中逐个确认方法均为 **GET** —— `10:48`（302 回调 URL 串）、`10:97`（§3.2 端点标题 `GET`）、`10:101`（端点表 method 行 `GET`）、`10:103`（幂等说明，code 一次性、不引入 key）、`10:447`（`LOGTO_REDIRECT_URI` 环境变量）、`10:459`（B-08 覆盖表 `GET /api/v1/auth/callback`）、`10:467`（成功 302 prose）、`10:482`（域内端点摘要 `GET`）、`00:189`（GET 回调例外）、`_index:41`（端点表 `GET`）、`_index:161`（GET 回调例外）。**无任何 `POST /auth/callback` 残留。** ✅
+
+**自核验②（豁免清单方法标注 × 各域端点表一致）** logout/presign/preview 三项不动、只核对一致：
+- `POST /api/v1/auth/logout` —— 端点表 `10:143`/`10:483` + `_index:42` 均为 **POST**，豁免清单（`00:189`/`_index:156`）标 POST，一致。✅
+- `POST /api/v1/import/uploads/presign` —— 端点表 `20:38`/`20:56` + `_index:48` 均为 **POST**，豁免清单（`00:189`/`_index:158`）标 POST，一致。✅
+- `POST /api/v1/versions/{versionId}/market-card/preview` —— 端点表 `50:162` + `_index:83` 均为 **POST**，豁免清单（`00:189`/`_index:159`）标 POST，一致。✅
+- `GET /api/v1/auth/callback` —— 端点表 `10:101` + `_index:41` 均为 **GET**，本轮已把豁免清单（`00:189`/`_index:161`）方法对齐为 GET 并单列「GET 回调例外」。✅
+
+**结论**：豁免清单全部方法标注与各域端点表一致；无未决残留。
+
+---
+
+## 1. Codex 17 项落地核查（逐条：状态 / 落点 / 跨文件自洽）
+
+> 状态图例：✅ 已落地且跨文件自洽 · 🟡 部分（落地但有遗漏，本轮已补） · ❌ 未落地。
+
+| # | Codex 项 | 状态 | 权威 | 落点 / 跨文件核查结论 |
+|---|---|---|---|---|
+| **#1** | outbox 水位漏读（xid 下推 SQL → 应用层连续安全前缀） | ✅ | 脊柱 §11.D | 70 §3.2 取批 SQL 已删 `AND xid < :xmin`，改 `WHERE topic AND seq>:cursorSeq ORDER BY seq ASC LIMIT :batch`；xmin 判定移应用层、遇首条 `xid>=xmin` break、只提交连续前缀末 seq。§2.2 DDL 注释、§12 摘要同步。全文无任何 SQL `WHERE` 内 xid 过滤；六处 xid 残留均为应用层扫描正确表述。**唯一权威，所有顺序消费者引用同算法。** |
+| **#2** | candidate_evidence 复合 FK + 父表复合唯一键 | ✅ | 脊柱 §11.E | 30 §5.1 `capability_candidates` 加 `uq_candidates_id_snapshot UNIQUE (id, snapshot_id)`；§5.2 `candidate_evidence` 两条复合 FK `fk_evidence_candidate_snapshot`(ON DELETE CASCADE)/`fk_evidence_segment_snapshot`，约束名与注册表一致。**依赖 20 域 `uq_session_segments_id_snapshot`——本轮已补（见 §2 缺口 G-1），链路现已闭合。** |
+| **#3** | fence 写入闭环（受保护写入 CTE，禁两步） | ✅ | 脊柱 §11.A | 20 §6.5（三条受保护写入：进度回写模板1 / raw_snapshots 模板2 / session_segments 模板2-3 联表）、30 §5.1/§5.2（候选 INSERT + 重试 DELETE+INSERT 同事务、fence 经 jobs 联表）、40 §4.C（structure_state/manifest 模板3）、50 §5（批量 item/计数器）+ §2.6.1（评审事务）、70 §6.2（sweeper 重入队单条原子 UPDATE）。五个 worker 域 + sweeper 全引用 §11.A，`rowCount=0` 统一定义为正常控制流。**本轮补 70 sweeper §6.2 的 §11.A 显式引用（实现本就单条原子 UPDATE、无 TOCTOU）。** |
+| **#4** | 单项重试不在已 terminal 原 job 流追加（新 retry job） | ✅ | — | 30 §2.3 说明「原 job 已 done/流已关、违脊柱 §5.5」；每次重试新建 retry job（新 fence/新流）；`CandidateRetryAccepted` 新增 `retryJobId`、`eventsUrl` 指 `/jobs/{retryJobId}/events`；§3.4 回填靠 `item.id==candidateId` 跨流对位。retry job 复用 `jobs.type='extract'`，对 70/sweeper 同 schema。 |
+| **#5** | SSE 同源 Cookie 鉴权（建流前 HTTP 失败） | ✅ | 脊柱 §11.C | 10 §5 权威 callout + §11.C 引用；40 §4.D 完全重写（同源 Cookie、禁 query/header token、建流前 HTTP 401/403 escalate、error 帧不表鉴权失败、流中途过期不强断），并声明旧「Bearer/query/header token」表述作废；20/30/50 job 流统一引用 §11.C（20 §3.3/§3.4 助手不订阅 SSE、网页侧 Cookie；30 §3 头 + §8；50 复用脊柱 job 流端点继承 Cookie）。全域 SSE 鉴权口径唯一。 |
+| **#6** | capability_versions 复合 FK（版本属同一 capability） | ✅ | 脊柱 §11.E | 40 §5.2 加 `uq_capability_versions_capability_id UNIQUE (capability_id, id)`（与 `uq_capability_version` 并存）；`capabilities.current_version_id` 升级复合 FK `fk_capabilities_current_version`。50 §5 `publications`/`marketplace_listings` 两条复合 FK `fk_publications_capability_version`/`fk_listings_capability_version` 引用该键。**40 建键、50 建 FK，约束名一致，迁移序「先唯一键后 FK」已在 _index §3 注明。** |
+| **#7** | 批量发布完成度三元（永不裸转圈 + 无连坐） | ✅ | — | 50 §2.3 `PublishBatchView` + §6 TS：`doneCount` 废弃 → `processedCount`(=published+failed)/`publishedCount`/`failedCount`；完成判定 `processedCount===total`（有失败也满进度进 completed）。§3 SSE 表（state_snapshot/progress/done）分子统一 `processedCount`；§5 `publish_batches` DDL `processed_count` 为 generated column。_index §4 SSE 表同步。 |
+| **#8** | 评审拒绝状态机（两线分明，消除自相矛盾） | ✅ | — | 50 §1.1 状态机/铁律重写：`review_rejected` 只标被拒版自身（终态），回退后上一版由 `superseded` 复位 `published`、绝不标脏；§1.3 新增「当前对外版本线 vs 被拒版本线」表；§2.6.1 裁决事务两步语义。**被拒版本线真源 = `capability_versions.reject_reason`/`rejected_at`——本轮已补这两列到 40 域 DDL（见 §2 缺口 G-2），单一真源现贯穿发布页/工作台/主页。** |
+| **#9** | 字段级事件限定 SoftFieldKey（硬字段不报字段级错误） | ✅ | — | 40 §3.2 事件表 `field_stuck`/`error` 标注仅软字段、`details.field ∈ SoftFieldKey`；§3.3/§3.4 示例改 `instructions`、帧体 `message`→`userMessage`；§6 TS 新增 `StructureFieldStuckPayload.field: SoftFieldKey`（收紧脊柱 string `FieldStuckPayload`）。硬字段（id/version/status/inputs/output/boundaries）永不落字段级失败。 |
+| **#10** | STEP③ 草稿持久化（选择不裸转圈、可续传） | ✅ | — | 40 §1.1 区分「选择切换纯前端即时不写库」vs「保存草稿持久化 selection」；§4.G 新增 `PATCH /api/v1/drafts/{draftId}/selection`（scope `draft.selection.patch`），含 `SelectionDraft`(`{mode:'single',candidateId}`|`{mode:'all',candidateIds[]}`) 持久化+续传 schema；写脊柱 `drafts.selection`/`current_step`/`step_progress`。`drafts` 表属脊柱 §8.4，本域只加写语义不重定义。 |
+| **#11** | ErrorEnvelope 收紧（code 仅日志、userMessage 唯一可展示、登录用 failureId） | ✅ | 脊柱 §11.B | 10 §3.2 登录失败 `/login?error=<code>` → `/login?failureId=<opaque>`、错误表 code 标「仅日志」、可展示列 `userMessage`；30/40 域错误对象 `message`→`userMessage`、`code` 标 UI 不渲染；60 §3.5 社交错误表注 message列=userMessage；70 `dead_events.last_error` 复用收紧 ErrorEnvelope.error（禁堆栈）。脊柱 §9 ErrorEnvelope 收紧权威形态含 `userMessage`/`failureId`。**本轮补 50 域 §2 错误段 §11.B 口径注（50 错误表此前用「人话 message」头但缺 userMessage 显式注）。** |
+| **#12** | dead_events schema 焊死（FK + CHECK + 唯一键语义） | ✅ | — | 70 §4.3 加 `fk_dead_events_event`(FK event_id→outbox_events(event_id)，目标即 `uq_outbox_event_id`)、`ck_dead_status`(dead/retrying/resolved)、`ck_dead_attempts`(>=0)；`uq_dead_event (consumer_name, event_id)` 有意不含 topic（含理由说明）。DDL 合法。 |
+| **#13** | 冻结表 FK 诚实（后置 ALTER 补真 FK 或显式 intentional loose） | ✅ | — | 70 §9 引言加「FK 诚实原则」；建表处引用列标「后置 FK」；§9.4 后置 ALTER 补真 FK（`fk_usage_events_*`/`fk_exp_item_sources_segment`/`fk_experience_packs_capability` + `runtime_sessions` 复合 FK），并显式列 `consumer_key`/`tier_code`/`s3_key`/`last_applied_command_id` 为 intentional loose。无「自称闭合却无 FK」列。后置 ALTER 建序约束已入 _index §3。**注（R2-6 更新）**：`runtime_sessions` 原 R1 两条单列 FK 已被 R2-6 替换为单条复合 FK `fk_runtime_sessions_capability_version`（§11.E），见 §0。 |
+| **#14** | ConnectUploadResult 判别联合 | ✅ | — | 20 §3.3 `ConnectUploadResult` 扁平 interface → status 判别联合：`uploading` 含 `pairId/uploadedParts`、**不含** jobId；`job_created` **必含** `jobId`+`eventsUrl`。§3.4+§7 `PairStatusView` 补 `eventsUrl?`、注 phase 与 status 同义。前端按判别联合取 jobId 续 SSE。 |
+| **#15** | import_pairings 安全化（哈希存码 + 防暴力） | ✅ | — | 20 §6.4：`pairing_code` 明文 UNIQUE → `pairing_code_hash`（HMAC/慢哈希，明文仅响应返一次不持久化）；新增 `attempt_count`/`max_attempts`(默认5)；全局 UNIQUE → partial unique `uq_pairings_code_active`(active 谓词) + `idx_pairings_code_lookup`/`idx_pairings_expire`；§3.3 加「配对码尝试过多」429/401 RATE_LIMITED 行。本表无跨域引用（仅 70 sweeper 知 active 谓词与 expired 置位）。 |
+| **#16** | slug 一致性（消除 publications.url_slug 漂移） | ✅ | — | 50 §5 `publications` 删冗余 `url_slug` 列、公开路径 JOIN `capabilities.slug`；`marketplace_listings.slug` 加 `uq_listings_slug UNIQUE` + `enforce_listing_slug()` + `trg_listing_slug` 触发器与 `capabilities.slug` 焊死。`capabilities.slug` 不可变（脊柱 §1.2/§1.3）为前提。 |
+| **#17** | 社交写 = requireAuth（任意已登录，非 creator-only） | ✅ | 脊柱 §11.F | 10 §6.2 门禁表「社交写 → requireRole('creator')」修正为 `requireAuth`；60 §0 端点 11-14、§3 头注 + §3.1~§3.5 每端点 guard、§8 锚点均 `requireAuth`，并显式声明「无『缺 creator 角色』403 社交写用例」「未登录写 401 UNAUTHENTICATED+escalate」「前端按钮对任意已登录可点、不按角色灰置」。10↔60 双向引用、口径一致。 |
+
+---
+
+## 2. 本轮合并刷新发现并修复的残留缺口
+
+> 这些是 Codex R1 各域**单独**修订时跨域协作出现的对接缺口（A 域声明依赖 B 域提供某约束 / 列，但 B 域本轮未补）。合并校验是唯一能发现它们的环节，本轮已直接编辑相关文件修复。
+
+### G-1 ✅ 20 域 `session_segments` 缺 `uq_session_segments_id_snapshot`（复合 FK 链断裂）
+- **现象**：脊柱 §11.E 注册表把 `uq_session_segments_id_snapshot UNIQUE (id, snapshot_id)` 标「20 建表、30 引用」；30 域 `fk_evidence_segment_snapshot (segment_id, snapshot_id) → session_segments(id, snapshot_id)` 复合 FK 依赖它。但 20 §6.2 `session_segments` DDL 此前**只有** `UNIQUE (snapshot_id, content_hash)`，**无** `(id, snapshot_id)` 唯一键。`id` 虽是单列 PK，但 PostgreSQL 复合 FK 只能引用列集**恰好相等**的唯一/主键约束——单列 PK 不满足 `(id, snapshot_id)`。
+- **后果（若不修）**：30 域 `fk_evidence_segment_snapshot` **建不出来**，迁移失败，证据血缘复合 FK 链断裂。
+- **修复**：20 §6.2 `session_segments` 加 `CONSTRAINT uq_session_segments_id_snapshot UNIQUE (id, snapshot_id)` + 说明（约束名固定、为 30 复合 FK 提供被引用键、PG 复合 FK 不能用单列 PK）；§6.3 拆表 `snapshot_segments` 同补同名约束（拆表方案下作可寻址段表）。
+- **结果**：#2 复合 FK 链现已 20→30 闭合；约束名跨文件一致。
+
+### G-2 ✅ 40 域 `capability_versions` 缺 `reject_reason`/`rejected_at`（被拒版本线真源缺存储基座）
+- **现象**：50 域 Codex#8 把「被拒版本线真源」定为 `capability_versions.status='review_rejected'` + `reject_reason` + `rejected_at`（落在被裁决版自身），并在 50 §1.3 铁律 / §2.6.1 评审事务 / §5 摘要明确「**40 域** `capability_versions` 须新增 `reject_reason text`+`rejected_at timestamptz`」。但 40 §5.2 `capability_versions` DDL 此前 status 枚举注释含 `review_rejected`，却**未建** `reject_reason`/`rejected_at` 两列。
+- **后果（若不修）**：50 评审事务写「被裁决版行的 reject_reason/rejected_at」时无列可落；拒绝态单一真源（贯穿工作台/主页/发布页）的存储基座缺失，被拒原因只能退化为 `publications.reject_reason`（本应只是人话镜像投影），破坏 #8 的两线分明设计。
+- **修复**：40 §5.2 `capability_versions` DDL 新增 `reject_reason text` + `rejected_at timestamptz` 两列（含注释：表归本域、本域只产 draft 不写被拒态、写入由发布/评审域 50 §2.6.1 完成、权威在此两列、`publications.reject_reason` 仅镜像）；§5 Phase 0 决策 + §「对其他域约束名/字段变化」摘要同步声明。
+- **结果**：#8 拒绝态单一真源现有完整存储基座；40（建列）↔50（写列 + 镜像投影）口径一致。
+
+### G-3 ✅（文档完整性，非缺陷）50 域 §11.B `userMessage` 口径注补齐
+- **现象**：脊柱 §11.B 要求「各域错误用例表的『人话 message』列即 `userMessage`」。10/30/40/60 域均加了显式注；50 域 5 张错误表此前仍用「人话 message」表头、无 `userMessage` 显式注（50 本轮修订聚焦 #6/#7/#8/#16，未触 §11.B）。语义上 50 已只出 ErrorEnvelope，但缺收紧口径的显式声明。
+- **修复**：50 §2 端点契约前言加 §11.B 收紧注（人话 message 列 = `userMessage`、`error.code` UI 永不渲染、action 收敛三类、`PublishBatchItemView.error`/`publish_batch_items.error`/`publications.reject_reason` 同口径）。
+- **结果**：#11 现六个对外错误域口径显式一致。
+
+### G-4 ✅（文档完整性）70 sweeper §6.2 §11.A 显式引用补齐
+- **现象**：脊柱 §11.A 约束声明列「70（sweeper 重入队/补投）——全部遵 11.A」。70 §6.2 重入队**实现本就是单条原子 UPDATE**（条件内联 WHERE、无两步），符合 §11.A，但缺显式引用。
+- **修复**：70 §6.2 加一句说明该重入队为单条原子 UPDATE、遵 §11.A、无 TOCTOU（前置 SELECT 仅列举待对账 id，换 fence 靠单 SQL WHERE 兜底）。
+- **结果**：#3 五 worker 域 + sweeper 现全部显式引用 §11.A。
+
+---
+
+## 3. 跨域共识一致性专项核查（任务指定重点）
+
+| 共识 | 核查口径 | 结论 |
+|---|---|---|
+| **(A) §11.A 受保护写入** | 各 job 写入是否引用 fence 内联 CTE 模板、禁两步 | ✅ 20/30/40/50 worker + 70 sweeper 全引用；`rowCount=0`=正常控制流统一。产物表均带可守门 job 血缘列或经联表（session_segments 经 snapshot→job、structure_state 经 version→job）。 |
+| **(C) §11.C SSE 鉴权** | 所有 SSE 流是否统一同源 Cookie、建流前 HTTP 失败、error 帧不表鉴权 | ✅ 10/40 权威落地；20/30/50 job 流引用一致；40 §4.D 旧 Bearer/query/header token 表述显式作废。全域无 SSE query-string token。_index 图例 + §2.4/§2.8/§8 同步。 |
+| **(D) §11.D outbox 算法** | 70 是否 SQL 不过滤 xid、应用层连续安全前缀 | ✅ 70 §3.2 唯一权威算法；SQL `WHERE` 内无任何 xid 过滤；所有顺序消费者（MarketplaceProjection/NotifyConsumer/未来 MeteringConsumer）引用同算法、无变体。 |
+| **(E) §11.E 复合 FK 约束名 30/40/50 闭合** | 注册表 7 个约束名是否各域一致建立、唯一键先于 FK | ✅ 全闭合（G-1 补 20 后）。`uq_session_segments_id_snapshot`(20)、`uq_candidates_id_snapshot`+`fk_evidence_*`(30)、`uq_capability_versions_capability_id`+`fk_capabilities_current_version`(40)、`fk_publications_capability_version`/`fk_listings_capability_version`(50) 约束名零偏离；建序「唯一键→FK」入 _index §3。 |
+| **(F) 社交权限 10↔60** | follow/like 守卫两域是否一致 = requireAuth | ✅ 10 §6.2 与 60 §0/§3/§8 双向一致；均声明无 403-by-role 社交写用例、未登录 401+escalate；`FollowResult`/`LikeResult`/scope/Idempotency-Key 不变。 |
+| **批量进度字段(50)** | doneCount 废弃 → processedCount 三元贯穿 | ✅ 50 §2.3/§3/§5/§摘要 + _index §4 SSE 表全用 processedCount/publishedCount/failedCount；完成判定 processedCount===total，有失败也满进度。 |
+| **拒绝态状态机(50)单一真源贯穿** | 工作台/主页/发布页是否同源于 capability_versions 被拒线 + publications 镜像 | ✅（G-2 补 40 列后）真源 = `capability_versions.status='review_rejected'`+`reject_reason`/`rejected_at`（被拒版自身）；`publications.reject_reason` 仅人话镜像；`capability.review_resolved` 事件带 `rejectedVersionId?`/`rejectedAt?` 供 70 MarketplaceProjection/NotifyConsumer。发布页 `PublicationView`(只读)、工作台「已退回」派生态、主页作品墙（被拒回退展上一 published 版、不暴露 review_rejected）三处与 50 §2.6.1 事务 + outbox 逐条对应。 |
+
+---
+
+## 4. 既有 M-1/M-2 复核（R0 已修，本轮仍成立）
+
+- **M-1（三张 daily_* 表唯一真源在 70 §9.1）**：✅ 仍成立。60 域无任何 `CREATE TABLE daily_*`，§4.5 为「读取列与口径约定」引用表指向 70 §9.1；全表各只一处 CREATE TABLE。
+- **M-2（`CapabilityReviewStatus` 为展示层派生枚举）**：✅ 仍成立。60 类型注释标注「展示层派生、非 publications.review_status 存储枚举」+ 派生映射；与 #8 两线分明设计无冲突（`unpublished`/`draft` 为派生展示态，不写回存储）。
+
+---
+
+## 5. 低优先观察项（不阻断 Codex 复审）
+
+| # | 观察 | 严重度 | 处置 |
+|---|---|---|---|
+| O-1 | 占位文案两变体：usage 类「暂无数据 / 上线后填充」（脊柱），市集卡 installs/rating「上线后由真实数据填充」（50，对齐 Figma）。机制（`meta.placeholders`+null）一致。 | 低（copy） | 故意区分（消费者侧措辞），保留。 |
+| O-2 | 70 `consumer_cursors` 先 `CREATE TABLE`(PK=consumer_name) 再同文 `ALTER ... PRIMARY KEY (consumer_name, topic)`。最终 schema 正确。 | 低（可读性） | 迁移时可合并单条复合 PK，不影响正确性。 |
+| O-3 | `capabilities.embedding vector(1536)`(40) 为 B-37(P1) 预留、本期不用；`capability_relations` 本期不建。 | 低（schema 前向） | 正确（主页缩略走 `creator_capability_cooccur`），无需动作。 |
+| O-4 | `POST /auth/logout`（POST 写命令豁免）、`GET /api/v1/auth/callback`（GET 回调例外、非 POST 写命令）不带 `Idempotency-Key`（脊柱 §4 主动偏离）。 | 低（已标注） | 10 域显式标理由（登出无产物幂等；callback 是 OIDC browser redirect、code/state 一次性，本就 GET 不入写命令 key 体系）；合理例外。R7 已把豁免清单 callback 方法对齐为 GET、单列「GET 回调例外」。 |
+
+---
+
+## 6. 残留需上层决策项
+
+**无。** 17 项 Codex 裁定全数落地；本轮发现的 2 处跨域缺口（G-1/G-2）+ 2 处完整性补齐（G-3/G-4）已直接修复并跨文件自洽；低优先观察项均合理设计或可读性微调。
+
+---
+
+## 7. Codex 复审就绪判定
+
+✅ **可进入 Codex 复审（R4 收口后）。** 依据：
+1. **R1 17/17 项落地** + **R2 6/6 条** + **R3 4/4 条** + **R4 2/2 条残留阻塞项逐条修复**（见 §0 / §0bis / §0ter），跨文件自洽；无 ❌、无遗留 🟡。
+2. 七条共识硬规则（§11.A 受保护写入 / §11.B ErrorEnvelope+userMessage / §11.C SSE Cookie / §11.D outbox 连续前缀 / §11.E 复合 FK 注册表 / §11.F 社交 requireAuth / **§11.G 后置 FK 闭合清单**）在脊柱单一定义、各域只引用不偏移。
+3. **ErrorEnvelope 字段统一 `userMessage`（R3 据实复核）**：脊柱 §3.1/§9 schema + JSON 示例 + 全域错误用例表头一致；`message` 同义字段说法删除。**全目录无 ErrorEnvelope `message` schema 字段、无「错误/端点 message」文案残留**（R3#1 补齐 20 域遗漏，修正 R2「全目录无残留」过度声明）；`grep -rn "message"` 仅剩三类合法非 schema 残留——`messageCount`/`message_count` 数据字段、zod `.refine({message})` 校验参数、规则声明 prose（00/30 刻意提及以禁用），均非错误信封字段。
+4. **复合 FK 链全闭合**（约束名零偏离、唯一键先于 FK、建序入 _index §3）；R2 新增 `fk_runtime_sessions_capability_version` 复用 40 既有 `uq_capability_versions_capability_id` 唯一键，§11.E 注册表现 8 条。
+4bis. **迁移顺序闭合（R4-1，自核验无环）**：`drafts` 改基表（仅内联指向已建核心表 `users`/`jobs` 的 FK）+ §11.G 后置 ALTER FK 闭合清单（本轮 4 条：`fk_drafts_snapshot`/`fk_drafts_version`/`fk_drafts_batch`【补齐缺失 FK】/`fk_pairings_draft` 破 drafts↔import_pairings 环；并列全 40 `fk_capabilities_current_version` + 70 §9.4 五组既有后置 FK）。**脑中走查阶段一基表建序 → 阶段二后置 ALTER：每条后置 FK 的被引用表（`raw_snapshots`/`capability_versions`/`publish_batches`/`drafts`/`users`/`capabilities`/`session_segments`/`runtime_sessions`）均已在阶段一建好，无任何 FK 引用到尚未建的表，全 38 表 FK 可一次性建得出、无环。**
+5. **SSE 鉴权全域同源 Cookie**（含 R2 修复的导入 job 流 20 §4.1，建流前 HTTP 失败）；导入 SSE Bearer 残留清零。
+6. **pairing 失败计数可成立**（绑 `pairId+code`、按 pairId 限流）；**B-21 上传鉴权 10↔20 统一为独立 PairAuth（不进 Logto JWT 中间件、无 token exchange，R3#3）**；**发布事务只接受 draft、被拒态终态不可变、两线单一真源**；**被拒重发派生路径打通（40 `fromVersionId` ③分支 + 50 重试入口指向，含首发被拒，闭环成立，R3#2）**；**批量发布计数幂等化（item 终态迁移 + batch 计数合成单条 CTE、防重条件 + 按实际迁移行递增，R3#4）**。
+7. 全文代码围栏平衡（本轮 R4 编辑文件 00/20 + _index/_report；fence 偶数）；`_index.md` 端点/表/约束/SSE/迁移序已同步 R4 变化（drafts 基表 + 后置 ALTER FK 闭合清单 / STEP③ selection 端点入清单 + 端点计数 52→53）。
+8. **STEP③ 端点口径已校正（R4-2）**：`_index` §2.4 不再声明「无 API」，改「选择切换不写库无 API、保存草稿/进入下一步有 API（`PATCH /drafts/{draftId}/selection`，scope=`draft.selection.patch`、鉴权 `requireAuth`+`requireRole('creator')`+owner（普通 HTTP，**非 SSE 不走 §11.C**；R5-4 统一裁定后此处不再写「同源 Cookie」）、最后写赢无 If-Match）」，与 40 §4.G 定义一一核对一致；端点计数 §2.1–§2.8 由 52 → 53 行（含 `/health`+`/ready` 合行；§2.9 三冻结读端点本期不计入）。
+9. 三条硬规则（不裸转圈 / 不裸错误码 / 不丢已生成）逐域落点可追溯，未被本轮修订削弱。

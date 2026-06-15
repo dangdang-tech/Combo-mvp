@@ -1,0 +1,9 @@
+R3 四项：均已实质闭合。全局回归：FAIL，仍有 P0 阻塞。
+
+阻塞项：
+
+1. `creator-builder/docs/contracts/00-约定与状态机.md:428`、`creator-builder/docs/contracts/_index.md:164`：`drafts` 建表顺序/FK 闭合仍不可落地。`drafts` 内联引用 `raw_snapshots`、`capability_versions`，但迁移顺序未安排 `drafts`，且会与 `20` 的 `import_pairings.draft_id -> drafts(id)` 形成建表顺序冲突；`batch_id` 也缺 `publish_batches(id)` FK。修法：先建 `drafts` 基表，按依赖在 20/40/50 后置 `ALTER ADD CONSTRAINT`，并补 `_index` 迁移顺序。
+
+2. `creator-builder/docs/contracts/_index.md:66`、`creator-builder/docs/contracts/40-step3-4-structure.md:301`：全局端点清单仍声明 STEP③ “无 API”，但 40 已新增 `PATCH /api/v1/drafts/{draftId}/selection`。56 端点索引/鉴权/幂等覆盖口径失真。修法：`_index` 补入该端点及鉴权、幂等 scope、错误信封，改成“选择切换无 API，保存草稿有 API”。
+
+VERDICT: FAIL

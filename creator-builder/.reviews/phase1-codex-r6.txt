@@ -1,0 +1,13 @@
+R5 未全目录闭合；最终全局回归 FAIL。
+
+阻塞项：
+
+1. [creator-builder/docs/contracts/_consistency-report.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/_consistency-report.md:58)、[同文件](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/_consistency-report.md:193)：仍把 `PATCH /drafts/{draftId}/selection` 写成「同源 Cookie」。这与 R5-4 后的权威口径冲突：40 域普通 HTTP 必须是 `requireAuth + requireRole('creator') + owner`，只有 `structure/events` 是 Cookie-only。  
+修法：两处改为 `Role / requireAuth+requireRole('creator')+owner`，明确非 SSE 不走 §11.C。
+
+2. [creator-builder/docs/contracts/20-step1-import.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/20-step1-import.md:140)：`POST /api/v1/import/connect/pair` 铸码会创建 `import_pairings` 行，是写命令，却写成 `Idempotency-Key` 可选；与 [00-约定与状态机.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/00-约定与状态机.md:189) “所有写命令 POST/PATCH/DELETE 必带 Idempotency-Key” 冲突。  
+修法：改为必带 `Idempotency-Key`，固定 scope=`import.connect.pair`；同步 [_index.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/_index.md:50) 端点备注，并补缺 key 错误用例。
+
+其余 R5-1/2/3/5、FK/复合 FK 建序、SSE error 完整信封、社交 scope、拒绝态、Logto/PairAuth、usage 占位未见新增阻断。
+
+VERDICT: FAIL
