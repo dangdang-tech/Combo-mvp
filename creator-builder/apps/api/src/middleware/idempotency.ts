@@ -11,6 +11,7 @@ import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from 'fastif
 import {
   buildError,
   ErrorCode,
+  IdempotencyScope,
   IdempotencyStatus,
   type IdempotencyOptionalScopeValue,
   type IdempotencyScopeValue,
@@ -41,12 +42,32 @@ interface ResponseRef {
   body: unknown;
 }
 
-/** 规范化 body 算 request_hash（防同 key 不同 body 复用，脊柱 §4.1）。 */
-function computeRequestHash(req: FastifyRequest): string {
+/**
+ * 规范化请求算 request_hash（防同 key 不同请求复用，脊柱 §4.1）。
+ *   - method + url（含 query string，已天然纳入 multipart 分片元数据 partIndex/contentSha256/pairId，Codex P1-5）。
+ *   - body 仅取可序列化部分；multipart 二进制文件流不纳入 hash（preHandler 阶段未消费），
+ *     分片的判别靠 url 上的 per-part 元数据 + helper 注入的 per-part Idempotency-Key（含 partIndex/content-hash）。
+ *     这样每个分片是「同 scope 不同 key 不同 hash」，绝不互相 replay/冲突（Codex P1-5）。
+ *   - **Authorization 纳入 hash 仅限 import.connect.upload（Codex P1-r6 + r7）**：助手直传用
+ *     `Authorization: Bearer <pairingCode>`（**一次性配对码、会话内不轮换**）作主鉴权——不入 hash 则换错码复用同
+ *     Idempotency-Key 可回放首次（正确码）的成功体，绕过码校验；纳入则换码 = 不同 hash → §4 行为矩阵判
+ *     「同 key 不同 hash → 409 IDEMPOTENCY_CONFLICT」、绝不回放。
+ *     **只对该 scope 纳入**（Codex r7 P2）：普通 Logto Bearer JWT 会轮换，若全局纳入则 token 刷新后同 key+同 body
+ *     重试会被误判 409（而非按契约回放）；故其余 scope 不纳入 Authorization，避免幂等语义被 token 轮换污染。
+ */
+function computeRequestHash(
+  req: FastifyRequest,
+  scope: IdempotencyScopeValue | IdempotencyOptionalScopeValue,
+): string {
+  // 仅配对码鉴权的助手直传纳入 Authorization（配对码会话内稳定、不轮换）；其余 scope 不纳入（防 Logto JWT 轮换误 409）。
+  const includeAuth = scope === IdempotencyScope.IMPORT_CONNECT_UPLOAD;
   const canonical = JSON.stringify({
     method: req.method,
     url: req.url,
-    // body 仅取可序列化部分（multipart 文件流不纳入 hash；Phase 3 按 part 元数据补）。
+    auth:
+      includeAuth && typeof req.headers.authorization === 'string'
+        ? req.headers.authorization
+        : null,
     body: typeof req.body === 'object' && req.body !== null ? req.body : null,
   });
   return createHash('sha256').update(canonical).digest('hex');
@@ -227,7 +248,7 @@ export function requireIdempotency(scope: IdempotencyScopeValue): preHandlerHook
       );
       return reply;
     }
-    const requestHash = computeRequestHash(req);
+    const requestHash = computeRequestHash(req, scope);
     const decision = await acquireOrDecide(req, scope, key, requestHash);
 
     switch (decision.kind) {
@@ -267,7 +288,7 @@ export function optionalIdempotency(scope: IdempotencyOptionalScopeValue): preHa
       req.idempotency = {
         scope,
         key,
-        requestHash: computeRequestHash(req),
+        requestHash: computeRequestHash(req, scope),
         leaseAcquired: false,
       };
     }

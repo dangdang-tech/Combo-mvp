@@ -34,19 +34,19 @@
 
 ## 1. 端点清单
 
-| #   | method + path                                 | 鉴权             | 用途                                                                   | 功能点      |
-| --- | --------------------------------------------- | ---------------- | ---------------------------------------------------------------------- | ----------- |
-| 1   | `POST /api/v1/import/uploads/presign`         | Bearer           | 申请原文分批直传预签名 URL（直传路径起点）                             | B-20        |
-| 2   | `POST /api/v1/import/jobs`                    | Bearer           | 引用已上传对象触发导入 Job（阶段 A→B）                                 | B-19 / B-20 |
-| 3   | `POST /api/v1/import/connect/pair`            | Bearer           | 铸一次性配对码（本机助手路径起点）                                     | B-21        |
-| 4   | `GET /api/v1/import/connect/script`           | 配对码（query）  | 获取注入了 BASE+码的本机助手脚本                                       | B-21        |
-| 5   | `POST /api/v1/import/connect/upload`          | 配对码（Bearer） | 助手凭码把原文全量直传 + 自动建 import Job                             | B-21 / B-19 |
-| 6   | `GET /api/v1/import/connect/pair/{pairId}`    | Bearer           | 网页轮询配对/上传状态（拿到 jobId 后转 SSE）                           | B-21        |
-| 7   | `GET /api/v1/jobs/{jobId}/events`             | 同源 Cookie      | 订阅导入进度（SSE，job 流；脊柱 §5/§11.C 端点，禁 query/header token） | B-12 / B-19 |
-| 8   | `POST /api/v1/jobs/{jobId}/cancel`            | Bearer           | 取消导入（脊柱 §6.1 取消语义，保留已完成段）                           | B-11 / B-19 |
-| 9   | `GET /api/v1/snapshots/{snapshotId}`          | Bearer           | 快照统计四格 + 去敏报告对外口径                                        | B-19        |
-| 10  | `GET /api/v1/snapshots/{snapshotId}/segments` | Bearer           | 快照会话节选列表（只读，cursor 分页）                                  | B-19        |
-| 11  | `GET /api/v1/snapshots`                       | Bearer           | 当前用户快照列表（重导后旧快照仍可查）                                 | B-19        |
+| #   | method + path                                 | 鉴权                              | 用途                                                                   | 功能点      |
+| --- | --------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------- | ----------- |
+| 1   | `POST /api/v1/import/uploads/presign`         | Bearer                            | 申请原文分批直传预签名 URL（直传路径起点）                             | B-20        |
+| 2   | `POST /api/v1/import/jobs`                    | Bearer                            | 引用已上传对象触发导入 Job（阶段 A→B）                                 | B-19 / B-20 |
+| 3   | `POST /api/v1/import/connect/pair`            | Bearer                            | 铸一次性配对码（本机助手路径起点）                                     | B-21        |
+| 4   | `GET /api/v1/import/connect/script`           | 配对码（query）                   | 获取注入了 BASE+码的本机助手脚本                                       | B-21        |
+| 5   | `POST /api/v1/import/connect/upload?pairId=…` | 配对码（Bearer）+ pairId（query） | 助手凭码把原文【分片】直传落桶 + 传齐后自动建 import Job               | B-21 / B-19 |
+| 6   | `GET /api/v1/import/connect/pair/{pairId}`    | Bearer                            | 网页轮询配对/上传状态（拿到 jobId 后转 SSE）                           | B-21        |
+| 7   | `GET /api/v1/jobs/{jobId}/events`             | 同源 Cookie                       | 订阅导入进度（SSE，job 流；脊柱 §5/§11.C 端点，禁 query/header token） | B-12 / B-19 |
+| 8   | `POST /api/v1/jobs/{jobId}/cancel`            | Bearer                            | 取消导入（脊柱 §6.1 取消语义，保留已完成段）                           | B-11 / B-19 |
+| 9   | `GET /api/v1/snapshots/{snapshotId}`          | Bearer                            | 快照统计四格 + 去敏报告对外口径                                        | B-19        |
+| 10  | `GET /api/v1/snapshots/{snapshotId}/segments` | Bearer                            | 快照会话节选列表（只读，cursor 分页）                                  | B-19        |
+| 11  | `GET /api/v1/snapshots`                       | Bearer                            | 当前用户快照列表（重导后旧快照仍可查）                                 | B-19        |
 
 > 端点 7/8 直接复用脊柱 §5 / §6 既有定义，本域仅说明 job 流 snapshot/帧在导入语境的取值，不重定义路由。配对码鉴权见 §3.2。
 
@@ -167,50 +167,54 @@ interface PairResult {
 
 - **鉴权**：**配对码 query**（`?code=XXXXXX`），**不需登录 cookie**（脚本公开、对齐 MVP「`/connect.mjs` 在访问码闸放行」；助手没有登录态）。码无效/过期则 404。
 - **请求**：query `code`（必填，6 位配对码）。
-- **响应**：`Content-Type: text/javascript`（**非** JSON 包络，这是可执行脚本）。服务端按请求 `Host` + `x-forwarded-proto` 注入 `__BASE__`（railway 给 https），脚本内固化 `pairId` + `pairingCode` 与上传端点（`pairId` 由 `?code` 反查注入，供上传时定位行，Codex#3-r2）。脚本职责：扫 `~/.claude/projects` + `~/.codex/sessions` → **原文全量打包** → 用 `node:http/https` 直发（避开 undici 代理怪癖）`POST /api/v1/import/connect/upload`，请求带表单字段 `pairId` + `Authorization: Bearer <pairingCode>`。
+- **响应**：`Content-Type: text/javascript`（**非** JSON 包络，这是可执行脚本）。服务端按请求 `Host` + `x-forwarded-proto` 注入 `__BASE__`（railway 给 https），脚本内固化 `pairId` + `pairingCode` 与上传端点（`pairId` 由 `?code` 反查注入，供上传时定位行，Codex#3-r2）。脚本职责：扫 `~/.claude/projects` + `~/.codex/sessions` → **原文全量打包** → 按 `PART_SIZE`（默认 8 MiB）**切多分片** → 用 `node:http/https` 直发（避开 undici 代理怪癖）`POST /api/v1/import/connect/upload?pairId=...&partIndex=N&totalParts=M&contentSha256=...`。**`pairId`/`partIndex`/`totalParts`/`contentSha256` 走 query string**（Codex P0-1：PairAuth preHandler 不解析 multipart body，只读 query），原文字节走 multipart 文件域，鉴权走 `Authorization: Bearer <pairingCode>`。**每分片独立 `Idempotency-Key = pair-{pairId}-{partIndex}-{contentSha256}`**（含 partIndex + 内容 hash，分片间互不 replay、重跑命令同片同 key 幂等续传，Codex P1-5）。
 - **错误**：码无效/过期 → 404 `NOT_FOUND`（但因是脚本通道，返回的是一段「配对码已失效，请回网页重新生成」的可读 stderr 文案脚本片段，**不裸 JSON 错误码**，对齐硬规则②；网页侧仍以 `ErrorEnvelope` 呈现）。
 
-### 3.3 `POST /api/v1/import/connect/upload` — 助手凭码直传原文 + 建 Job
+### 3.3 `POST /api/v1/import/connect/upload?pairId=…&partIndex=…&totalParts=…&contentSha256=…` — 助手凭码分片直传落桶 + 传齐后建 Job
 
-- **鉴权（凭码绑 pairId 定位行，Codex#3-r2 失败计数可成立）**：请求**必须同时携带 `pairId` 与配对码**——`pairId`（明文配对会话 id，由脚本注入）走表单字段定位 `import_pairings` 行，配对码走 `Authorization: Bearer <pairingCode>`。服务端**先按 `pairId` 定位行**，再对该行 `pairing_code_hash` 校验入参码 hash。`pairId` 不存在/已终态 → `404`/`410`；定位到行但**码 hash 不匹配 = 一次失败尝试**，对该行 `attempt_count += 1`（按 pairId 计数、可限流），达 `max_attempts` 立即 `phase='expired'`（作废重铸）；码无效/过期/已用 → 401/410。
-  > **为何要带 `pairId`（Codex#3-r2）**：配对码哈希化后，仅凭「只提交 code」无法在 miss 时定位到任何 `import_pairings` 行（hash 不命中即查无此行），`attempt_count += 1` 无处可写、6 位码暴力枚举不可限流。绑定 `pairId` 后，每次兑换都先定位到确定的行，码 hash 错即对该行累加失败计数并按 pairId 限流，杜绝枚举。`pairId` 是会话 id、非机密（网页轮询也用它），明文携带安全。
-- **幂等**：写命令（自动建 import Job），**必带** `Idempotency-Key`（scope=`import.connect.upload`，由 pairId 派生，助手脚本注入）；助手重试用同 key 不重复建 job（脊柱 §4.1）。
-- **请求**：`multipart/form-data` 原文全量直传（大文件分片）。表单字段：
+> **统一上传协议（manifest / part / complete，Codex P0-1/P0-2/P1-4/P1-5/P1-8）**。一句话：每次请求是「一个分片」——服务端**真实把分片字节写加密临时桶 `agora-raw`**，把 `{ partIndex → { key, contentSha256 } }` 登记进 `import_pairings.landed_parts` manifest（不置 `used_at`）；据 `totalParts` 判**全部分片到齐**才兑换 `used_at` + 建 job（subject_ref 带 `rawS3Keys`），未齐回 `uploading`。
+
+- **鉴权（query pairId 定位行 + Bearer 码，Codex P0-1 + Codex#3-r2）**：请求**必须同时携带 `pairId` 与配对码**——`pairId`（明文配对会话 id，由脚本注入）走 **query string**（`?pairId=...`），配对码走 `Authorization: Bearer <pairingCode>`。**为何 `pairId` 改走 query（Codex P0-1）**：PairAuth 是 preHandler，此阶段 `@fastify/multipart` 的 body 尚未消费、读不到表单字段；把 `pairId` 放 query 让 preHandler 直接读到、无需解析 multipart。服务端**先按 query `pairId` 定位行**，再对该行 `pairing_code_hash` 校验入参码 hash。`pairId` 不存在/已终态 → `404`/`410`；定位到行但**码 hash 不匹配 = 一次失败尝试**，**同一条 UPDATE 内** `attempt_count += 1` 且 `attempt_count + 1 >= max_attempts` 时立即 `phase='expired'`（Codex P1-6：达上限即作废、不留试错窗口）；码无效/过期/已用 → 401/410。
+  > **为何要带 `pairId`（Codex#3-r2）**：配对码哈希化后，仅凭「只提交 code」无法在 miss 时定位到任何 `import_pairings` 行，`attempt_count += 1` 无处可写、6 位码暴力枚举不可限流。绑定 `pairId` 后每次兑换都先定位到确定的行，码 hash 错即对该行累加失败计数并按 pairId 限流。`pairId` 是会话 id、非机密，明文携带安全。
+- **`used_at` 时机（多分片协议，Codex P1-4）**：PairAuth 校验**只读不写 `used_at`**；`recordPartLanded` 登记分片也**不置 `used_at`**——否则首片就把码置「已用」，后续分片会被 PairAuth 当「已用」拒掉，多分片不可用。`used_at` **只在 complete 兑换完成（建 job、phase→job_created）时一次性置**。
+- **幂等（每分片独立 key，Codex P1-5）**：写命令，**必带** `Idempotency-Key`（scope=`import.connect.upload`）。**每分片 key = `pair-{pairId}-{partIndex}-{contentSha256}`**（含 partIndex + 内容 hash），分片间绝不互相 replay/冲突；同片重传（重跑命令）同 key 幂等续传。请求 hash 含 query string（已天然纳入 partIndex/contentSha256），multipart 二进制流不入 hash。
+- **请求**：`POST ...?pairId=&source=&partIndex=&totalParts=&contentSha256=`（协议元数据走 **query**）+ `multipart/form-data` 文件域 `file`（本分片原文字节）。
 
 ```typescript
-// multipart 字段（非 JSON body）
+// 上传协议元数据（走 query string，Codex P0-1/P1-5）；原文字节走 multipart 文件域 file
 interface ConnectUploadForm {
-  // file: 原文打包流（claude/codex 全量 jsonl），multipart 二进制
-  pairId: string; // 【Codex#3-r2 必填】配对会话 id，服务端据此定位 import_pairings 行再校验码 hash
-  source: ImportSource; // 'mixed' 常见（助手同时扫到 claude+codex）
-  partIndex?: number; // 分片上传序号
-  totalParts?: number; // 分片总数
+  pairId: string; // query：定位 import_pairings 行（再校验码 hash），失败计数按 pairId 成立
+  source: ImportSource; // query：'mixed' 常见（助手同时扫到 claude+codex）
+  partIndex: number; // query：分片序号（0 起）
+  totalParts?: number; // query：期望分片总数（齐全才建 job；单片无则视作 1 即齐）
+  contentSha256?: string; // query：本片内容 hash（per-part 幂等键来源 + 完整性）
 }
 ```
 
-> 助手直传原文到 S3 raw 桶（或经 api 转存），与直传路径殊途同归到「S3 有原文对象」。
+> 助手把每分片原文**真实写 `agora-raw` 桶**（经 api `objectStore.putObject` 转存，Codex P0-2），落桶 key 形如 `raw/{ownerUserId}/{pairId}/part-{partIndex}`；与直传路径殊途同归到「S3 有原文对象」，worker 据 `rawS3Keys` 拉回（不再 `IMPORT_NO_CONTENT`）。
 
-- **响应** `Envelope<ConnectUploadResult>`（**判别联合**，Codex#14）：分片途中 `status:'uploading'` **不含** `jobId`（此时云端解析 job 尚未创建），只有最后一片落地、job 已建后 `status:'job_created'` 才**必含** `jobId` + `eventsUrl`：
+- **响应** `Envelope<ConnectUploadResult>`（**判别联合**，Codex#14）：**未传齐** `status:'uploading'` **不含** `jobId`；**全部分片到齐、job 已建后** `status:'job_created'` 才**必含** `jobId` + `eventsUrl` + **`jobView`**（完整 JobView，前端初始态不裸转圈，Codex P1-7）：
 
 ```typescript
 // 判别联合：用 status 判别，禁止「uploading 也带 jobId」的不一致形态（Codex#14）
 type ConnectUploadResult =
   | {
-      status: 'uploading'; // 分片途中：job 尚未创建
+      status: 'uploading'; // 分片未传齐：job 尚未创建
       pairId: string;
-      uploadedParts: number; // 已落地分片数（进度短语，不裸转圈）
+      uploadedParts: number; // 已落地分片数（= manifest 键数，进度短语，不裸转圈）
       totalParts?: number;
       // 注意：uploading 阶段无 jobId / eventsUrl（云端解析 job 还没建）
     }
   | {
-      status: 'job_created'; // 最后一片落地、import Job 已建
+      status: 'job_created'; // 全部分片到齐、import Job 已建
       pairId: string;
       jobId: JobId; // 必含：网页轮询据此转 SSE
-      eventsUrl: string; // 必含：jobId 对应 SSE 端点（脊柱 §5，= /api/v1/jobs/{jobId}/events）
+      eventsUrl: string; // 必含：= /api/v1/jobs/{jobId}/events（脊柱 §5）
+      jobView: JobView; // 必含：完整 JobView（queued + 五项子任务 pending + attemptNo/createdAt，Codex P1-7）
     };
 ```
 
-- **行为**：分片途中每片落地回 `status:'uploading'` + `uploadedParts`（不裸转圈）；**最后一片**落地后，服务端自动建 `jobs(type=import)` 入队（等价直传路径的 `POST /import/jobs`），把 jobId 回写到 `pairId` 配对记录，回 `status:'job_created'` + `jobId` + `eventsUrl`，供网页轮询接上（导入-25 网页自动接上）。SSE 鉴权按脊柱 §11.C 走网页侧同源 Cookie（助手不订阅 SSE，只上传）。
+- **行为**：每片请求 → ① 真实写桶；② 登记 manifest（不置 used_at）；③ 据 `totalParts` 判齐——**未齐**回 `status:'uploading'` + `uploadedParts`（**绝不建 job**，Codex P1-8）；**到齐**取 manifest 有序 `rawS3Keys` 自动建 `jobs(type=import)`（subject_ref 带 rawS3Keys，等价 `POST /import/jobs`）+ 兑换 `used_at` + phase→job_created + 回写 jobId，入队，回 `status:'job_created'` + `jobId` + `eventsUrl` + `jobView`。落桶失败（S3 不可用）→ `503 DEPENDENCY_UNAVAILABLE`（人话 `wait`，不建 job）。SSE 鉴权按脊柱 §11.C 走网页侧同源 Cookie（助手不订阅 SSE，只上传）。
 - **错误用例**（`userMessage` 列即脊柱 §11.B 的唯一可展示人话；内部 `code` 仅日志/映射、**对外信封不含 code**，D1）：
 
 | 场景                                        | HTTP                   | code（仅内部）                | retriable | action         | userMessage（人话，可展示）                                    |
@@ -524,8 +528,11 @@ CREATE TABLE import_pairings (
   phase             text        NOT NULL DEFAULT 'waiting',        -- waiting|uploading|job_created|expired
   upload_id         text,                                          -- 关联直传会话（助手转存）
   job_id            uuid        REFERENCES jobs(id),               -- 上传齐后建的 import Job（网页轮询接上）
-  uploaded_parts    int         NOT NULL DEFAULT 0,
+  uploaded_parts    int         NOT NULL DEFAULT 0,                 -- = landed_parts 键数（冗余便于轮询读）
   total_parts       int,
+  -- 上传 manifest（多分片协议，Codex P1-8）：已落地分片登记 { "<partIndex>": { "key": <s3Key>, "hash": <contentSha256> } }。
+  --   complete 阶段据「键数 = total_parts 且 0..total_parts-1 全到齐」判传齐才建 job；rawS3Keys 取本表 key 集（按 partIndex 有序）。
+  landed_parts      jsonb       NOT NULL DEFAULT '{}'::jsonb,
   draft_id          uuid,                                          -- 续传草稿挂接 → drafts(id)（后置 FK fk_pairings_draft，Codex#18-r4：drafts 跨域 FK 破环，见 00 §11.G）
   -- 尝试次数限制（Codex#15）：防 6 位码被暴力枚举；超阈值即作废该配对、回引导重铸
   attempt_count     int         NOT NULL DEFAULT 0,                -- 凭码兑换上传权的失败尝试次数
@@ -549,9 +556,9 @@ CREATE INDEX idx_pairings_expire ON import_pairings (expires_at)
 ```
 
 - **兑换语义（`POST /connect/upload` 凭 `pairId + code` 验证，Codex#15 + Codex#3-r2）**：**第一步按 `pairId` 定位行**——`SELECT ... FROM import_pairings WHERE id=:pairId AND used_at IS NULL AND phase IN ('waiting','uploading') AND expires_at > now() FOR UPDATE`；`pairId` 查无 active 行 → `404`/`410`（已终态/过期）。**第二步对该行校验码 hash**——按同算法 hash 入参码，与该行 `pairing_code_hash` 比对：
-  - **不匹配** → 对该行 `attempt_count += 1`（按 pairId 计数，确定有行可写，Codex#3-r2）；若 `attempt_count >= max_attempts` 立即 `phase='expired'`（作废、回网页引导重铸，杜绝 6 位码暴力枚举），返 `429/401 RATE_LIMITED`/`UNAUTHENTICATED`。
-  - **匹配** → 通过；首片落地置 `used_at`（一次性）。
-    > 受保护更新（失败计数）单语句示例：`UPDATE import_pairings SET attempt_count = attempt_count + 1, phase = CASE WHEN attempt_count + 1 >= max_attempts THEN 'expired' ELSE phase END, updated_at = now() WHERE id = :pairId;`（行已由第一步 `FOR UPDATE` 锁定，无 TOCTOU）。
+  - **不匹配** → **同一条 UPDATE 内** `attempt_count += 1` 且 `attempt_count + 1 >= max_attempts` 时立即 `phase='expired'`（Codex P1-6：达上限即作废、回网页引导重铸，杜绝 6 位码暴力枚举），返 `429/401 RATE_LIMITED`/`UNAUTHENTICATED`。
+  - **匹配** → 通过；**PairAuth 与分片登记均不置 `used_at`（Codex P1-4 多分片途中可续传）**；`used_at` **只在 complete 兑换完成（建 job、phase→job_created）时一次性置**。
+    > 受保护更新（失败计数 + 即时作废，Codex P1-6）单语句示例：`UPDATE import_pairings SET attempt_count = attempt_count + 1, phase = CASE WHEN attempt_count + 1 >= max_attempts THEN 'expired' ELSE phase END, updated_at = now() WHERE id = :pairId AND used_at IS NULL AND phase IN ('waiting','uploading') AND attempt_count < max_attempts;`（行已由第一步 `FOR UPDATE` 锁定，无 TOCTOU）。
 - **过期清理**：sweeper 周期把 `expires_at < now() AND phase NOT IN ('job_created','expired')` 的配对置 `phase='expired'`（网页轮询见 `expired` 切有出口态，导入-19/§3.4，不裸转圈）。
 
 ### 6.5 fencing 落地（脊柱 §6.2 铁律 + §11.A 受保护写入规范模式）
@@ -603,6 +610,15 @@ ON CONFLICT (snapshot_id, content_hash) DO NOTHING;  -- 快照内重复段静默
 
 > 三条写入都把 fence 校验内联进数据源、无任何「查 + 写」两步窗口；段写入的 fence 守门经 `snapshot_id → raw_snapshots.import_job_id → jobs.fence_token` 联表完成（无需在 `session_segments` 上冗余 job 列）。取消（§4.4）换 `fence_token` 后，旧 worker 上述三条写入全部 0 行、安全停，已落地的段与快照保留（硬规则③）。
 
+### 6.6 收尾同事务 outbox（70 §2.1，Codex P0-3）
+
+> **最终业务状态 + job 结果 + outbox 通知必须同一 PG 事务原子提交**，绝不「另起事务、吞失败」。import worker 写完段后，在**单条事务**里做两件事并一起 COMMIT：
+>
+> 1. **受保护落 `completed`**（§11.A 模板 1，fence 内联进 `WHERE id AND fence_token AND status='running'`）——写 `jobs.status='completed'` + `result.snapshotId` + 完整 progress（100% + 五项 done + 已生成段 items 不丢）。0 行 = 已被 fence out（取消/接管）→ **整事务回滚、不发通知**，runner 据 fence 兜终态（已生成段保留）。
+> 2. **`emitInTx` outbox**（`notify.import_completed`，eventId 按 `(jobId, attemptNo)` 幂等）。
+>
+> 任一步抛错 → `withTransaction` ROLLBACK → 整体失败、由 runner 走 `failed`/重试——**杜绝「快照建成但状态没落、通知丢」的半提交**。提交成功后 handler 回 `{ finalized: true }`，runner **不再二次 `completeJob`**，仅发 `done(completed)` 帧。
+
 ---
 
 ## 7. 本域 TS 类型片段汇总
@@ -650,16 +666,18 @@ export interface PairResult {
   curlOneLiner: string; // 恒 'curl -fsSL agora.app/import | sh'（导入-03/24）
   expiresAt: IsoDateTime;
 }
+// 上传协议元数据走 query（Codex P0-1/P1-5）；原文字节走 multipart 文件域 file
 export interface ConnectUploadForm {
-  pairId: string; // 【Codex#3-r2】定位 import_pairings 行（再校验码 hash），失败计数按 pairId 成立
+  pairId: string; // query：定位 import_pairings 行（再校验码 hash），失败计数按 pairId 成立（Codex#3-r2 + P0-1）
   source: ImportSource;
-  partIndex?: number;
-  totalParts?: number;
+  partIndex: number; // query：分片序号（0 起）
+  totalParts?: number; // query：期望分片总数（齐全才建 job，Codex P1-8）
+  contentSha256?: string; // query：本片内容 hash（per-part 幂等键 + 完整性，Codex P1-5）
 }
-// 判别联合（Codex#14）：uploading 不含 jobId，job_created 必含 jobId/eventsUrl
+// 判别联合（Codex#14）：uploading 不含 jobId，job_created 必含 jobId/eventsUrl/jobView（Codex P1-7）
 export type ConnectUploadResult =
   | { status: 'uploading'; pairId: string; uploadedParts: number; totalParts?: number }
-  | { status: 'job_created'; pairId: string; jobId: JobId; eventsUrl: string };
+  | { status: 'job_created'; pairId: string; jobId: JobId; eventsUrl: string; jobView: JobView };
 export type PairPhase = 'waiting' | 'uploading' | 'job_created' | 'expired';
 export interface PairStatusView {
   pairId: string;

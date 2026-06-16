@@ -19,6 +19,8 @@ export interface FakeJob {
   fence_token: number;
   started_at: number | null;
   finished_at: number | null;
+  /** 最近更新时刻（epoch ms）；staleQueued 据 updated_at < now()-threshold 判停滞（Codex P1-r2）。 */
+  updated_at: number;
 }
 
 export interface FakeClock {
@@ -42,6 +44,7 @@ export function makeJob(id: string, over: Partial<FakeJob> = {}): FakeJob {
     fence_token: 0,
     started_at: null,
     finished_at: null,
+    updated_at: 0, // 默认很久以前：queued 视作已停滞（测 staleQueued 补投，可被 over 覆盖）。
     ...over,
   };
 }
@@ -198,6 +201,46 @@ export class FakeDb implements Queryable {
         return { id: j.id, fence_token: j.fence_token, attempt_no: j.attempt_no };
       });
       return ok<R>(out as R[]);
+    }
+
+    // —— staleQueued：SELECT ... WHERE status='queued' AND lease_owner IS NULL AND updated_at<now()-threshold ——
+    //    （Codex P1-r2：建后入队失败被吞、长时间仍 queued 无主的 job；sweeper 用既有 fence 补投，不换 fence/attempt）
+    if (
+      sql.includes('SELECT id, fence_token, attempt_no') &&
+      sql.includes("status = 'queued'") &&
+      sql.includes('updated_at < now()')
+    ) {
+      const thresholdMs = params[0] as number;
+      const limit = params[1] as number;
+      const out = [...this.jobs.values()]
+        .filter(
+          (j) =>
+            j.status === 'queued' && j.lease_owner === null && j.updated_at < now - thresholdMs,
+        )
+        .slice(0, limit)
+        .map((j) => ({ id: j.id, fence_token: j.fence_token, attempt_no: j.attempt_no }));
+      return ok<R>(out as R[]);
+    }
+
+    // —— deleteQueuedJob：DELETE FROM jobs WHERE id AND status='queued' AND lease_owner IS NULL ——
+    if (sql.includes('DELETE FROM jobs')) {
+      const jobId = params[0] as string;
+      const j = this.jobs.get(jobId);
+      if (!j || j.status !== 'queued' || j.lease_owner !== null)
+        return { rows: [], rowCount: 0 } as QueryResultLike<R>;
+      this.jobs.delete(jobId);
+      return { rows: [], rowCount: 1 } as QueryResultLike<R>;
+    }
+
+    // —— failQueuedJob：UPDATE jobs SET status='failed' ... WHERE id AND status='queued' ——
+    if (sql.includes('UPDATE jobs') && sql.includes("status = 'failed'")) {
+      const jobId = params[0] as string;
+      const j = this.jobs.get(jobId);
+      if (!j || j.status !== 'queued') return { rows: [], rowCount: 0 } as QueryResultLike<R>;
+      j.status = 'failed';
+      j.error = JSON.parse(params[1] as string);
+      j.finished_at = now;
+      return { rows: [], rowCount: 1 } as QueryResultLike<R>;
     }
 
     // —— requeuePending：SELECT ... WHERE status='running' AND lease_owner IS NULL AND lease_until<now() ——

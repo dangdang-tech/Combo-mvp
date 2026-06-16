@@ -1,0 +1,11 @@
+FAIL，仍有阻塞项。
+
+P1 [import-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/import-handlers.ts:106)：直传 `/import/jobs` 仍只按 `uploadId` 前缀 `list()`，只要有任意对象就建 job；`presign` 没持久化 expected parts/manifest，无法判断“分片齐全”。这违反“manifest 完整性闸”，会让 N 分片上传 1 片也进入导入。修法：`presign` 持久化 upload manifest/expected parts，`POST /import/jobs` 按 manifest 校验所有 part 到齐，否则返回 uploading/409 且不建 job。
+
+P1 [create-job.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/import/create-job.ts:83)、[import-connect.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/import-connect.ts:340)：初次 `queue.enqueue` 失败被吞，但 sweeper 只回收 `running` lease，不补投 `queued` job（见 [jobs/repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/repo.ts:284)）。结果是接口返回完整 JobView 后永久 `queued`，构成“裸转圈”。修法：要么入队失败回滚/返回 503，要么实现 queued-job sweeper 按 fence 补投。
+
+P1 [pairings-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/import/pairings-repo.ts:341)：`createImportJobForPairing` 的 data-modifying CTE 中 `new_job INSERT` 不依赖 `linked`，真实 PG 会执行该 INSERT，即使后续 `UPDATE import_pairings` 没命中 active row。并发/状态变化时可能留下孤儿 queued job，mock 单测掩盖了这个 PG 语义。修法：先 `UPDATE ... RETURNING` 锁定并兑换 active pairing，再 `INSERT INTO jobs SELECT ... FROM linked`，确保未兑换成功时不建 job。
+
+已核验：PairAuth query pairId、对象存储落 rawS3Keys、worker 读取对象、终态/job result/notify outbox 同事务、used_at complete 才设、分片幂等 key/hash、max_attempts 即时 expired、JobView 子任务、助手路径 manifest 闸基本落地。去敏/解析、快照内去重血缘、fence、ErrorEnvelope 无 code、已生成不丢未见新的阻塞回归。`contentSha256` 服务端硬校验缺失按作者明示后续加固项评为 P2，不作为本轮阻塞。
+
+VERDICT: FAIL

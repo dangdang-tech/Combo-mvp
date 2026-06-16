@@ -162,6 +162,18 @@ export async function runJob(
       ? await withTimeout(handlerPromise, opts.timeoutMs, abort)
       : await handlerPromise;
 
+    // handler 已自行在同事务把「最终业务状态 + job 结果 + outbox」原子提交（Codex P0-3）：
+    //   runner 不再二次落终态，仅发 done 帧。done 用 handler 落的 finalProgress（缺则 ctx 累积镜像）。
+    if (result.finalized) {
+      const doneProgress = result.finalProgress ?? completedProgress(ctx.currentProgress());
+      await bridge.publish(jobId, {
+        event: 'done',
+        payload: { status: 'completed', result: result.result ?? null, progress: doneProgress },
+      });
+      log?.info('job completed (finalized in-handler, same-tx outbox)');
+      return { kind: 'completed', jobId };
+    }
+
     // handler 完成：受保护落 completed（fence 守门）。
     // 用 ctx 的【最新累积 progress 镜像】（含 makeContext 内 report* 累积并已持久化的 items/subtasks/done/total），
     //   不是 leased.progress（领取时的旧快照）——否则会把已生成明细覆盖回旧值、只剩 percent=100（违反「已生成不丢」，Codex P1-new）。

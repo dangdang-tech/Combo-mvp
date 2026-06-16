@@ -13,10 +13,8 @@ import { getHotRedis } from '../infra/redis.js';
 import { RedisEventStream } from '../sse/event-stream.js';
 import { getHandler, missingActiveHandlers, registeredTypes } from '../jobs/registry.js';
 import { runJob } from '../jobs/runner.js';
-// 副作用导入：3B-3E 的 handler 模块在此 import 时自注册（本期为空，handler 落位后加 import 行）。
-// import '../jobs/handlers/import.js'; // 3B
-// import '../jobs/handlers/extract.js'; // 3C
-// ...
+// 副作用导入：3B-3E 的 handler 模块在此 import 时自注册。
+import '../jobs/handlers/index.js'; // 3B import handler 自注册（B-19）；extract/structure/publish_batch 落位后在 index 内追加。
 
 /** 整体超时分级（脊柱 §6 / 70 §8.3 LLM 40/45/60/180s）。runner 兜底超时按类型选档。 */
 const TIMEOUT_BY_TYPE: Record<JobType, number> = {

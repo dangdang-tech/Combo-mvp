@@ -202,7 +202,72 @@ describe('reconcileJobsOnce', () => {
       1_000,
     );
     const res = await reconcileJobsOnce(db, recorder().re, pgTypeLookup(db));
-    expect(res).toEqual({ reclaimed: 0, reEnqueued: 0, requeued: 0 });
+    expect(res).toEqual({ reclaimed: 0, reEnqueued: 0, requeued: 0, requeuedQueued: 0 });
+  });
+
+  it('停滞 queued 补投（Codex P1-r2）：建后入队失败被吞、长时间 queued 无主 → 用既有 fence 补投，不换 fence/attempt', async () => {
+    // now=200_000、默认阈值 60s（60_000）→ 停滞判定 updated_at < now-threshold = 140_000。
+    const { db, map } = setup(
+      [
+        makeJob('stale-q', {
+          type: 'import',
+          status: 'queued',
+          lease_owner: null,
+          lease_until: null,
+          fence_token: 0,
+          attempt_no: 0,
+          updated_at: 0, // 0 < 140_000 → 停滞命中
+        }),
+        // 对照：一条刚建的健康 queued（updated_at 近=now）→ 不应被误补（阈值挡住）。
+        makeJob('fresh-q', {
+          type: 'import',
+          status: 'queued',
+          lease_owner: null,
+          lease_until: null,
+          fence_token: 0,
+          updated_at: 199_000, // 199_000 > 140_000 → 不命中
+        }),
+      ],
+      200_000,
+    );
+    const { re, calls } = recorder();
+    const res = await reconcileJobsOnce(db, re, pgTypeLookup(db));
+    expect(res.requeuedQueued).toBe(1);
+    expect(res.reEnqueued).toBe(1);
+    expect(res.reclaimed).toBe(0);
+    // 补投用既有 fence=0（claimLease 领时才换），绝不在此乱跳。
+    expect(calls).toEqual([{ id: 'stale-q', fence: 0, type: 'import' }]);
+    // 停滞 job 仍 queued（补投不改状态，等 worker claimLease 接管）；fence/attempt 不变。
+    const sq = map.get('stale-q')!;
+    expect(sq.status).toBe('queued');
+    expect(sq.fence_token).toBe(0);
+    expect(sq.attempt_no).toBe(0);
+    // 健康的 fresh-q 未被补投（阈值挡住，避免误补在线刚建的 queued）。
+    expect(calls.find((c) => c.id === 'fresh-q')).toBeUndefined();
+  });
+
+  it('停滞 queued 补投失败 → 下一轮继续补（幂等不放弃，fence/attempt 不变）', async () => {
+    const { db, map } = setup(
+      [
+        makeJob('sq', {
+          type: 'import',
+          status: 'queued',
+          lease_owner: null,
+          lease_until: null,
+          fence_token: 0,
+          updated_at: 0, // now=200_000、阈值 60s → 停滞命中
+        }),
+      ],
+      200_000,
+    );
+    const failing = recorder(['sq']);
+    const r1 = await reconcileJobsOnce(db, failing.re, pgTypeLookup(db));
+    expect(r1.requeuedQueued).toBe(0); // 补投失败
+    expect(map.get('sq')!.status).toBe('queued'); // 仍 queued，下轮可再补
+    const ok2 = recorder();
+    const r2 = await reconcileJobsOnce(db, ok2.re, pgTypeLookup(db));
+    expect(r2.requeuedQueued).toBe(1);
+    expect(ok2.calls).toEqual([{ id: 'sq', fence: 0, type: 'import' }]);
   });
 });
 

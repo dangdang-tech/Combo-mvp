@@ -1,6 +1,7 @@
 // 20 · STEP① 导入域（B-17~B-21）。import 脊柱 §9，不重定义。
 import { z } from 'zod';
 import { IdSchema, IsoDateTimeSchema } from '../core/ids.js';
+import { JobViewSchema } from '../core/jobs.js';
 
 // ---------- 来源 ----------
 export const ImportSourceSchema = z.enum(['claude', 'codex', 'mixed']);
@@ -51,15 +52,26 @@ export const PairResultSchema = z.object({
 });
 export type PairResult = z.infer<typeof PairResultSchema>;
 
+/**
+ * 上传协议元数据（Codex P0-1/P1-5）：pairId/partIndex/totalParts/contentSha256 走 **query string**（preHandler 友好）。
+ *   pairId 走 query 供 PairAuth 定位 import_pairings 行（preHandler 不解析 multipart body，Codex P0-1）；
+ *   partIndex/contentSha256 供 per-part 幂等键 + 完整性校验（Codex P1-5）。原文字节走 multipart 文件域。
+ */
 export const ConnectUploadFormSchema = z.object({
-  pairId: z.string().describe('定位 import_pairings 行（再校验码 hash），失败计数按 pairId 成立'),
+  pairId: z
+    .string()
+    .describe('query：定位 import_pairings 行（再校验码 hash），失败计数按 pairId 成立'),
   source: ImportSourceSchema,
-  partIndex: z.number().int().optional(),
-  totalParts: z.number().int().optional(),
+  partIndex: z.number().int().nonnegative().describe('query：分片序号（0 起）'),
+  totalParts: z.number().int().positive().optional().describe('query：期望分片总数，齐全才建 job'),
+  contentSha256: z.string().optional().describe('query：本片内容 hash（per-part 幂等键 + 完整性）'),
 });
 export type ConnectUploadForm = z.infer<typeof ConnectUploadFormSchema>;
 
-/** 判别联合（Codex#14）：uploading 不含 jobId，job_created 必含 jobId/eventsUrl。 */
+/**
+ * 判别联合（Codex#14）：uploading 不含 jobId，job_created 必含 jobId/eventsUrl/jobView。
+ *   job_created 携带完整 JobView（queued + 五项子任务 pending + attemptNo/createdAt），前端初始态不裸转圈（Codex P1-7）。
+ */
 export const ConnectUploadResultSchema = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('uploading'),
@@ -72,6 +84,7 @@ export const ConnectUploadResultSchema = z.discriminatedUnion('status', [
     pairId: z.string(),
     jobId: IdSchema,
     eventsUrl: z.string(),
+    jobView: JobViewSchema,
   }),
 ]);
 export type ConnectUploadResult = z.infer<typeof ConnectUploadResultSchema>;

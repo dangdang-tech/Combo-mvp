@@ -52,6 +52,10 @@ CREATE TABLE import_pairings (
   job_id            uuid        REFERENCES jobs(id),
   uploaded_parts    int         NOT NULL DEFAULT 0,
   total_parts       int,
+  -- 上传 manifest（B-21 多分片协议，Codex P1-8）：已落地分片登记表
+  --   { "<partIndex>": { "key": "<s3Key>", "hash": "<contentSha256>" }, ... }。
+  --   complete 阶段据「键数 = total_parts 且 0..total_parts-1 全到齐」判断传齐才建 job；rawS3Keys 取本表 key 集。
+  landed_parts      jsonb       NOT NULL DEFAULT '{}'::jsonb,
   draft_id          uuid,                                  -- 后置 FK fk_pairings_draft（§11.G）
   attempt_count     int         NOT NULL DEFAULT 0,
   max_attempts      int         NOT NULL DEFAULT 5,

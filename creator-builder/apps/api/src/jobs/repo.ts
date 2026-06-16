@@ -273,6 +273,63 @@ export async function reclaimExpired(
 }
 
 /**
+ * 删除一条「刚建、从未入队成功」的 queued job（Codex P1-r2：enqueue 失败回滚，不留悬挂 queued 孤儿）。
+ *   受保护：仅 status='queued' AND lease_owner IS NULL（从未被任何 worker 领过）可删——
+ *   一旦被领（running/终态）绝不删（已有执行/产物，回滚会丢，硬规则③）。返回 true = 删成功。
+ *   语义安全：只删「除了这次失败的入队外、没有任何其它引用/产物」的全新 job（导入 job 此刻尚无快照/段）。
+ */
+export async function deleteQueuedJob(db: Queryable, jobId: string): Promise<boolean> {
+  const res = await db.query(
+    `DELETE FROM jobs WHERE id = $1 AND status = 'queued' AND lease_owner IS NULL`,
+    [jobId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/**
+ * 直接标 queued job 为 failed（Codex P1-r2 兜底：删不掉时——如被其它引用——退而标 failed，不留转圈）。
+ *   error 落人话 ErrorBody（禁堆栈，脊柱 §11.B）。仅 queued 可标（不覆盖 running/终态）。返回 true = 标成功。
+ */
+export async function failQueuedJob(
+  db: Queryable,
+  jobId: string,
+  errorBody: ErrorBody,
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE jobs
+        SET status = 'failed', error = $2::jsonb, finished_at = now(), updated_at = now()
+      WHERE id = $1 AND status = 'queued'`,
+    [jobId, JSON.stringify(errorBody)],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/**
+ * 「停滞 queued 补投」列举（Codex P1-r2 防御纵深）：建后入队失败被吞、至今仍 queued 且从未被领、
+ *   且停留超过阈值（updated_at < now()-thresholdMs）的 job——sweeper 据此用既有 fence 补投 BullMQ。
+ *   - 只读列举（不改 fence/attempt/status）：补投用既有 fence_token（claimLease 领时再换 fence，绝不在此乱跳）。
+ *   - 谓词 status='queued' AND lease_owner IS NULL：与 reclaimExpired/requeuePending（均限 running）互斥，不重复处理。
+ *   - 阈值避免「刚建还没来得及被 BullMQ 触发」的正常 queued 被误补（给在线入队留窗口）。
+ */
+export async function staleQueued(
+  db: Queryable,
+  thresholdMs: number,
+  limit = 50,
+): Promise<Array<{ id: string; fenceToken: number; attemptNo: number }>> {
+  const res = await db.query<{ id: string; fence_token: number; attempt_no: number }>(
+    `SELECT id, fence_token, attempt_no
+       FROM jobs
+      WHERE status = 'queued'
+        AND lease_owner IS NULL
+        AND updated_at < now() - ($1::int || ' milliseconds')::interval
+      ORDER BY created_at ASC
+      LIMIT $2`,
+    [thresholdMs, limit],
+  );
+  return res.rows.map((r) => ({ id: r.id, fenceToken: r.fence_token, attemptNo: r.attempt_no }));
+}
+
+/**
  * 「重入队待补」列举（Codex P0-3）：已被 reclaimExpired 接管（换过 fence、lease_owner=NULL）、
  * 但上一轮重入队 BullMQ 失败、至今仍 running 无主的 job。
  *   - 只读列举（不改 fence/attempt/lease）：补入队用【当前已有的 fence】，绝不重复 +1（不乱跳）。

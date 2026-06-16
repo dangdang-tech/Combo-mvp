@@ -88,6 +88,15 @@ export interface JobContext {
 /** handler 执行结果（成功产物引用，落 jobs.result）。 */
 export interface JobResult {
   result?: unknown;
+  /**
+   * handler 已在【自己的事务内】把「最终业务状态 + job 结果 + outbox」一并提交完成（Codex P0-3 同事务 outbox）。
+   *   true → runner 不再调 completeJob（避免二次落终态）；仅发 done 帧。导入 handler 用它把
+   *   completeJob + emitInTx 同一 PG 事务原子提交（成功整体成功、失败整体失败/重试，绝不另起事务吞失败）。
+   *   未设/false → 旧路径：runner 负责受保护 completeJob（其它无同事务 outbox 需求的 handler 不受影响）。
+   */
+  finalized?: boolean;
+  /** finalized 为 true 时 handler 落库的最终 progress（runner 据此发 done 帧；缺则用 ctx 累积镜像）。 */
+  finalProgress?: ProgressView;
 }
 
 /**

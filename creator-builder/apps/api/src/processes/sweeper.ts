@@ -68,10 +68,12 @@ function main(): void {
       // —— job 对账（§6.2）：过期 running 换 fence 重入队 ——
       const res = await reconcileJobsOnce(db, reEnqueue, typeLookup).catch((err) => {
         console.error(`[sweeper] job 对账失败（仅告警，不影响在线请求）：${String(err)}`);
-        return { reclaimed: 0, reEnqueued: 0 };
+        return { reclaimed: 0, reEnqueued: 0, requeued: 0, requeuedQueued: 0 };
       });
-      if (res.reclaimed > 0) {
-        console.log(`[sweeper] 对账：重入队 ${res.reEnqueued}/${res.reclaimed} 条过期任务`);
+      if (res.reclaimed > 0 || res.requeuedQueued > 0) {
+        console.log(
+          `[sweeper] 对账：重入队 ${res.reEnqueued} 条（过期 running ${res.reclaimed}、停滞 queued 补投 ${res.requeuedQueued}）`,
+        );
       }
 
       // —— outbox 滞留告警（§6.3）：写入已久仍未被任一活跃 consumer 越过 → 告警（仅日志，外发推迟）——

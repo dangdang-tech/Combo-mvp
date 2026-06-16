@@ -143,3 +143,93 @@ describe('idempotency lease fence (Codex#4)', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+// ── per-part 幂等：分片元数据走 query，不同片 → 不同 key + 不同 request_hash（Codex P1-5）──
+describe('connect/upload per-part idempotency (Codex P1-5)', () => {
+  /** 用 INSERT-成功路径取得某请求的 requestHash（computeRequestHash 依赖 method/url/auth/body，Codex P1-r6）。 */
+  async function hashFor(url: string, key: string, authorization?: string): Promise<string> {
+    const calls: QueryCall[] = [];
+    const db = {
+      query: vi.fn(async (sql: string, params: unknown[]) => {
+        calls.push({ sql, params });
+        return { rows: [{ key }] };
+      }),
+    };
+    const headers: Record<string, string> = { 'idempotency-key': key };
+    if (authorization !== undefined) headers.authorization = authorization;
+    const req = {
+      id: 't',
+      method: 'POST',
+      url,
+      body: null,
+      headers,
+      server: { infra: { db } },
+    } as unknown as FastifyRequest;
+    const { reply } = makeReply();
+    await requireIdempotency(IdempotencyScope.IMPORT_CONNECT_UPLOAD)(req, reply);
+    return req.idempotency!.requestHash;
+  }
+
+  it('不同 partIndex/contentSha256（query）→ 不同 request_hash（分片互不 replay/冲突）', async () => {
+    const h0 = await hashFor(
+      '/api/v1/import/connect/upload?pairId=p1&partIndex=0&contentSha256=aaa',
+      'pair-p1-0-aaa',
+    );
+    const h1 = await hashFor(
+      '/api/v1/import/connect/upload?pairId=p1&partIndex=1&contentSha256=bbb',
+      'pair-p1-1-bbb',
+    );
+    expect(h0).not.toBe(h1);
+  });
+
+  it('同片重传（同 query 同 key）→ 同 request_hash（幂等续传，可回放）', async () => {
+    const a = await hashFor(
+      '/api/v1/import/connect/upload?pairId=p1&partIndex=0&contentSha256=aaa',
+      'pair-p1-0-aaa',
+    );
+    const b = await hashFor(
+      '/api/v1/import/connect/upload?pairId=p1&partIndex=0&contentSha256=aaa',
+      'pair-p1-0-aaa',
+    );
+    expect(a).toBe(b);
+  });
+
+  // ── Authorization（配对码）纳入 request_hash（Codex P1-r6）：换错码复用同 key 不得回放（避免绕过码校验）──
+  it('同 url/key 但换不同 Authorization 配对码 → 不同 request_hash（绕码回放 → 落 409 IDEMPOTENCY_CONFLICT，不回放）', async () => {
+    const url = '/api/v1/import/connect/upload?pairId=p1&partIndex=0&contentSha256=aaa';
+    const right = await hashFor(url, 'pair-p1-0-aaa', 'Bearer 424242');
+    const wrong = await hashFor(url, 'pair-p1-0-aaa', 'Bearer 999999');
+    expect(right).not.toBe(wrong); // 码入 hash → 换码即异 hash → §4 行为矩阵判 409，绝不回放首次成功体
+  });
+
+  it('同 url/key 且同 Authorization 配对码 → 同 request_hash（正常同片同码续传可回放）', async () => {
+    const url = '/api/v1/import/connect/upload?pairId=p1&partIndex=0&contentSha256=aaa';
+    const a = await hashFor(url, 'pair-p1-0-aaa', 'Bearer 424242');
+    const b = await hashFor(url, 'pair-p1-0-aaa', 'Bearer 424242');
+    expect(a).toBe(b);
+  });
+
+  // ── Authorization 仅对 import.connect.upload 纳入 hash（Codex r7 P2）：普通 Bearer 写命令 token 轮换不破坏回放 ──
+  it('非 upload scope（普通 Bearer 写命令）→ 换 Authorization 不影响 request_hash（Logto JWT 轮换仍按契约回放，不误 409）', async () => {
+    /** 用 INSERT-成功路径取 PUBLISH_VERSION scope 下某 Authorization 的 requestHash。 */
+    async function publishHash(authorization: string): Promise<string> {
+      const db = {
+        query: vi.fn(async () => ({ rows: [{ key: 'k' }] })),
+      };
+      const req = {
+        id: 't',
+        method: 'POST',
+        url: '/api/v1/versions/v1/publish',
+        body: { a: 1 },
+        headers: { 'idempotency-key': 'k', authorization: authorization },
+        server: { infra: { db } },
+      } as unknown as FastifyRequest;
+      const { reply } = makeReply();
+      await requireIdempotency(IdempotencyScope.PUBLISH_VERSION)(req, reply);
+      return req.idempotency!.requestHash;
+    }
+    const tokenA = await publishHash('Bearer jwt-old');
+    const tokenB = await publishHash('Bearer jwt-rotated'); // 同用户 token 刷新
+    expect(tokenA).toBe(tokenB); // 普通 scope 不纳入 Authorization → 同 hash → 可回放（不误判 409）
+  });
+});

@@ -63,6 +63,17 @@ export function createS3ObjectStore(env: Env): ObjectStorePort {
       // SDK v3 in node 返回的 Body 是 web ReadableStream（node18+）或可转换流。
       return res.Body as unknown as ReadableStream;
     },
+    async putObject(bucket, key, body, opts) {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: body,
+          ...(opts?.contentType ? { ContentType: opts.contentType } : {}),
+        }),
+      );
+      return { key };
+    },
     async list(bucket, prefix) {
       const res = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix }));
       return (res.Contents ?? []).map((o) => ({

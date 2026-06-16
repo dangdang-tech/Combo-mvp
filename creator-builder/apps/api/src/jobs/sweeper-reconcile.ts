@@ -4,7 +4,13 @@
 //   lease 未过期绝不抢；cancelled/终态不被重入（reclaimExpired 条件限 status='running'）。
 import type { JobType } from '@cb/shared';
 import type { Queryable } from './types.js';
-import { reclaimExpired, requeuePending } from './repo.js';
+import { reclaimExpired, requeuePending, staleQueued } from './repo.js';
+
+/**
+ * 停滞 queued 补投阈值（Codex P1-r2）：建后入队失败被吞、停留超过此时长仍 queued 无主的 job → 补投。
+ *   须显著大于「在线建 job 到 BullMQ 触发 worker 领租约」的正常时延（避免误补刚建的健康 queued）。
+ */
+export const STALE_QUEUED_THRESHOLD_MS = 60_000;
 
 /** 重入队回调：sweeper 不直连业务队列时由调用方注入（worker/api 持 QueuePort）。 */
 export interface ReEnqueue {
@@ -19,10 +25,12 @@ export interface JobTypeLookup {
 export interface ReconcileResult {
   /** 本轮新接管（换 fence + attempt+1）的过期 running job 数。 */
   reclaimed: number;
-  /** 本轮成功（重新）入 BullMQ 的 job 数（含新接管的 + 上一轮入队失败补入的）。 */
+  /** 本轮成功（重新）入 BullMQ 的 job 数（含新接管的 + 上一轮入队失败补入的 + 停滞 queued 补投的）。 */
   reEnqueued: number;
-  /** 本轮补入队（上一轮入队失败、本轮用既有 fence 补入）成功的数（reEnqueued 的子集，便于观测）。 */
+  /** 本轮补入队（running 被接管后入队失败、本轮用既有 fence 补入）成功的数（reEnqueued 的子集，便于观测）。 */
   requeued: number;
+  /** 本轮停滞 queued 补投（建后入队失败被吞、长时间 queued 无主、用既有 fence 补投）成功的数（Codex P1-r2）。 */
+  requeuedQueued: number;
 }
 
 /**
@@ -43,8 +51,9 @@ export async function reconcileJobsOnce(
   reEnqueue: ReEnqueue,
   typeLookup: JobTypeLookup,
   limit = 50,
+  staleQueuedThresholdMs = STALE_QUEUED_THRESHOLD_MS,
 ): Promise<ReconcileResult> {
-  // 1. 补入队：上一轮换了 fence 但入队失败的无主 job（用既有 fence，不再换）。
+  // 1. 补入队：上一轮换了 fence 但入队失败的无主 running job（用既有 fence，不再换）。
   const pending = await requeuePending(db, limit);
   let requeued = 0;
   for (const job of pending) {
@@ -58,7 +67,22 @@ export async function reconcileJobsOnce(
     }
   }
 
-  // 2. 接管：worker 持租后死/卡的过期 running job，换 fence + attempt+1。
+  // 2. 停滞 queued 补投（Codex P1-r2 防御纵深）：建后入队失败被吞、长时间仍 queued 无主的 job，
+  //    用【既有 fence】补投 BullMQ（绝不换 fence/attempt——claimLease 领时再换）。消除「永久 queued 裸转圈」。
+  const stale = await staleQueued(db, staleQueuedThresholdMs, limit);
+  let requeuedQueued = 0;
+  for (const job of stale) {
+    const type = await typeLookup.typeOf(job.id);
+    if (!type) continue; // 查不到类型 → 跳过，下一轮再补。
+    try {
+      await reEnqueue.enqueue(type, job.id, job.fenceToken);
+      requeuedQueued += 1;
+    } catch {
+      // 仍失败：job 仍 queued 无主，下一轮 staleQueued 仍命中继续补（幂等，不放弃）。
+    }
+  }
+
+  // 3. 接管：worker 持租后死/卡的过期 running job，换 fence + attempt+1。
   const reclaimed = await reclaimExpired(db, limit);
   let reEnqueuedNew = 0;
   for (const job of reclaimed) {
@@ -73,7 +97,12 @@ export async function reconcileJobsOnce(
     }
   }
 
-  return { reclaimed: reclaimed.length, reEnqueued: requeued + reEnqueuedNew, requeued };
+  return {
+    reclaimed: reclaimed.length,
+    reEnqueued: requeued + requeuedQueued + reEnqueuedNew,
+    requeued,
+    requeuedQueued,
+  };
 }
 
 /** 基于 PG 的 typeOf 实现（sweeper 用）。 */

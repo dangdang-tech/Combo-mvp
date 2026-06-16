@@ -21,6 +21,16 @@ export interface ObjectStorePort {
   presignGet(bucket: Bucket, key: string, opts?: { expiresSec?: number }): Promise<{ url: string }>;
   /** worker 拉原文（导入 B-19）。 */
   getObject(bucket: Bucket, key: string): Promise<ReadableStream>;
+  /**
+   * 直写对象（本机助手 multipart 直传落加密临时桶，B-21 §3.3）。
+   * 助手把原文经 api 转存到 agora-raw 桶（前端直传走 presignPut；助手没有预签名 URL，经 api 中转写桶）。
+   */
+  putObject(
+    bucket: Bucket,
+    key: string,
+    body: Uint8Array,
+    opts?: { contentType?: string },
+  ): Promise<{ key: string }>;
   /** sweeper orphan 清理（B-16 §6.4）：列举 + 删除（删前比对 PG 引用）。 */
   list(
     bucket: Bucket,
