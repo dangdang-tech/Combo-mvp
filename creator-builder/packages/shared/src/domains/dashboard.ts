@@ -197,17 +197,33 @@ export const ProfileWorksSliceSchema = z.object({
 });
 export type ProfileWorksSlice = z.infer<typeof ProfileWorksSliceSchema>;
 
+/**
+ * 主聚合分区局部失败标记（60 §2.7，主页-17，Codex#r3 P1）。某分区数据源失败时该分区字段置 null，
+ *   并在此标注分区级错误（前端据此对该分区出局部错误条 + 走子端点重试，已成功分区照常渲染，整页不崩）。
+ *   - section：失败的分区键。
+ *   - retriable：恒 true（分区子端点可重试，密度/热力图/网络/作品墙天然独立）。
+ */
+export const ProfileSectionErrorSchema = z.object({
+  section: ProfileSectionKeySchema,
+  retriable: z.boolean(),
+});
+export type ProfileSectionError = z.infer<typeof ProfileSectionErrorSchema>;
+
 export const CreatorProfileSchema = z.object({
   creatorId: IdSchema,
   slug: SlugSchema,
   sectionsOrder: z.array(ProfileSectionKeySchema),
+  // hero 来自 creator_profiles 基行（404 门已过），核心身份分区，恒在。
   hero: ProfileHeroSchema,
-  metrics: ProfileMetricsBandSchema,
-  density: ProfileDensitySliceSchema,
-  heatmap: ProfileHeatmapSchema,
-  network: ProfileNetworkSchema,
-  works: ProfileWorksSliceSchema,
+  // 以下分区数据源可能各自失败（局部失败不连坐，§2.7）：失败 → null + sectionErrors 标记，整页仍 200。
+  metrics: ProfileMetricsBandSchema.nullable(),
+  density: ProfileDensitySliceSchema.nullable(),
+  heatmap: ProfileHeatmapSchema.nullable(),
+  network: ProfileNetworkSchema.nullable(),
+  works: ProfileWorksSliceSchema.nullable(),
   heatmapEnabled: z.boolean(),
+  // 分区级错误标记（空数组 = 全分区成功）。前端据此渲染局部错误 + 重试，不整页崩（主页-17）。
+  sectionErrors: z.array(ProfileSectionErrorSchema),
 });
 export type CreatorProfile = z.infer<typeof CreatorProfileSchema>;
 

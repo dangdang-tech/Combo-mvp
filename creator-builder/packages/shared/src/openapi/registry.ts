@@ -75,6 +75,7 @@ import {
   TokenTrendSchema,
   DashboardCapabilityRowSchema,
   CreatorProfileSchema,
+  ProfileSectionErrorSchema,
   FollowResultSchema,
   LikeResultSchema,
 } from '../domains/dashboard.js';
@@ -152,6 +153,7 @@ const NAMED_SCHEMAS: Array<[string, z.ZodTypeAny]> = [
   ['TokenTrend', TokenTrendSchema],
   ['DashboardCapabilityRow', DashboardCapabilityRowSchema],
   ['CreatorProfile', CreatorProfileSchema],
+  ['ProfileSectionError', ProfileSectionErrorSchema],
   ['FollowResult', FollowResultSchema],
   ['LikeResult', LikeResultSchema],
   // —— 通知 70 ——

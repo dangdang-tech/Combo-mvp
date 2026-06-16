@@ -1,0 +1,11 @@
+r2 核验：已落地。`dashboard` 能力表/草稿条 cursor 现在 decode 后做同 owner + 当前过滤集合的 `SELECT EXISTS` 锚点校验，无效锚抛 `InvalidCursorError`，handler 回 400；合法锚翻到空尾页仍 200 空数组，不静默错页。
+
+阻塞项：
+
+[P1] [dashboard-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/dashboard/dashboard-repo.ts:99) — 能力表 `status` 过滤仍按 `publications.review_status` 原始值过滤，和展示层单源派生状态不一致。`published + reject_reason` 的回退拒绝态会显示为 `review_rejected`，但 `status=review_rejected` 查不到，`status=published` 反而会查到已退回行。修法：SQL 过滤和 cursor anchor check 都必须镜像 `derivePublicationDisplayState` 语义，至少让 `review_rejected` 包含 `review_status='review_rejected' OR (review_status='published' AND reject_reason IS NOT NULL/非空)`，`published` 排除带 reject_reason 的回退拒绝态，并补 filter 测试。
+
+[P1] [profile-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/profile/profile-repo.ts:366) / [profile-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/profile-handlers.ts:94) — 主页主聚合用 `Promise.all` 一把查 `viewerFollowing/caps/heatmap/hits`，任一分区查询失败就被 handler 捕获为整页 500。契约 60 §2.7 要求主聚合分区局部失败不连坐。修法：主聚合按分区隔离 catch，能返回的分区照常 200，失败分区走 `meta` 分区错误或明确 nullable section + 子端点重试；补“网络/热力图失败但 hero/metrics/works 仍返回 200”的反向测试。
+
+[P1] [dashboard-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/dashboard-handlers.ts:143) / [dashboard-view.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/dashboard/dashboard-view.ts:56) — `published` 卡 value 是总已发布数，但环比 current 也直接用总数，previous 用上一窗口新增数，时间范围下涨跌方向会错。修法：保留总数作 value，另算当前窗口新增 published 数与上一窗口新增数做 delta；或改成累计口径则 previous 应为窗口起点前累计数。补“旧能力很多、当前窗口 0、上一窗口 >0”应 down/flat 的测试。
+
+VERDICT: FAIL

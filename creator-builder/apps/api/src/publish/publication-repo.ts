@@ -65,6 +65,43 @@ export function derivePublicationDisplayState(input: {
 }
 
 /**
+ * 【拒绝态单一真源 · SQL 谓词镜像】（Codex#r3 P1，与 derivePublicationDisplayState 同口径）。
+ *   工作台能力表 status 过滤 / cursor 锚点校验若按 publications.review_status 原始值过滤，会与展示层
+ *   derivePublicationDisplayState 派生态漂移：`published + reject_reason` 是「回退拒绝态」，展示层归为
+ *   rejected，但按原始 review_status 过滤时 status='review_rejected' 查不到它、status='published' 反而查到它。
+ *   这里把派生语义投影成 SQL 谓词，与上面纯函数 derive 同源——三处经同一真源 + 同一派生，不各自拼装、不漂移。
+ *
+ *   入参：pAlias = publications 表别名（如 'p'），rejAlias = 「最近被拒版定位」LATERAL 别名（如 'rej'，
+ *     其 id 非空 ⇔ 有可定位被拒版，对应 derive 的 rejectedVersionId）。
+ *   返回针对某【展示派生态】的 SQL 布尔谓词（已含表别名，调用方直接拼进 WHERE）。
+ *   - alpha_pending：review_status='alpha_pending'（与 derive badge=pending_review 同口径）。
+ *   - review_rejected：review_status='review_rejected' OR (review_status='published' AND reject_reason 非空)
+ *       （与 derive 的 rejected 判定同口径——回退拒绝态也命中；上面 deriveCapabilityReviewStatus 再据
+ *        has_published_version 细分 review_rejected/unpublished，过滤层把两者都归入「被拒可见态」候选）。
+ *   - published：review_status='published' AND reject_reason 为空（排除回退拒绝态，与 derive badge=published 同口径）。
+ *   注意：reject_reason「非空」= IS NOT NULL AND <> ''（与 derive 的 `reason !== null && reason.length > 0` 一致）。
+ */
+export function rejectedReasonNonEmptySql(pAlias: string): string {
+  return `(${pAlias}.reject_reason IS NOT NULL AND ${pAlias}.reject_reason <> '')`;
+}
+export function displayStatePredicateSql(
+  state: 'alpha_pending' | 'published' | 'review_rejected',
+  pAlias: string,
+): string {
+  const reasonNonEmpty = rejectedReasonNonEmptySql(pAlias);
+  switch (state) {
+    case 'alpha_pending':
+      return `${pAlias}.review_status = 'alpha_pending'`;
+    case 'review_rejected':
+      // 被拒可见态：review_rejected（下架）或 published 但带被拒原因镜像（回退拒绝态）。
+      return `(${pAlias}.review_status = 'review_rejected' OR (${pAlias}.review_status = 'published' AND ${reasonNonEmpty}))`;
+    case 'published':
+      // 已发布（排除回退拒绝态：published 但带非空 reject_reason 的行归 review_rejected）。
+      return `(${pAlias}.review_status = 'published' AND NOT ${reasonNonEmpty})`;
+  }
+}
+
+/**
  * 读创作者侧 PublicationView（§2.6.2）。JOIN capabilities 取 slug/owner；
  *   rejectReason 取 publications 镜像（人话，发布-31）；rejectedVersionId/rejectedAt 取本能力体最近一条
  *   review_rejected 版（被拒版本线权威，§1.3，供「编辑重发」定位）。不存在 publication → null（404）。

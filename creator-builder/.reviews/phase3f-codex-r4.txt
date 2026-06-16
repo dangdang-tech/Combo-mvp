@@ -1,0 +1,9 @@
+阻塞项：无。
+
+r3 三项已落地自洽：`displayStatePredicateSql` 与 `derivePublicationDisplayState` 口径一致，`review_rejected` 含 `published + reject_reason` 回退态，`published` 排除回退态，且能力表 cursor anchor 复用同一过滤条件；主页主聚合已改为 `Promise.allSettled`，基行失败才 500，分区失败返回 `null + sectionErrors + 200` 且 hero 恒在；published 卡 `value` 用总数，`delta` 用当前窗新增对上一窗新增。
+
+全面回归静态核验通过：工作台 metrics/capabilities/drafts、个人主页六分区/分页/owner 隔离、社交 follow/like/unfollow/unlike 鉴权与幂等边界未见 P0/P1 阻塞。测试因只读沙箱无法实际跑通：Vitest 需要写临时目录和 `node_modules/.vite`，另当前 Node v22 低于项目要求 `>=24`。
+
+非阻塞建议：`GET /creators/:creatorId/works` 目前忽略文档里的 `order` 查询参数；dashboard `unpublished` 回退行是否也应透出拒绝原因可再产品确认。
+
+VERDICT: PASS
