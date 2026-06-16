@@ -90,6 +90,7 @@ CREATE TABLE publish_batch_items (
   capability_id   uuid        REFERENCES capabilities(id),
   idempotency_key text        NOT NULL,
   state           text        NOT NULL DEFAULT 'pending',
+  subject         jsonb       NOT NULL,   -- 建批落的逐项发布入参（cover/tiers/visibility…），worker 取它走 publish-one（batch-repo 读写）
   missing_fields  text[],
   error           jsonb,
   attempt_no      int         NOT NULL DEFAULT 0,
@@ -108,6 +109,7 @@ CREATE TABLE eval_reports (
   version_id    uuid        NOT NULL REFERENCES capability_versions(id) ON DELETE CASCADE,
   manifest_hash text        NOT NULL,
   report        jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  passed        boolean,                               -- 评测结论（B-31 契约预留，本期不参与发布门）
   created_at    timestamptz NOT NULL DEFAULT now(),
   UNIQUE (version_id, manifest_hash)
 );

@@ -1,0 +1,6 @@
+复审结论：上一轮 7 项 + capability→publication 锁序修复均已落地；但 STEP⑤ 仍有 P1 阻塞，不能作为基线。
+
+P1 阻塞：
+- `creator-builder/apps/api/src/publish/batch-repo.ts:111` / `:138`：`publish_batches.total` 按请求项数写入，但 item 插入用 `ON CONFLICT (idempotency_key) DO NOTHING` 静默跳过重复 key。重复 key 会导致 `total > 实际 item 行数`，worker 无剩余 item 可处理，`processed_count` 永远到不了 total，batch 卡在 running，违反“计数幂等 + processed-total”。修法：同事务内强校验 item `idempotency_key` 唯一性，重复则回滚返回冲突；或插入后 `RETURNING` 校验 insertedCount == total，否则回滚，不能静默跳过。补反向破坏测试。
+
+VERDICT: FAIL

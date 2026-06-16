@@ -48,9 +48,65 @@ describe('MarketplaceProjection (capability.*)', () => {
     };
     await marketplaceProjection(tx, evt);
     expect(calls[0]!.sql).toContain('INSERT INTO marketplace_listings');
-    expect(calls[0]!.sql).toContain('SELECT v.capability_id, v.id');
+    expect(calls[0]!.sql).toContain('v.capability_id'); // INSERT…SELECT 源自版本
+    expect(calls[0]!.sql).toContain('jsonb_build_object'); // 组装 MarketCard 投影（B-28）
+    expect(calls[0]!.sql).toContain('to_tsvector'); // search_tsv 全文检索源（§5）
     expect(calls[0]!.sql).toContain('ON CONFLICT (capability_id)');
+    // 封面版本级冻结（r3 P1）：读被展示版自身 cover_source（旧版兜 glyph），不再固定写 glyph/NULL。
+    expect(calls[0]!.sql).toContain("COALESCE(v.cover_source, 'glyph')");
+    // 守 visibility（Codex#5/r3 P1）：读被展示版自身冻结 v.visibility（非 mutable publications），CASE unlisted → status='unlisted'。
+    expect(calls[0]!.sql).not.toContain('JOIN publications pub');
+    expect(calls[0]!.sql).toContain(
+      "WHEN COALESCE(v.visibility, 'public') = 'unlisted' THEN 'unlisted'",
+    );
     expect(calls[0]!.params).toEqual(['cap-1', 'v1', 'my-cap', 'alpha_pending']);
+  });
+
+  it('守 visibility（Codex#5/r3 P1）：被展示版冻结 unlisted 投成 status=unlisted、public 投成 reviewStatus（不把私享投进公开市集）', async () => {
+    // 数据型 mock：按 INSERT…SELECT 的 CASE 语义（读被展示版自身冻结 v.visibility），据 seeded 版本冻结 visibility
+    //   计算 listing.status，落库验证。回退到上一版时按上一版冻结的 visibility（被展示版自身值，r3 P1）。
+    function projectionDb(versionVisibility: 'public' | 'unlisted') {
+      const listing: { status?: string } = {};
+      const tx: Tx = {
+        query: vi.fn(async (sql: string, params?: unknown[]) => {
+          if (sql.includes('INSERT INTO marketplace_listings')) {
+            // CASE WHEN COALESCE(v.visibility,'public')='unlisted' THEN 'unlisted' ELSE $4(reviewStatus) END
+            listing.status =
+              versionVisibility === 'unlisted' ? 'unlisted' : (params?.[3] as string);
+            return { rows: [], rowCount: 1 } as never;
+          }
+          return { rows: [], rowCount: 0 } as never;
+        }),
+      };
+      return { tx, listing };
+    }
+    const evt = (reviewStatus: 'alpha_pending' | 'published'): FetchedEvent => ({
+      seq: 1,
+      eventId: `published:v1:${reviewStatus}`,
+      topic: 'capability.published',
+      payload: {
+        capabilityId: 'cap-1',
+        versionId: 'v1',
+        slug: 'my-cap',
+        manifestHash: 'h',
+        reviewStatus,
+        isRollback: false,
+        ownerUserId: 'u1',
+        traceId: 'tr',
+        occurredAt: baseOccurred,
+      },
+      xid: 1,
+    });
+
+    // unlisted → status=unlisted（不进公开 listing），无论 reviewStatus。
+    const a = projectionDb('unlisted');
+    await marketplaceProjection(a.tx, evt('published'));
+    expect(a.listing.status).toBe('unlisted');
+
+    // public → 按 reviewStatus（alpha_pending / published 进公开市集）。
+    const b = projectionDb('public');
+    await marketplaceProjection(b.tx, evt('alpha_pending'));
+    expect(b.listing.status).toBe('alpha_pending');
   });
 
   it('capability.published 但版本不存在（0 行）→ 抛错（lifecycle 卡住等人工，不放错状态）', async () => {

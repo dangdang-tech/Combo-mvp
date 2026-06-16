@@ -14,6 +14,27 @@ export type Visibility = z.infer<typeof VisibilitySchema>;
 export const ReviewStatusSchema = z.enum(['alpha_pending', 'published', 'review_rejected']);
 export type ReviewStatus = z.infer<typeof ReviewStatusSchema>;
 
+/**
+ * 发布态对外【拒绝态单一真源】展示模型（B-30/发布-31，Codex#r3 P1）。从 publications.review_status/reject_reason
+ *   （+ 被拒版定位）派生的对外可读状态，是「发布页 / 工作台能力表 / 主页作品墙」三处共用的同一真源派生。
+ *   3E 自己的发布相关读端点（GET /publications/:id、评审裁决回读）经它读；3F 工作台/主页读路径复用同一派生
+ *   （derivePublicationDisplayState），三处状态一致、绝不各自从底层状态码自行拼装（避免漂移/裸露内部码）。
+ *   - badge：对外状态徽章（人话，非内部 review_status 码）。
+ *   - rejected：是否处于「最近一次被拒」可见态（创作者侧出拒绝提示 + 重试/编辑入口）。
+ *   - rejectReason：人话拒绝原因（仅 rejected 时有；权威在被拒版本行，此处是 publications 镜像）。
+ *   - retryEditable：是否可「基于被拒版编辑重发」（按 rejectedVersionId 派生新 draft，闭环）。
+ */
+export const PublicationDisplayStateSchema = z.object({
+  badge: z
+    .enum(['pending_review', 'published', 'rejected'])
+    .describe('对外状态徽章（人话来源，单一真源）'),
+  statusLabel: z.string().describe('徽章人话文案（三处同源）'),
+  rejected: z.boolean().describe('是否最近一次被拒可见态'),
+  rejectReason: z.string().nullable().describe('人话拒绝原因镜像（rejected 时有）'),
+  retryEditable: z.boolean().describe('可基于被拒版编辑重发'),
+});
+export type PublicationDisplayState = z.infer<typeof PublicationDisplayStateSchema>;
+
 export const PublicationViewSchema = z.object({
   capabilityId: IdSchema,
   currentVersionId: IdSchema.describe('当前对外滚动指向版（拒绝回退会改，§1.3）'),
@@ -26,6 +47,8 @@ export const PublicationViewSchema = z.object({
   rejectedAt: IsoDateTimeSchema.optional(),
   publishedAt: IsoDateTimeSchema,
   reviewedAt: IsoDateTimeSchema.optional(),
+  /** 对外拒绝态单一真源派生（发布页/工作台/主页三处同源，3F 复用，Codex#r3 P1）。 */
+  displayState: PublicationDisplayStateSchema.optional(),
 });
 export type PublicationView = z.infer<typeof PublicationViewSchema>;
 

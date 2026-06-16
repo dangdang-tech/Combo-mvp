@@ -70,6 +70,27 @@ describe('migrations', () => {
     expect(sql).toMatch(/WHERE type = 'structure' AND status IN \('queued', 'running'\)/);
   });
 
+  it('freezes cover (three sources) + visibility at version level on capability_versions (Codex r3 P1)', () => {
+    const sql = allSql();
+    // 封面三来源 + 可见性版本级冻结（与价格 capability_tiers 同层、按 version_id 不可变寻址）。
+    for (const col of ['cover_source', 'cover_asset_key', 'cover_snapshot_ref']) {
+      expect(sql).toContain(col);
+    }
+    expect(sql).toContain('ck_capver_cover_source');
+    expect(sql).toContain('ck_capver_visibility');
+    // CHECK 约束限定枚举（封面三来源 / 可见性两态）。
+    expect(sql).toMatch(/cover_source IN \('glyph','image','html_snapshot'\)/);
+    expect(sql).toMatch(/visibility IN \('public','unlisted'\)/);
+  });
+
+  it('publish_batch_items has subject column (batch-repo reads/writes it); eval_reports has passed (B-31 schema)', () => {
+    const sql = allSql();
+    // batch-repo.ts 建批/读取依赖 publish_batch_items.subject（逐项发布入参），真实 PG 必须有此列（Codex#2）。
+    expect(sql).toMatch(/subject\s+jsonb\s+NOT NULL/);
+    // eval_reports 契约 B-31 预留 passed boolean（Codex#7）。
+    expect(sql).toMatch(/passed\s+boolean/);
+  });
+
   it('provides gen_uuid_v7 helper before any DEFAULT gen_uuid_v7()', () => {
     const list = files();
     expect(list[0]).toContain('extensions_and_helpers');

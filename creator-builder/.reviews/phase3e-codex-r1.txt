@@ -1,0 +1,15 @@
+[P0] `creator-builder/apps/api/src/publish/publish-repo.ts:250` — `capability.published` payload 写 `slug: ''`，`MarketplaceProjection` 会按 `CapabilityPublishedPayloadSchema` 解析失败并卡住 lifecycle cursor。修法：`PublishGateArgs` 带入真实 `slug`，发布 outbox payload 写真实 slug。
+
+[P0] `creator-builder/db/migrations/0005_publish_tables.sql:85` — `publish_batch_items` 没有 `subject` 列，但 `batch-repo.ts:138/374/482` 全部读写 `subject`，真实 PG 下批量发布建批/重试直接炸。修法：迁移加 `subject jsonb NOT NULL` 或改代码不用该列。
+
+[P0] `creator-builder/apps/api/src/publish/review-repo.ts:159` / `:215` / `:233` — 评审事务只守 `review_status='alpha_pending'`，不守 `current_version_id=reviewedVersionId`；并发新版本发布后，旧评审可裁决/回退错误版本。修法：事务内 `SELECT ... FOR UPDATE` 重读 publication，并在所有 UPDATE 加 `AND current_version_id=$reviewedVersionId`。
+
+[P1] `creator-builder/apps/api/src/publish/publish-one.ts:58` + `publish-repo.ts:210` — 发布门用事务外读到的 `currentVersionId` supersede 旧版；两个 draft 并发发布会留下多个 `published` 版本。修法：事务内锁 capability/publication，按锁后 current_version_id supersede。
+
+[P1] `creator-builder/apps/api/src/events/marketplace-projection.ts:77` — projection 忽略 `publications.visibility`，`unlisted` 会投成 `alpha_pending/published` 市集 listing。修法：JOIN `publications`，`visibility='unlisted'` 时写 `status='unlisted'`。
+
+[P1] `creator-builder/apps/api/src/jobs/handlers/publish-batch.ts:262` / `:271` — 单 item 的发布事务和 item 终态计数分两笔；若 publish 成功后 fence 丢失，重跑会把已发布版当 `ALREADY_PUBLISHED` 标 failed。修法：把 item finalize 与发布门纳入同一事务，或重跑时识别已发布产物并终态 published。
+
+[P1] `creator-builder/db/migrations/0005_publish_tables.sql:106` — `eval_reports` 缺契约里的 `passed boolean`，B-31 schema 预留不完整。修法：补 `passed boolean`，按契约保持 report 可预留。
+
+VERDICT: FAIL

@@ -13,6 +13,7 @@ import { registerHandler } from '../registry.js';
 import { createImportHandler } from './import.js';
 import { createExtractHandler } from './extract.js';
 import { createStructureHandler } from './structure.js';
+import { createPublishBatchHandler } from './publish-batch.js';
 
 /** 装配 + 注册 import handler（worker 启动期调用一次；幂等——重复注册覆盖）。 */
 export function registerImportHandler(): void {
@@ -52,7 +53,20 @@ export function registerStructureHandler(): void {
   );
 }
 
+/** 装配 + 注册 publish_batch handler（B-29 无连坐 P0）。逐项复用发布门事务（publish-one），失败只标该 item、不连坐其余。 */
+export function registerPublishBatchHandler(): void {
+  const env = loadEnv();
+  const db = getPool(env);
+  registerHandler(
+    createPublishBatchHandler({
+      db,
+      txPool: asTxPool(db),
+    }),
+  );
+}
+
 // 副作用注册（worker 入口 `import '../jobs/handlers/index.js'` 即触发）。
 registerImportHandler();
 registerExtractHandler();
 registerStructureHandler();
+registerPublishBatchHandler();
