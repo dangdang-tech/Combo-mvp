@@ -4,10 +4,14 @@ export {
   apiGet,
   apiGetEnvelope,
   apiPost,
+  apiPostReadonly,
   apiPatch,
   apiDelete,
   type RequestOptions,
+  type WriteOptions,
+  type ReadonlyPostOptions,
   type IdempotencyScopeInput,
+  type IdempotencyOptionalScopeInput,
 } from './client.js';
 export {
   useSSE,

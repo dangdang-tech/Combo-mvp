@@ -1,0 +1,10 @@
+7 项 P1 复核：上一轮阻塞项本身已落地，自洽对齐后端实际 payload。scope 强制、错误白名单重建、subtask 全量/单条、job/structure `item-appended`、`deltaText` 累积、snapshot 同步 `progress.items`、`fetch-event-source` + 显式 `Last-Event-ID` 看门狗重连都成立。
+
+**阻塞项**
+
+- P1 [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:403): `fetchEventSource` 自定义 `onopen()` 完全忽略 `Response`。后端 SSE 鉴权/权限失败按契约在建流前返回 HTTP `ErrorEnvelope`，但当前前端会先 `open` + arm watchdog，随后非 event-stream 响应被当作可重连流处理，无法进入 `ErrorState`，也不会白名单展示 HTTP ErrorEnvelope。库源码也确认传入自定义 `onopen` 会替换默认 content-type 校验：[fetch.js](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/node_modules/.pnpm/@microsoft+fetch-event-source@2.0.1/node_modules/@microsoft/fetch-event-source/lib/esm/fetch.js:45)。  
+  修法：`onopen(response)` 必须检查 `response.ok` 和 `content-type:text/event-stream`；非 2xx 解析 `response.clone().json()`，经 `sanitizeErrorEnvelope`/现有 unwrap 白名单重建后 `dispatch(localError)`，设置终止标志并抛 `SSEFatalError` 停止重连。补 mock 反向测试：401/403 JSON ErrorEnvelope 进入 error 态、DOM/state 不含 code/status/stack/message、不会重连。
+
+未发现 P0。未运行测试，按“只读不改”只做静态复审。
+
+VERDICT: FAIL

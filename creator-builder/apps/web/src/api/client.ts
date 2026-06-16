@@ -8,6 +8,8 @@
 // 轻包络 { data, meta }（脊柱 §2）：成功解包 data，meta 经 requestEnvelope 暴露给需要分页/占位语义的调用方。
 import {
   API_PREFIX,
+  CLIENT_FALLBACK_TRACE_ID,
+  sanitizeErrorEnvelope,
   type Envelope,
   type Meta,
   type ErrorEnvelope,
@@ -16,8 +18,10 @@ import {
   type IdempotencyOptionalScopeValue,
 } from '@cb/shared';
 
-/** 写命令注入的 Idempotency scope（必带 22 项之一，或带体只读 POST 的可选 scope）。 */
-export type IdempotencyScopeInput = IdempotencyScopeValue | IdempotencyOptionalScopeValue;
+/** 写命令必带的 Idempotency scope（脊柱 §4 的 22 项之一；类型层强制不可省，编译期堵「写请求无幂等键」）。 */
+export type IdempotencyScopeInput = IdempotencyScopeValue;
+/** 带请求体「只读」POST 的可选 scope（presign/preview 等不写库豁免，脊柱 §4.1）。 */
+export type IdempotencyOptionalScopeInput = IdempotencyOptionalScopeValue;
 
 /**
  * 统一前端错误：内部承载完整对外 ErrorEnvelope（D1：不含 code），UI 只暴露人话 + action。
@@ -62,35 +66,42 @@ function fallbackEnvelope(userMessage: string): ErrorEnvelope {
       userMessage,
       retriable: true,
       action: 'retry',
-      traceId: 'client-local',
+      traceId: CLIENT_FALLBACK_TRACE_ID,
     },
   };
 }
 
-/** 判断 body 是否形如 ErrorEnvelope（容错后端偶发非契约响应）。 */
-function isErrorEnvelope(body: unknown): body is ErrorEnvelope {
-  if (typeof body !== 'object' || body === null) return false;
-  const err = (body as { error?: unknown }).error;
-  if (typeof err !== 'object' || err === null) return false;
-  return typeof (err as { userMessage?: unknown }).userMessage === 'string';
-}
-
+/** 读请求选项（GET / 只读 POST 共用基底；无幂等字段）。 */
 export interface RequestOptions {
   /** 查询参数（自动 URL 编码，undefined 值跳过）。 */
   query?: Record<string, string | number | boolean | undefined>;
-  /** 写命令幂等 scope；提供即注入 Idempotency-Key 头（key 自动生成或用 idempotencyKey 覆盖）。 */
-  scope?: IdempotencyScopeInput;
-  /** 覆盖自动生成的幂等键（断点续传/重放同一逻辑操作时复用同一 key，保证「已生成内容不丢」）。 */
-  idempotencyKey?: string;
   /** AbortSignal（组件卸载/取消请求）。 */
   signal?: AbortSignal;
   /** 额外请求头。 */
   headers?: Record<string, string>;
 }
 
+/** 写命令选项：**强制**带 `scope`（编译期堵漏幂等），可选覆盖幂等键。 */
+export interface WriteOptions extends RequestOptions {
+  /** 写命令幂等 scope（脊柱 §4 必带 22 项之一）；注入 X-Idempotency-Scope + Idempotency-Key。 */
+  scope: IdempotencyScopeInput;
+  /** 覆盖自动生成的幂等键（断点续传/重放同一逻辑操作时复用同一 key，保证「已生成内容不丢」）。 */
+  idempotencyKey?: string;
+}
+
+/** 带请求体「只读」POST 选项：可选 scope（不写库豁免，脊柱 §4.1）。 */
+export interface ReadonlyPostOptions extends RequestOptions {
+  /** 可选只读 scope（presign/preview）；给了才注入幂等头，不给则纯只读。 */
+  scope?: IdempotencyOptionalScopeInput;
+  /** 覆盖自动生成的幂等键（仅当带 scope 时有意义）。 */
+  idempotencyKey?: string;
+}
+
 interface RawRequestOptions extends RequestOptions {
   method: string;
   body?: unknown;
+  scope?: IdempotencyScopeInput | IdempotencyOptionalScopeInput;
+  idempotencyKey?: string;
 }
 
 /** 生成幂等键：优先 crypto.randomUUID，降级时间戳+随机（仅本地兜底）。 */
@@ -150,8 +161,16 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
   }
 
   if (!res.ok) {
-    if (isErrorEnvelope(body)) throw new ApiError(body);
-    // 后端没按契约出信封时也绝不裸露状态码：兜底人话。
+    // 白名单重建（绝不强转原始 body）：只摘 userMessage/action/retriable/traceId/failureId?/details?，
+    // code/status/stack/原始 message 一律不进 envelope（Codex r2 P1 / D1）。缺人话则回退兜底人话——
+    // 后端没按契约出信封时也绝不裸露状态码。
+    const inner = body as { error?: { userMessage?: unknown } } | null;
+    const hasContractEnvelope =
+      typeof inner === 'object' &&
+      inner !== null &&
+      typeof inner.error?.userMessage === 'string' &&
+      (inner.error.userMessage as string).length > 0;
+    if (hasContractEnvelope) throw new ApiError(sanitizeErrorEnvelope(body));
     throw new ApiError(fallbackEnvelope('服务开小差了，请稍后重试。'));
   }
 
@@ -171,22 +190,32 @@ export async function apiGetEnvelope<T>(
   return request<T>(path, { ...opts, method: 'GET' });
 }
 
-export async function apiPost<T>(
+/**
+ * 写命令 POST：**强制** `opts.scope`（类型层堵漏，编译期保证带 Idempotency-Key）。
+ * 只读 POST（market-card/preview、presign 等不写库）请用 {@link apiPostReadonly}，别在这里传可选 scope。
+ */
+export async function apiPost<T>(path: string, body: unknown, opts: WriteOptions): Promise<T> {
+  return (await request<T>(path, { ...opts, method: 'POST', body })).data;
+}
+
+/**
+ * 「带请求体只读」POST 显式 helper（脊柱 §4.1 豁免：不写库、只签 URL / 只算预览）。
+ * scope 可选；不带 scope 即不注入任何幂等头（与写命令分流，杜绝「只读也被迫编一个写 scope」）。
+ */
+export async function apiPostReadonly<T>(
   path: string,
-  body?: unknown,
-  opts: RequestOptions = {},
+  body: unknown,
+  opts: ReadonlyPostOptions = {},
 ): Promise<T> {
   return (await request<T>(path, { ...opts, method: 'POST', body })).data;
 }
 
-export async function apiPatch<T>(
-  path: string,
-  body?: unknown,
-  opts: RequestOptions = {},
-): Promise<T> {
+/** 写命令 PATCH：**强制** `opts.scope`。 */
+export async function apiPatch<T>(path: string, body: unknown, opts: WriteOptions): Promise<T> {
   return (await request<T>(path, { ...opts, method: 'PATCH', body })).data;
 }
 
-export async function apiDelete<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+/** 写命令 DELETE：**强制** `opts.scope`（DELETE 不因天然幂等豁免，脊柱 §4）。 */
+export async function apiDelete<T>(path: string, opts: WriteOptions): Promise<T> {
   return (await request<T>(path, { ...opts, method: 'DELETE' })).data;
 }

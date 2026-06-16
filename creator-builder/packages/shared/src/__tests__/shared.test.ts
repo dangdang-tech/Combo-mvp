@@ -5,6 +5,9 @@ import {
   ErrorBodySchema,
   ErrorCode,
   ErrorEnvelopeSchema,
+  sanitizeErrorBody,
+  sanitizeErrorEnvelope,
+  CLIENT_FALLBACK_TRACE_ID,
   lintUserMessage,
   httpStatusFor,
   REQUIRED_IDEMPOTENCY_SCOPES,
@@ -99,6 +102,96 @@ describe('ErrorEnvelope', () => {
       const env = buildError(code, 't');
       expect(lintUserMessage(env.error.userMessage)).toHaveLength(0);
     }
+  });
+});
+
+describe('sanitizeErrorBody / sanitizeErrorEnvelope (Codex r2 P1 #2: 白名单重建，无 code/stack 泄漏)', () => {
+  it('白名单重建：只保留 userMessage/action/retriable/traceId/failureId?/details?，丢 code/status/stack/原始 message', () => {
+    const body = sanitizeErrorBody({
+      userMessage: '服务开小差了，请重试。',
+      retriable: true,
+      action: 'retry',
+      traceId: 'tr-1',
+      failureId: 'fail-9',
+      code: 'INTERNAL',
+      status: 500,
+      stack: 'Error: boom\n    at f (/srv/a.ts:1:1)',
+      message: 'raw upstream error',
+    });
+    expect(body).toEqual({
+      userMessage: '服务开小差了，请重试。',
+      retriable: true,
+      action: 'retry',
+      traceId: 'tr-1',
+      failureId: 'fail-9',
+    });
+    const json = JSON.stringify(body);
+    expect(json).not.toContain('INTERNAL');
+    expect(json).not.toMatch(/\bstack\b/);
+    expect(json).not.toContain('raw upstream error');
+  });
+
+  it('details 白名单：仅放行 field/attempts，丢 code/stack/sql；字符串值命中禁止模式也丢', () => {
+    const body = sanitizeErrorBody({
+      userMessage: '字段没生成出来。',
+      retriable: true,
+      action: 'retry',
+      traceId: 't',
+      details: {
+        field: 'name',
+        attempts: 2,
+        code: 'STRUCTURE_FIELD_FAILED',
+        stack: 'at g (x:1:1)',
+        sql: 'SELECT * FROM users WHERE id=1',
+        internalPath: '/srv/secret',
+      },
+    });
+    expect(body.details).toEqual({ field: 'name', attempts: 2 });
+  });
+
+  it('details 安全键但值含堆栈串 → 丢该键（防混入）', () => {
+    const body = sanitizeErrorBody({
+      userMessage: 'x 出错',
+      retriable: true,
+      action: 'retry',
+      traceId: 't',
+      details: { field: 'Error: at boom (a.ts:1:1)', attempts: 1 },
+    });
+    expect(body.details).toEqual({ attempts: 1 }); // field 值命中禁止模式被丢。
+  });
+
+  it('非法 action / 缺字段 → 安全缺省（action=retry、retriable=true、traceId 哨兵）', () => {
+    const body = sanitizeErrorBody({ userMessage: '只有人话' });
+    expect(body.action).toBe('retry');
+    expect(body.retriable).toBe(true);
+    expect(body.traceId).toBe(CLIENT_FALLBACK_TRACE_ID);
+  });
+
+  it('缺 userMessage / 非对象 → 兜底人话', () => {
+    expect(sanitizeErrorBody({ action: 'retry' }).userMessage).toBe('出了点小问题，请重试。');
+    expect(sanitizeErrorBody(null).userMessage).toBe('出了点小问题，请重试。');
+    expect(sanitizeErrorBody('boom').userMessage).toBe('出了点小问题，请重试。');
+  });
+
+  it('sanitizeErrorEnvelope：完整信封取内层重建 / 裸 ErrorBody 直取 / 都不像兜底；结果恒过 schema', () => {
+    const fromEnvelope = sanitizeErrorEnvelope({
+      error: { userMessage: 'a', retriable: false, action: 'escalate', traceId: 't', code: 'X' },
+    });
+    expect(fromEnvelope.error.userMessage).toBe('a');
+    expect((fromEnvelope.error as Record<string, unknown>)['code']).toBeUndefined();
+    expect(ErrorEnvelopeSchema.safeParse(fromEnvelope).success).toBe(true);
+
+    const fromBare = sanitizeErrorEnvelope({
+      userMessage: 'b',
+      retriable: true,
+      action: 'retry',
+      traceId: 't',
+    });
+    expect(fromBare.error.userMessage).toBe('b');
+
+    const fallback = sanitizeErrorEnvelope({ garbage: true });
+    expect(fallback.error.userMessage).toBe('出了点小问题，请重试。');
+    expect(ErrorEnvelopeSchema.safeParse(fallback).success).toBe(true);
   });
 });
 

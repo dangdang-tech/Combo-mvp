@@ -3,7 +3,13 @@
 // 唯一可渲染 = userMessage（人话）+ 按 action 给退路按钮（retry / change_input / escalate）。
 // 对外信封无 code（D1）：traceId 仅作可选「反馈代码」小字（便于用户报障，但它不是错误码）。
 import type { ReactElement } from 'react';
-import { DISPLAYABLE_ACTIONS, type ErrorBody, type ErrorAction } from '@cb/shared';
+import {
+  DISPLAYABLE_ACTIONS,
+  CLIENT_FALLBACK_TRACE_ID,
+  sanitizeErrorBody,
+  type ErrorBody,
+  type ErrorAction,
+} from '@cb/shared';
 import { ApiError } from '../api/client.js';
 
 export interface ErrorStateProps {
@@ -25,23 +31,26 @@ const ACTION_LABEL: Record<ErrorAction, string> = {
   none: '知道了',
 };
 
-/** 把任意异常收敛为可安全展示的 ErrorBody（永远有人话 + 退路）。 */
+/**
+ * 把任意异常收敛为可安全展示的 ErrorBody（永远有人话 + 退路），并**白名单重建**安全字段（Codex r2 P1 / D1）。
+ * 三种来源都通吃，让 HTTP / SSE error 帧 / useSSE 解包后的 state.error 走同一渲染路径：
+ *   1. ApiError —— typed client 抛出的（envelope.error 已在 client 层重建过，这里再过一遍是幂等的）。
+ *   2. 完整对外 ErrorEnvelope（`{ error: {...} }`）—— 原始 HTTP/SSE body，取内层重建。
+ *   3. 裸 ErrorBody（已带 userMessage）—— useSSE 已解包后存进 state.error 的形态，直接重建。
+ * 关键：绝不 shape-check 后强转原始对象（会把 code/status/stack/原始 message 留在对象里），
+ * 一律经 {@link sanitizeErrorBody} 逐字段摘取，未列字段天然不进结果。
+ */
 export function toErrorBody(error: unknown): ErrorBody {
-  if (error instanceof ApiError) return error.envelope.error;
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'error' in error &&
-    typeof (error as { error: { userMessage?: unknown } }).error?.userMessage === 'string'
-  ) {
-    return (error as { error: ErrorBody }).error;
+  if (error instanceof ApiError) return sanitizeErrorBody(error.envelope.error);
+  if (typeof error === 'object' && error !== null) {
+    // 完整对外 ErrorEnvelope：取内层重建。
+    const inner = (error as { error?: { userMessage?: unknown } }).error;
+    if (typeof inner?.userMessage === 'string') {
+      return sanitizeErrorBody(inner);
+    }
   }
-  return {
-    userMessage: '出了点小问题，请重试。',
-    retriable: true,
-    action: 'retry',
-    traceId: 'client-local',
-  };
+  // 裸 ErrorBody / 任意可疑输入：sanitizeErrorBody 内部自带白名单 + 兜底人话。
+  return sanitizeErrorBody(error);
 }
 
 export function ErrorState({
@@ -71,8 +80,8 @@ export function ErrorState({
           {ACTION_LABEL[body.action]}
         </button>
       )}
-      {/* traceId 仅作「反馈代码」小字（报障用），不是错误码、不是主文案。 */}
-      {body.traceId && body.traceId !== 'client-local' && (
+      {/* traceId 仅作「反馈代码」小字（报障用），不是错误码、不是主文案；兜底哨兵不展示。 */}
+      {body.traceId && body.traceId !== CLIENT_FALLBACK_TRACE_ID && (
         <p className="cb-error-state__trace">
           反馈代码：<code>{body.traceId}</code>
         </p>

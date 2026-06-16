@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Shell } from './shell/Shell.js';
 import { ViewModeProvider } from './shell/viewMode.js';
+import { AccountProvider } from './shell/account.js';
 import {
   WorkbenchPage,
   CapabilitiesPage,
@@ -22,30 +23,32 @@ import {
 export function App(): ReactElement {
   return (
     <ViewModeProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Shell />}>
-            <Route index element={<Navigate to="/creator" replace />} />
-            <Route path="/creator" element={<WorkbenchPage />} />
-            <Route path="/capabilities" element={<CapabilitiesPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/earnings" element={<EarningsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+      <AccountProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Shell />}>
+              <Route index element={<Navigate to="/creator" replace />} />
+              <Route path="/creator" element={<WorkbenchPage />} />
+              <Route path="/capabilities" element={<CapabilitiesPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/earnings" element={<EarningsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
 
-            {/* 上传五步：父布局 + 五子步（映射 DraftStep）。 */}
-            <Route path="/create" element={<CreateLayout />}>
-              <Route index element={<Navigate to="/create/import" replace />} />
-              <Route path="import" element={<ImportStepPage />} />
-              <Route path="extract" element={<ExtractStepPage />} />
-              <Route path="select" element={<SelectStepPage />} />
-              <Route path="structure" element={<StructureStepPage />} />
-              <Route path="publish" element={<PublishStepPage />} />
+              {/* 上传五步：父布局 + 五子步（映射 DraftStep）。 */}
+              <Route path="/create" element={<CreateLayout />}>
+                <Route index element={<Navigate to="/create/import" replace />} />
+                <Route path="import" element={<ImportStepPage />} />
+                <Route path="extract" element={<ExtractStepPage />} />
+                <Route path="select" element={<SelectStepPage />} />
+                <Route path="structure" element={<StructureStepPage />} />
+                <Route path="publish" element={<PublishStepPage />} />
+              </Route>
+
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
-
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </AccountProvider>
     </ViewModeProvider>
   );
 }

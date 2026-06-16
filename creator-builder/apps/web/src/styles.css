@@ -1,6 +1,7 @@
 /* 创作者中心外壳骨架样式（最小化；Phase 4 接设计系统替换）。 */
 :root {
   --cb-sidebar-w: 220px;
+  --cb-sidebar-w-collapsed: 64px;
   --cb-border: #e3e6ea;
   --cb-fg: #1f2329;
   --cb-muted: #646a73;
@@ -25,33 +26,129 @@ body {
   display: grid;
   grid-template-columns: var(--cb-sidebar-w) 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 0.18s ease;
+}
+
+/* 收起态：侧栏收窄为纯图标态，主区相应变宽（外壳首页-04）。 */
+.cb-shell[data-collapsed='true'] {
+  grid-template-columns: var(--cb-sidebar-w-collapsed) 1fr;
 }
 
 .cb-shell__sidebar {
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--cb-border);
   background: #fff;
-  padding: 16px 12px;
+  padding: 14px 10px;
+  min-width: 0;
 }
 
-.cb-shell__brand a {
+/* ---- 品牌字标 + 收起开关 ---- */
+.cb-shell__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 12px;
+  border-bottom: 1px solid var(--cb-border);
+}
+
+.cb-shell__brand-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--cb-fg);
+  min-width: 0;
+}
+
+.cb-shell__brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--cb-accent);
+  color: #fff;
   font-weight: 700;
   font-size: 16px;
-  color: var(--cb-fg);
-  text-decoration: none;
 }
 
-.cb-shell__nav ul {
+.cb-shell__brand-word {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.cb-shell__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid var(--cb-border);
+  background: #fff;
+  border-radius: 6px;
+  color: var(--cb-muted);
+  cursor: pointer;
+}
+
+.cb-shell__collapse-icon {
+  transition: transform 0.18s ease;
+}
+
+/* ---- 导航分组 ---- */
+.cb-shell__nav {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+.cb-shell__navgroup + .cb-shell__navgroup {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--cb-border);
+}
+
+.cb-shell__navgroup-title {
+  margin: 0 0 4px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--cb-muted);
+  text-transform: none;
+}
+
+.cb-shell__navlist {
   list-style: none;
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
 }
 
 .cb-shell__navlink {
-  display: block;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 2px 0;
   border-radius: 6px;
   color: var(--cb-muted);
   text-decoration: none;
+  white-space: nowrap;
+}
+
+.cb-shell__navlink:hover {
+  background: #f3f5f8;
+  color: var(--cb-fg);
+}
+
+.cb-shell__navicon {
+  flex: 0 0 auto;
 }
 
 .cb-shell__navlink--active {
@@ -60,15 +157,88 @@ body {
   font-weight: 600;
 }
 
+/* ---- 底部账号常驻区 ---- */
+.cb-shell__account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 8px 2px;
+  border-top: 1px solid var(--cb-border);
+  min-width: 0;
+}
+
+.cb-shell__account-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cb-shell__account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cb-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cb-shell__account-title {
+  font-size: 12px;
+  color: var(--cb-muted);
+}
+
+/* ---- 头像（共用：底部 / 顶栏；缺省走首字母兜底，非破图） ---- */
+.cb-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #eaf1ff;
+  color: var(--cb-accent);
+  font-size: 13px;
+  font-weight: 600;
+  object-fit: cover;
+}
+
+/* ---- 收起态（纯图标）：隐文字、居中图标、品牌只留徽标 ---- */
+.cb-shell[data-collapsed='true'] .cb-shell__brand {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cb-shell[data-collapsed='true'] .cb-shell__brand-word,
+.cb-shell[data-collapsed='true'] .cb-shell__navgroup-title,
+.cb-shell[data-collapsed='true'] .cb-shell__navlabel,
+.cb-shell[data-collapsed='true'] .cb-shell__account-meta {
+  display: none;
+}
+
+.cb-shell[data-collapsed='true'] .cb-shell__navlink {
+  justify-content: center;
+  gap: 0;
+  padding: 8px;
+}
+
+.cb-shell[data-collapsed='true'] .cb-shell__account {
+  justify-content: center;
+}
+
+/* ---- 主区 ---- */
 .cb-shell__main {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .cb-shell__topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   height: 52px;
   padding: 0 20px;
   border-bottom: 1px solid var(--cb-border);
@@ -78,6 +248,10 @@ body {
 .cb-shell__breadcrumb {
   font-size: 14px;
   color: var(--cb-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cb-shell__breadcrumb a {
@@ -85,8 +259,19 @@ body {
   text-decoration: none;
 }
 
+.cb-shell__breadcrumb a:hover {
+  color: var(--cb-accent);
+}
+
 .cb-shell__crumb-sep {
   color: var(--cb-border);
+}
+
+.cb-shell__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
 }
 
 .cb-shell__viewtoggle {
@@ -96,11 +281,24 @@ body {
   padding: 4px 14px;
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.cb-shell__topbar-avatar {
+  width: 30px;
+  height: 30px;
 }
 
 .cb-shell__content {
   padding: 24px;
   flex: 1;
+}
+
+/* ---- 窄屏响应式：自动收窄为图标态宽度的栅格（结构不变，D14） ---- */
+@media (max-width: 720px) {
+  .cb-shell {
+    grid-template-columns: var(--cb-sidebar-w-collapsed) 1fr;
+  }
 }
 
 /* ---------- Pages ---------- */
@@ -223,4 +421,189 @@ body {
   margin: 12px 0 0;
   font-size: 12px;
   color: var(--cb-muted);
+}
+
+/* ---------- SlowHint / FieldStuck（三退路安抚，非错误） ---------- */
+.cb-slowhint {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--cb-border);
+  border-radius: 8px;
+  background: #fffdf5;
+}
+
+.cb-slowhint__phrase {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cb-muted);
+}
+
+.cb-slowhint__elapsed {
+  color: var(--cb-border);
+}
+
+.cb-slowhint__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.cb-slowhint__action {
+  border: 1px solid var(--cb-border);
+  background: #fff;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ---------- ItemStream（逐个浮现） ---------- */
+.cb-itemstream__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cb-itemstream__item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--cb-border);
+}
+
+.cb-itemstream__pending {
+  margin-top: 8px;
+}
+
+/* ---------- StreamLoading（重连安抚条） ---------- */
+.cb-stream-loading__reconnect {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--cb-muted);
+  background: #f0f4ff;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+/* ---------- UsagePlaceholder（usage 占位，绝不显 0） ---------- */
+.cb-usage-placeholder {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--cb-muted);
+}
+
+.cb-usage-placeholder__label {
+  font-size: 12px;
+}
+
+.cb-usage-placeholder__text {
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ---------- Charts（F-08：趋势/迷你图/热力图/密度条） ---------- */
+.cb-chart {
+  width: 100%;
+}
+
+/* 图表三态：占位 / 加载骨架 / 空数据——统一灰框，永不裸转圈、不画误导图 */
+.cb-chart-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border-radius: 8px;
+  background: var(--cb-skeleton);
+  color: var(--cb-muted);
+  text-align: center;
+  padding: 12px;
+}
+
+.cb-chart-state--placeholder {
+  border: 1px dashed var(--cb-border);
+  background: #fafbfc;
+}
+
+.cb-chart-state--empty {
+  background: #fafbfc;
+  border: 1px solid var(--cb-border);
+}
+
+.cb-chart-state--skeleton {
+  animation: cb-pulse 1.4s ease-in-out infinite;
+}
+
+.cb-chart-state__label {
+  font-size: 12px;
+}
+
+.cb-chart-state__text {
+  font-size: 13px;
+}
+
+/* 口径切换段控（趋势图 tokens / 调用次数） */
+.cb-chart-toggle {
+  display: inline-flex;
+  border: 1px solid var(--cb-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.cb-chart-toggle__btn {
+  border: none;
+  background: #fff;
+  color: var(--cb-muted);
+  font-size: 12px;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+
+.cb-chart-toggle__btn--active {
+  background: #eaf1ff;
+  color: var(--cb-accent);
+  font-weight: 600;
+}
+
+.cb-token-trend__head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+/* 行内迷你图 */
+.cb-sparkline {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.cb-sparkline--placeholder,
+.cb-sparkline--empty {
+  color: var(--cb-muted);
+  font-size: 13px;
+  min-width: 24px;
+  justify-content: center;
+}
+
+/* 热力图色阶图例 */
+.cb-heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  justify-content: flex-end;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--cb-muted);
+}
+
+.cb-heatmap-legend__cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+.cb-heatmap-legend__label {
+  margin: 0 2px;
 }

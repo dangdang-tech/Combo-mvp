@@ -35,6 +35,9 @@ export type ErrorBody = z.infer<typeof ErrorBodySchema>;
 export const ErrorEnvelopeSchema = z.object({ error: ErrorBodySchema });
 export type ErrorEnvelope = z.infer<typeof ErrorEnvelopeSchema>;
 
+/** 客户端兜底人话信封 traceId 哨兵值（哨兵不当「反馈代码」展示，因它不关联任何真实日志）。 */
+export const CLIENT_FALLBACK_TRACE_ID = 'client-local';
+
 // ---------- 错误分类枚举（内部 code，命名 {DOMAIN}_{REASON}）----------
 
 /** 脊柱 §3.3 通用内部 code + 各域扩展 code（§5 错误分类总表）。code 仅内部，对外只出 userMessage+action。 */
@@ -390,6 +393,82 @@ const FORBIDDEN_USER_MESSAGE_PATTERNS: RegExp[] = [
  */
 export function lintUserMessage(userMessage: string): RegExp[] {
   return FORBIDDEN_USER_MESSAGE_PATTERNS.filter((re) => re.test(userMessage));
+}
+
+// ---------- 错误信封白名单重建（Codex r2 P1 / D1：杜绝 code/status/stack/原始 message 泄漏）----------
+
+/** 安全 details 键白名单：仅这些键可保留进对外 details（其余一律丢弃，杜绝堆栈/原始报错/内部路径/code 泄漏）。 */
+const SAFE_DETAILS_KEYS = ['field', 'attempts'] as const;
+
+/**
+ * 白名单过滤 details（Codex r2 P1）：只放行 {@link SAFE_DETAILS_KEYS}，且字符串值不得命中 §3.1 禁止模式。
+ * 任意未知键（含 code/stack/原始报错/内部路径）一律丢弃；过滤后为空则返回 undefined（不挂空 details）。
+ */
+function sanitizeDetails(
+  details: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!details || typeof details !== 'object') return undefined;
+  const out: Record<string, unknown> = {};
+  for (const key of SAFE_DETAILS_KEYS) {
+    if (!(key in details)) continue;
+    const v = details[key];
+    // 字符串值再过一遍禁止模式（堆栈/SQL/状态码混进可安全键也拦）。
+    if (typeof v === 'string' && FORBIDDEN_USER_MESSAGE_PATTERNS.some((re) => re.test(v))) continue;
+    out[key] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * 白名单**重建** ErrorBody（Codex r2 P1，D1）：从任意可疑输入只摘取契约允许的安全字段
+ * （`userMessage`/`action`/`retriable`/`traceId`/`failureId?`/`details?`），其余一律不进结果对象——
+ * 杜绝 shape-check 后强转把 `code`/`status`/`stack`/原始 `message` 等留在对象里被序列化/泄漏。
+ *
+ * 来源不可信时（缺 userMessage / action 非法）回退兜底人话。`details` 经 {@link sanitizeDetails} 过滤禁止字段。
+ * HTTP body / SSE error 帧 / done.error / state.error 解包后统一过本函数，是「绝不裸露错误码」的最后一道闸。
+ */
+export function sanitizeErrorBody(input: unknown): ErrorBody {
+  const fallback: ErrorBody = {
+    userMessage: '出了点小问题，请重试。',
+    retriable: true,
+    action: 'retry',
+    traceId: CLIENT_FALLBACK_TRACE_ID,
+  };
+  if (typeof input !== 'object' || input === null) return fallback;
+  const raw = input as Record<string, unknown>;
+  const userMessage = raw['userMessage'];
+  if (typeof userMessage !== 'string' || userMessage.length === 0) return fallback;
+  const action = raw['action'];
+  const safeAction: ErrorAction = ErrorActionSchema.safeParse(action).success
+    ? (action as ErrorAction)
+    : 'retry';
+  // 逐字段白名单重建（绝不展开 ...raw）：未列字段（code/status/stack/message…）天然不进结果对象。
+  const body: ErrorBody = {
+    userMessage,
+    retriable: typeof raw['retriable'] === 'boolean' ? (raw['retriable'] as boolean) : true,
+    action: safeAction,
+    traceId:
+      typeof raw['traceId'] === 'string' ? (raw['traceId'] as string) : CLIENT_FALLBACK_TRACE_ID,
+  };
+  if (typeof raw['failureId'] === 'string') body.failureId = raw['failureId'] as string;
+  const details = sanitizeDetails(raw['details'] as Record<string, unknown> | undefined);
+  if (details) body.details = details;
+  return body;
+}
+
+/**
+ * 从「完整对外 ErrorEnvelope（`{error:{...}}`）/ 裸 ErrorBody / 任意可疑输入」白名单重建出**安全的 ErrorEnvelope**（D1）。
+ * 标准形态取 `input.error`，容错裸 ErrorBody 直取 `input`，都不像则兜底人话；内层一律过 {@link sanitizeErrorBody}。
+ */
+export function sanitizeErrorEnvelope(input: unknown): ErrorEnvelope {
+  if (typeof input === 'object' && input !== null) {
+    const inner = (input as { error?: unknown }).error;
+    if (typeof inner === 'object' && inner !== null) {
+      return { error: sanitizeErrorBody(inner) };
+    }
+  }
+  // 裸 ErrorBody（或不可信输入）：直接重建。
+  return { error: sanitizeErrorBody(input) };
 }
 
 /**

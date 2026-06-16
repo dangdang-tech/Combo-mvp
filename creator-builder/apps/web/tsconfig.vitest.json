@@ -1,0 +1,14 @@
+{
+  // 测试侧类型安全：包含被生产 tsconfig 排除的 test 文件 + helper（不产出，仅类型校验）。
+  // 用法：tsc -p tsconfig.vitest.json（CI typecheck:test）。生产 tsconfig 不含 test/，构建不带它们。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
+  },
+  "references": [{ "path": "../../packages/shared" }],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

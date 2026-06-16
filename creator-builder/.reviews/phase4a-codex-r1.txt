@@ -1,0 +1,11 @@
+**阻塞项**
+
+- P1 [client.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/client.ts:78): `scope` 可选，`apiPost/apiPatch/apiDelete` 可无 `Idempotency-Key` 发写请求。修法：写方法类型上强制 `scope: IdempotencyScopeValue`，只读 POST 另开显式 helper。
+- P1 [client.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/client.ts:70), [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:64), [ErrorState.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/components/ErrorState.tsx:35): 错误信封只 shape-check 后强转，`code/status/stack/message` 会留在对象里。修法：用 shared schema 或白名单重建 `ErrorBody`，并过滤 `details` 禁止字段。
+- P1 [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:126): `subtask` 只支持单条 `{key,label,status}`，契约允许 `{subtasks: SubtaskView[]}`；收到全量会写入 undefined 子任务。修法：支持全量替换/合并，单条缺 label 时保留旧 label。
+- P1 [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:143): `item-appended` 直接 append payload，但提取域 payload 是 `{ item }`。修法：job/extract 流 append `payload.item`；结构化数组项另按 `{field,itemIndex,value}` 处理。
+- P1 [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:148): `field_delta` 读取 `value`，契约和后端发 `deltaText`。修法：累积 `deltaText` 到字段 partial/当前 value，测试改用真实 payload。
+- P1 [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:102): `state_snapshot(job)` 没把 `progress.items` 同步到 `state.items`，刷新/超窗恢复会丢已生成候选显示。修法：snapshot 时用 `progress.items ?? []` 重置 `state.items`。
+- P1 [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:273), [mockEventSource.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/test/mockEventSource.ts:42): watchdog 手动新建原生 `EventSource`，真实浏览器不能给新实例带 `Last-Event-ID`；mock 用静态变量掩盖了问题。修法：按契约改用 `fetch-event-source` 显式带 `Last-Event-ID`，或移除手动重建并重写测试。
+
+VERDICT: FAIL
