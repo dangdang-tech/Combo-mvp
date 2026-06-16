@@ -39,8 +39,8 @@ export const SUBTASK_SEQUENCES = {
   extract: [
     { key: 'analyze', label: '分析会话段落' },
     { key: 'cluster', label: '聚类相似工作流' },
-    { key: 'form_candidates', label: '形成候选能力' },
-    { key: 'evaluate', label: '评估频率与可打包度' },
+    { key: 'form', label: '形成候选能力' },
+    { key: 'score', label: '评估频率与可打包度' },
     { key: 'rank', label: '按成功率排序' },
   ],
 } as const satisfies Record<string, ReadonlyArray<{ key: string; label: string }>>;

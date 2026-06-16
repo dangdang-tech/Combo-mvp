@@ -76,6 +76,16 @@ export const CandidateItemSchema = z.object({
 });
 export type CandidateItem = z.infer<typeof CandidateItemSchema>;
 
+/**
+ * SSE `item-appended` 帧 payload 契约形态（30 §3.1/§3.4）：恒为 `{ item: CandidateItem }`。
+ *   前端按 `data.item` 分发逐个浮现的候选/失败行/重试回填（绝不推裸 item，否则前端取不到，B-22/B-23 断）。
+ *   注意 `state_snapshot.progress.items[]` 存的是【裸 CandidateItem 列表】（30 §3.2），与本帧 payload 不同形态。
+ */
+export const ItemAppendedPayloadSchema = z.object({
+  item: CandidateItemSchema,
+});
+export type ItemAppendedPayload = z.infer<typeof ItemAppendedPayloadSchema>;
+
 // ---------- 段级证据视图 ----------
 export const CandidateEvidenceViewSchema = z.object({
   id: IdSchema,

@@ -1,0 +1,7 @@
+r2 四项本轮核验通过：retry 新 job、新流首帧 generating、423 wait、`reportRetryFailed` fence/DB 异常语义都落地。
+
+阻塞项：
+
+P1 [jobs/handlers/extract.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/extract.ts:296)：完整提取被 sweeper 接管重跑时，handler 用本 attempt 局部 `items=[]`/`readyCount=0` 重建终态 `finalProgress` 和 `result`，随后在 [jobs/handlers/extract.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/extract.ts:345) 覆盖 `jobs.progress`。若旧 attempt 已落候选/append 进度，新 attempt 遇 `(extract_job_id, slug)` 去重会跳过旧候选，最终 snapshot/items、done.result、outbox candidateCount 会丢旧候选，违反“已生成不丢”。修法：终态进度/计数必须从既有 `job.progress.items` 或 DB 当前 candidates 合并重建；`skipped` 去重路径也要把已存在候选纳入 final items/count，不能只统计本 attempt 新 append 项。
+
+VERDICT: FAIL

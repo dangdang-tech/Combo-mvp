@@ -93,6 +93,31 @@ describe('runJob 正常路径（领租约 → 进度 → 完成）', () => {
     expect(prog.subtasks.every((s) => s.status === 'done')).toBe(true);
   });
 
+  it('item-appended 帧 payload 契约形态 = { item }（Codex P0-1），progress.items 仍存裸 item', async () => {
+    const { db, bridge, map } = setup([makeJob('j1')]);
+    const candidate = { id: 'cand-1', status: 'ready', name: '港险资格打分器', isNew: true };
+    const h = handler('extract', async (_job, ctx) => {
+      await ctx.appendItem(candidate);
+      return null;
+    });
+    await runJob(db, bridge as unknown as JobEventBridge, h, 'j1', {
+      leaseOwner: 'w1',
+      traceId: 't1',
+    });
+    const frame = bridge.published.find((p) => p.event === 'item-appended')!;
+    expect(frame).toBeTruthy();
+    // 契约：SSE item-appended payload 恒为 { item: CandidateItem }，前端按 data.item 分发（30 §3.1/§3.4）。
+    const payload = frame.payload as { item?: typeof candidate };
+    expect(payload.item).toEqual(candidate);
+    // 反向破坏：若推裸 item（payload 直接是 item），前端取 data.item 会 undefined → 收不到候选（B-22/B-23 断）。
+    //   守门：payload 不是裸 item（payload.id 不存在，必须经 payload.item.id 才取得到）。
+    expect((payload as { id?: string }).id).toBeUndefined();
+    expect(payload.item!.id).toBe('cand-1');
+    // progress.items 仍存【裸 item】（state_snapshot.progress.items[] 直接是 CandidateItem 列表，30 §3.2）。
+    const persistedItems = (map.get('j1')!.progress as { items?: unknown[] }).items;
+    expect(persistedItems).toEqual([candidate]);
+  });
+
   it('percent 单调护栏：report 60 后再 report 30，持久化仍是 60（不倒退，脊柱 §7）', async () => {
     const { db, bridge } = setup([makeJob('j1')]);
     const h = handler('import', async (_job, ctx) => {

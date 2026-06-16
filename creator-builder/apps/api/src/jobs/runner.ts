@@ -351,10 +351,12 @@ function makeContext(args: MakeContextArgs): RunnerContext {
 
     async appendItem(item: unknown): Promise<void> {
       // 边生成边显示：累积进 progress.items（已生成不丢，硬规则③）+ 推 item-appended 帧。
+      // progress.items 仍存【裸 item】（state_snapshot.progress.items[] 直接是 CandidateItem 列表，30 §3.2）；
+      //   但 SSE item-appended 帧 payload 契约形态为 `{ item: CandidateItem }`（30 §3.1/§3.4，前端按 data.item 分发）。
       if (!Array.isArray(progress.items)) progress.items = [];
       progress.items.push(item);
       await persist();
-      await bridge.publish(leased.id, { event: 'item-appended', payload: item });
+      await bridge.publish(leased.id, { event: 'item-appended', payload: { item } });
     },
 
     async emitField(event, payload): Promise<void> {

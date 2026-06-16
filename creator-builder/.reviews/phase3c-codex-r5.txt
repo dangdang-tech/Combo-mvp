@@ -1,0 +1,8 @@
+无 P0/P1 阻塞。r4 已落地：全量 `runExtract` 与 retry `finalizeRetry` 都在 `finalizeExtractJob` 前上报最终 `100% / done==total`，finalize 后无 `reportProgress`；`runner` 用 `finalProgress` 发 `done(result+progress)`，反向破坏会 fence-out，不退化为兜底 done。
+
+非阻塞建议：
+- P2 `creator-builder/apps/api/src/extract/create-extract-job.ts:237` retry job `subject_ref` 可补 `extractJobId`，贴合注释/排障语义。
+- P2 `creator-builder/docs/contracts/30-step2-extract.md:174` 等示例仍含 `error.code`，建议清理。
+- P3 `creator-builder/apps/api/src/routes/_sse.ts:215` 已终态补发 `done` 不含 `progress`，可文档化或补齐。
+
+VERDICT: PASS

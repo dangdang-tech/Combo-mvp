@@ -1,0 +1,3 @@
+P1 `creator-builder/apps/api/src/jobs/handlers/extract.ts:408-424`、`:700-714`：`finalizeExtractJob()` 已把 job 置为 `completed` 后又调用 `ctx.reportProgress()`；真实 runner 的 progress 持久化只允许 `status='running'`，会 0 行并抛 `FencedOutError`，导致 handler 不能返回 `finalized:true`，SSE done 退化为无 result/progress 的 fence-out 兜底。修法：完成前上报 100%，或删掉 post-finalize `ctx.reportProgress`，只依赖 `finalProgress` 由 runner 发 done；`!finalized` 先返回。
+
+VERDICT: FAIL
