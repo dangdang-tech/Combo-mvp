@@ -4,7 +4,7 @@
 //   具名 heartbeat（startSseStream 内）+ 统一终态闸（非 running 不 subscribe、终态补 done 关流）。
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { structureSseHandler } from '../routes/_sse.js';
+import { structureSseHandler, STRUCTURE_ACTIVATION_POLL_MS } from '../routes/_sse.js';
 import type { Queryable, QueryResultLike } from '../jobs/types.js';
 
 function makeRaw() {
@@ -417,6 +417,164 @@ describe('structureSseHandler 字段级 error 非 job 终态（Codex r7 P1：err
     // 关键：replay 到字段级 error 后仍 live subscribe 续收后续 done（修复前会被提前收口）。
     expect(out).toContain('id: 202-0');
     expect(doneStatuses(out)).toEqual(['completed']); // 恰一帧 done 且为 completed（无合成 done failed）
+    expect(raw.end).toHaveBeenCalled();
+  });
+});
+
+/**
+ * 可变 job 的假 PG（BUG-1 connect-先于-job）：job 查询读 mutable holder.job——
+ *   连接时 holder.job=undefined（无 job）→ 建流走「等待路径」；测试随后把 job 写进 holder，
+ *   下一轮接管轮询应查到它并接管（subscribe / 补 done）。owner / snapshot SQL 同 SseFakeDb。
+ */
+class MutableJobDb implements Queryable {
+  constructor(
+    private readonly versions: Record<string, { creatorUserId: string; structureState: unknown }>,
+    private readonly holder: {
+      job?: { versionId: string; ownerUserId: string; id: string; status: string };
+    },
+  ) {}
+  async query<R = Record<string, unknown>>(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<QueryResultLike<R>> {
+    if (
+      sql.includes('creator_user_id') &&
+      sql.includes('FROM capability_versions v') &&
+      sql.includes('JOIN capabilities c') &&
+      !sql.includes('structure_state')
+    ) {
+      const v = this.versions[params[0] as string];
+      return {
+        rows: v ? ([{ creator_user_id: v.creatorUserId }] as R[]) : [],
+        rowCount: v ? 1 : 0,
+      };
+    }
+    if (sql.includes('FROM jobs') && sql.includes("subject_ref->>'versionId'")) {
+      const versionId = params[0] as string;
+      const owner = params[1] as string;
+      const j = this.holder.job;
+      const match = j && j.versionId === versionId && j.ownerUserId === owner;
+      return {
+        rows: match ? ([{ id: j!.id, status: j!.status }] as R[]) : [],
+        rowCount: match ? 1 : 0,
+      };
+    }
+    if (sql.includes('SELECT structure_state FROM capability_versions WHERE id = $1')) {
+      const v = this.versions[params[0] as string];
+      return {
+        rows: v ? ([{ structure_state: v.structureState }] as R[]) : [],
+        rowCount: v ? 1 : 0,
+      };
+    }
+    throw new Error(`MutableJobDb: unhandled SQL: ${sql.replace(/\s+/g, ' ').slice(0, 120)}`);
+  }
+}
+
+describe('structureSseHandler connect-先于-job 接管（BUG-1：等待路径轮询接管，不靠重连）', () => {
+  it('连接时无 job（走等待路径，仅 snapshot）→ 随后创建 running job → 接管轮询查到并下发 field/done 帧（非永久空心跳）', async () => {
+    // 关键不变量：建流【瞬间】holder.job 必须为空——否则连接时 lookupStructureJob 命中、走普通 subscribe 路径，
+    //   就不会挂 awaitActivation 钩子，测不到 BUG-1。job 仅在 handler 返回【之后】才置入（模拟 connect-先于-job）。
+    const holder: { job?: { versionId: string; ownerUserId: string; id: string; status: string } } =
+      {};
+    const db = new MutableJobDb(
+      { v1: { creatorUserId: 'u1', structureState: mixedStructureState('v1') } },
+      holder,
+    );
+    // job 出现后 worker 推的字段流帧（field_done → done completed）。
+    const hot = makeHot(
+      [], // 空历史 → snapshot 路径，latestId='0-0'
+      [
+        [
+          '100-0',
+          [
+            'event',
+            'field_done',
+            'data',
+            JSON.stringify({ field: 'tagline', value: '一句话卖点' }),
+          ],
+        ],
+        ['101-0', ['event', 'done', 'data', JSON.stringify({ status: 'completed' })]],
+      ],
+    );
+    const { req, reply, raw } = makeReqReply({ versionId: 'v1', userId: 'u1', db, hot });
+    // handler 同步段（connect-time lookup）此刻 holder.job=空 → 走等待路径、挂 awaitActivation 钩子。
+    await structureSseHandler().call(undefined as never, req as never, reply as never);
+    // 连接首帧仍是 snapshot，且【尚无 done】（无 job → 流保持开放，非提前收口）。
+    const initial = raw.writes.join('');
+    expect(initial).toContain('event: state_snapshot');
+    expect(initial).not.toContain('event: done');
+    // connect 后用户发起结构化 → job 出现（handler 已返回，流处于「snapshot + 等待轮询」状态）。
+    //   接管轮询在后续 tick 查到该 job 并接管（不依赖客户端重连）。
+    holder.job = { versionId: 'v1', ownerUserId: 'u1', id: 'sjob-late', status: 'running' };
+    // 接管轮询节拍为 STRUCTURE_ACTIVATION_POLL_MS(1s)：首个 tick 在 ~1s 才命中 job。
+    //   等待预算给到 4×poll(4s)，留足并行测试 CPU 争用下的调度抖动余量（默认 1s 与 1s 节拍是死磕，会偶发 waitFor timeout）。
+    await waitFor(
+      () => raw.writes.join('').includes('event: done'),
+      STRUCTURE_ACTIVATION_POLL_MS * 4,
+    );
+    const out = raw.writes.join('');
+    // 接管不重推 snapshot（等待期已发首帧）：snapshot 恰一帧。
+    expect(out.split('event: state_snapshot').length - 1).toBe(1);
+    // 关键：job 在 connect 后出现，流接管并实时下发 worker 字段流帧（修复前永久空心跳、收不到）。
+    expect(out).toContain('event: field_done');
+    expect(out).toContain('"field":"tagline"');
+    expect(out).toContain('id: 101-0');
+    expect(doneStatuses(out)).toEqual(['completed']); // done 收尾、流关闭（非永久心跳）。
+    expect(raw.end).toHaveBeenCalled();
+  });
+
+  it('连接时无 job → 一个 poll 节拍后才出现 job（多轮轮询）→ 接管下发 done', async () => {
+    const holder: { job?: { versionId: string; ownerUserId: string; id: string; status: string } } =
+      {};
+    const db = new MutableJobDb(
+      { v1: { creatorUserId: 'u1', structureState: mixedStructureState('v1') } },
+      holder,
+    );
+    const hot = makeHot(
+      [],
+      [['100-0', ['event', 'done', 'data', JSON.stringify({ status: 'completed' })]]],
+    );
+    const { req, reply, raw } = makeReqReply({ versionId: 'v1', userId: 'u1', db, hot });
+    await structureSseHandler().call(undefined as never, req as never, reply as never);
+    // 首轮无 job → 仅 snapshot、无 done（流保持开放等待，非永久收口）。
+    const initial = raw.writes.join('');
+    expect(initial).toContain('event: state_snapshot');
+    expect(initial).not.toContain('event: done');
+    // 满一个 poll 节拍后 job 才被创建（确保走【第二轮】轮询接管，证明多轮重查有效）。
+    setTimeout(() => {
+      holder.job = { versionId: 'v1', ownerUserId: 'u1', id: 'sjob-later', status: 'running' };
+    }, STRUCTURE_ACTIVATION_POLL_MS + 100);
+    await waitFor(() => raw.writes.join('').includes('event: done'), 5_000);
+    const out = raw.writes.join('');
+    expect(doneStatuses(out)).toEqual(['completed']); // 接管后 done 收尾。
+    expect(raw.end).toHaveBeenCalled();
+  });
+
+  it('连接时无 job → 出现时已是终态（completed）→ 接管补 done 关流、绝不 subscribe', async () => {
+    const holder: { job?: { versionId: string; ownerUserId: string; id: string; status: string } } =
+      {};
+    const db = new MutableJobDb(
+      { v1: { creatorUserId: 'u1', structureState: mixedStructureState('v1') } },
+      holder,
+    );
+    // 订阅源里即便有迟到帧也不应被读到（终态接管不订阅）。
+    const hot = makeHot(
+      [],
+      [['9-0', ['event', 'done', 'data', JSON.stringify({ status: 'completed' })]]],
+    );
+    const { req, reply, raw } = makeReqReply({ versionId: 'v1', userId: 'u1', db, hot });
+    // connect-time 无 job → 等待路径。job 在 handler 返回后才出现，且已是终态（等待期极快跑完）。
+    await structureSseHandler().call(undefined as never, req as never, reply as never);
+    holder.job = { versionId: 'v1', ownerUserId: 'u1', id: 'sjob-fast', status: 'completed' };
+    // 终态接管同样要等首个 poll tick(~1s)；预算给 4×poll(4s)，避免并行负载下与 1s 节拍死磕偶发超时。
+    await waitFor(
+      () => raw.writes.join('').includes('event: done'),
+      STRUCTURE_ACTIVATION_POLL_MS * 4,
+    );
+    const out = raw.writes.join('');
+    expect(out).toContain('event: state_snapshot');
+    expect(doneStatuses(out)).toEqual(['completed']); // 恰一帧 done(completed)。
+    expect(out).not.toContain('id: 9-0'); // 终态接管不订阅，迟到帧不混入。
     expect(raw.end).toHaveBeenCalled();
   });
 });

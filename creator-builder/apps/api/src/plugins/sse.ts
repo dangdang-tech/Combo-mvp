@@ -110,8 +110,44 @@ export interface SseStreamOptions {
    *   终态编排全部集中在本插件，route 不再在建流后无条件补帧（杜绝双 done，Codex P0-1）。
    */
   terminalFrames?: () => Array<{ event: SSEEventType; payload: unknown }>;
+  /**
+   * connect-先于-job 接管（BUG-1 修复，structure 流专用）。
+   *   背景：结构化流连接时该 version 可能【尚无 active job】（前端连上即看结构化状态，等用户随后发起）。
+   *   旧实现此时只发 snapshot + 永久心跳，永不接管 ms 级后创建的 job、永不发 done（慢网/connect-first
+   *   客户端看起来像 hang）。本钩子让插件在「无 active job、未终态」的等待路径上【周期性重查】该 version 的
+   *   active/terminal structure job；一旦出现就按返回的 Activation 接管（live subscribe，或终态补 done 关流）。
+   *
+   *   仅在【非 resume、非 DB 终态、未启动 live subscribe】的等待路径才被调用（保住已工作情形不回归）：
+   *     · 连接时已有 active job（opts.subscribe 已给）→ 走 ⑥ live subscribe，不调本钩子。
+   *     · 连接时已终态（terminalFrames 非空）→ 终态闸补 done 关流，不调本钩子。
+   *   返回 null = 仍无 job，继续等（下个 tick 再查）；返回 Activation = job 已出现，立即接管。
+   *   signal abort（客户端断开 / 已关流）→ 轮询停止。未提供 = 维持旧「snapshot + 心跳等待」语义。
+   */
+  awaitActivation?: (signal: AbortSignal) => Promise<SseActivation | null>;
+  /** 等待 job 出现的轮询间隔（默认 = 心跳 interval；BUG-1）。 */
+  activationPollMs?: number;
   /** 心跳间隔覆盖（默认 SSE_HEARTBEAT_INTERVAL_MS）。 */
   heartbeatMs?: number;
+}
+
+/**
+ * connect-先于-job 接管描述（awaitActivation 返回，BUG-1）。一旦该 version 的 structure job 出现，
+ *   插件据此接管这条已开放的流——与「连接时已有 job」的 ⑥ live subscribe / 终态闸路径同形态：
+ *     · terminalFrames 非空（job 已终态）→ 补发终态帧（done）并关流，绝不 subscribe（无悬挂、无双 done）。
+ *     · 否则（job running）→ 从 subscribeFromId 起 live subscribe，收到 done 关流。
+ *   不重推 snapshot：等待期间已发过首帧 snapshot，structure_state 增量靠 subscribe 续上（贯穿-28）。
+ */
+export interface SseActivation {
+  /** live subscribe 起点（= 新 job 流 latestId 锚点，gap-free；终态路径忽略）。 */
+  subscribeFromId: string;
+  /** job running → 从锚点持续订阅其流（同 SseStreamOptions.subscribe 语义）。 */
+  subscribe?: (args: {
+    fromId: string;
+    onFrame: (frame: SSEFrame) => void;
+    signal: AbortSignal;
+  }) => void | Promise<void>;
+  /** job 已终态 → 应补发的终态帧（done；同 SseStreamOptions.terminalFrames 语义）。非空即不 subscribe。 */
+  terminalFrames?: () => Array<{ event: SSEEventType; payload: unknown }>;
 }
 
 /** 已建立的 SSE 流句柄：可继续推业务帧（Phase 3 跟流用）+ 停止。 */
@@ -270,5 +306,83 @@ export async function startSseStream(
     ).catch(() => undefined);
   }
 
+  // —— ⑦ connect-先于-job 接管（BUG-1）：仅【等待路径】启动——非终态、未启动 live subscribe、给了 awaitActivation。
+  //   场景：结构化流连接时该 version 尚无 active job（前端连上即看状态，等用户随后发起）。旧实现此时只
+  //   snapshot + 永久心跳，永不接管 ms 级后创建的 job、永不发 done（看起来像 hang）。本轮询每 tick 重查该
+  //   version 的 active/terminal structure job；一旦出现就按 Activation 接管（live subscribe 或终态补 done）。
+  //   「连接时已有 job」（opts.subscribe 已起）与「连接时已终态」（已 stop）都不进此路径，旧情形零回归。
+  //   job 长时间不出现 → 维持心跳等待（可接受的「等用户发起」语义）；但 job 一旦出现必接上、绝不悬挂。
+  if (!stopped && !opts.subscribe && opts.awaitActivation) {
+    const pollMs = opts.activationPollMs ?? interval;
+    void pollForActivation(opts.awaitActivation, pollMs, subAbort.signal, push).catch(
+      () => undefined,
+    );
+  }
+
   return { push, stop };
+}
+
+/**
+ * connect-先于-job 接管轮询（BUG-1）。在「无 active job、未终态」的等待路径上周期性重查该 version 的
+ *   structure job；出现即接管这条已开放的流，语义与「连接时已有 job」的终态闸 / live subscribe 完全对齐：
+ *     · Activation.terminalFrames 非空（job 已终态）→ 补发终态帧（done）触发关流，【绝不 subscribe】。
+ *     · 否则（job running）→ 从 Activation.subscribeFromId 起 live subscribe（done 关流由 push 处理）。
+ *   不重推 snapshot（等待期已发首帧）；structure_state 增量靠 subscribe 续上。
+ *   signal abort（客户端断开 / 已关流）→ 轮询立即退出，不泄漏定时器/连接。
+ */
+async function pollForActivation(
+  awaitActivation: (signal: AbortSignal) => Promise<SseActivation | null>,
+  pollMs: number,
+  signal: AbortSignal,
+  push: (frame: { id?: string; event: SSEEventType; payload: unknown }) => void,
+): Promise<void> {
+  while (!signal.aborted) {
+    let activation: SseActivation | null = null;
+    try {
+      activation = await awaitActivation(signal);
+    } catch {
+      activation = null; // 重查异常（DB 抖动等）：尽力而为，下个 tick 再试（snapshot 仍是真源）。
+    }
+    if (signal.aborted) return;
+    if (activation) {
+      // job 已出现：接管。终态优先——补 done 关流，绝不 subscribe（无悬挂、无双 done）。
+      const terminal = activation.terminalFrames?.() ?? [];
+      if (terminal.length > 0) {
+        for (const frame of terminal) push({ id: activation.subscribeFromId, ...frame });
+        // 结构性兜底：终态接管必以 done 收尾（同 ⑤ 终态闸）。done 触发 stop。
+        push({ id: activation.subscribeFromId, event: 'done', payload: { status: 'completed' } });
+        return;
+      }
+      if (activation.subscribe) {
+        // running：从锚点 live subscribe（done 关流由 push 处理；signal abort 时订阅自清理）。
+        void Promise.resolve(
+          activation.subscribe({
+            fromId: activation.subscribeFromId,
+            onFrame: (f) => push(f),
+            signal,
+          }),
+        ).catch(() => undefined);
+      }
+      return; // 接管完成（subscribe 长循环已起，或终态已关流）：轮询退出。
+    }
+    // 仍无 job：等一个 tick 再查（可被 abort 提前唤醒，不挂住关流）。
+    await delay(pollMs, signal);
+  }
+}
+
+/** 可被 signal 提前唤醒的 sleep（轮询节拍用；abort 时立即 resolve，不挂住关流）。 */
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve();
+    const onAbort = (): void => {
+      clearTimeout(t);
+      resolve();
+    };
+    const t = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    if (typeof t.unref === 'function') t.unref();
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
 }

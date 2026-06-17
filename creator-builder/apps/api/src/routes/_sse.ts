@@ -19,7 +19,17 @@ import {
 } from '@cb/shared';
 import { startSseStream } from '../plugins/sse.js';
 import { getLastEventId } from '../plugins/sse.js';
+import type { SseActivation } from '../plugins/sse.js';
 import { RedisEventStream } from '../sse/event-stream.js';
+
+/**
+ * connect-先于-job 接管重查节拍（BUG-1）。结构化流连接时该 version 可能尚无 active job
+ *   （前端连上即看状态，等用户随后发起）；插件在等待路径每此间隔重查一次该 version 的 structure job，
+ *   一旦出现即接管（live subscribe / 补 done 关流），不再依赖客户端重连。
+ *   取 1s：connect-先于-job 是 ms 级竞态，接管要够快（「job 一旦出现必须接上」），又不过度打 DB。
+ *   测试可经 STRUCTURE_ACTIVATION_POLL_MS 读到此真源，无需依赖 15s 心跳节拍。
+ */
+export const STRUCTURE_ACTIVATION_POLL_MS = 1_000;
 
 /** 建流前资源查找结果：owner 校验用。 */
 interface OwnerLookup {
@@ -196,18 +206,9 @@ export function structureSseHandler(): RouteHandlerMethod {
 
     // —— 映射 active structure job（订阅锚点 / 终态判定）：取该 version 最近一条 structure job。
     //    优先未终态（queued/running，可 live subscribe）；否则最近一条终态（补 done 关流，统一终态闸）。——
-    let jobRow: { id: string; status: string } | undefined;
+    let jobRow: StructureJobRow | undefined;
     try {
-      const res = await req.server.infra.db.query<{ id: string; status: string }>(
-        `SELECT id, status FROM jobs
-          WHERE type = 'structure'
-            AND owner_user_id = $2
-            AND subject_ref->>'versionId' = $1
-          ORDER BY (status IN ('queued','running')) DESC, created_at DESC
-          LIMIT 1`,
-        [versionId, userId],
-      );
-      jobRow = res.rows[0];
+      jobRow = await lookupStructureJob(req.server.infra.db, versionId, userId);
     } catch {
       reply500(req, reply);
       return reply;
@@ -271,9 +272,85 @@ export function structureSseHandler(): RouteHandlerMethod {
         jobStatus && isTerminalJobStatus(jobStatus)
           ? [{ event: 'done' as const, payload: { status: jobStatus } }]
           : [],
+      // —— connect-先于-job 接管（BUG-1）：仅【连接时完全无 job】才挂轮询接管钩子——
+      //   连接时已有 job（active 走上面 subscribe / 终态走 terminalFrames）一律不挂，旧情形零回归。
+      //   连接时无 job：流先发 snapshot 保持开放，本钩子每 tick 重查该 version 的 structure job；
+      //   一旦出现（active → live subscribe；已终态 → 补 done 关流）就接管，不再依赖客户端重连。
+      ...(jobRow
+        ? {}
+        : {
+            awaitActivation: (signal) =>
+              awaitStructureActivation(req.server.infra.db, stream, versionId, userId, signal),
+            activationPollMs: STRUCTURE_ACTIVATION_POLL_MS,
+          }),
     });
     return reply;
   };
+}
+
+/** 该 version 最近一条 structure job（owner 限定）：优先未终态、否则最近终态（lookupStructureJob 真源）。 */
+interface StructureJobRow {
+  id: string;
+  status: string;
+}
+
+/**
+ * 取该 version 的「映射 structure job」（建流 + 接管轮询共用真源，BUG-1）。
+ *   优先未终态（queued/running，可 live subscribe）；否则最近一条终态（补 done 关流）；无任何 job → undefined。
+ *   异常【向上抛】（建流前 → reply500；轮询里 → 由 pollForActivation 吞掉下个 tick 重试）。
+ */
+async function lookupStructureJob(
+  db: FastifyRequest['server']['infra']['db'],
+  versionId: string,
+  userId: string,
+): Promise<StructureJobRow | undefined> {
+  const res = await db.query<StructureJobRow>(
+    `SELECT id, status FROM jobs
+        WHERE type = 'structure'
+          AND owner_user_id = $2
+          AND subject_ref->>'versionId' = $1
+        ORDER BY (status IN ('queued','running')) DESC, created_at DESC
+        LIMIT 1`,
+    [versionId, userId],
+  );
+  return res.rows[0];
+}
+
+/**
+ * connect-先于-job 接管探测（BUG-1）：插件在等待路径每 tick 调一次。重查该 version 的 structure job——
+ *   · 无 job → 返回 null（继续等，下个 tick 再查；流维持 snapshot + 心跳的「等用户发起」语义）。
+ *   · active（queued/running）→ 返回 Activation：先取该 job 流 latestId 锚点（gap-free），从锚点 live subscribe。
+ *   · 已终态 → 返回 Activation：terminalFrames 补 done（completed/failed/cancelled），插件据此关流、绝不 subscribe。
+ *   语义与「连接时已有 job」的 subscribe / 终态闸完全对齐（不重推 snapshot，structure_state 增量靠 subscribe）。
+ */
+async function awaitStructureActivation(
+  db: FastifyRequest['server']['infra']['db'],
+  stream: RedisEventStream,
+  versionId: string,
+  userId: string,
+  signal: AbortSignal,
+): Promise<SseActivation | null> {
+  const jobRow = await lookupStructureJob(db, versionId, userId);
+  if (!jobRow || signal.aborted) return null;
+  const jobId = jobRow.id;
+  const jobStatus = jobRow.status as JobStatus;
+  const isActive = jobStatus === 'queued' || jobStatus === 'running';
+  if (isActive) {
+    // 先取锚点（同建流时序消 TOCTOU）：从锚点起 live subscribe，其后 XADD 的字段流帧必被捕获。
+    const subscribeFromId = await stream.latestId(jobId).catch(() => '0-0');
+    return {
+      subscribeFromId,
+      subscribe: ({ fromId, onFrame, signal: s }) => stream.subscribe(jobId, fromId, onFrame, s),
+    };
+  }
+  if (isTerminalJobStatus(jobStatus)) {
+    // 接管时 job 已终态（罕见：等待期间 job 极快跑完）→ 补 done 关流，绝不 subscribe（统一终态闸口径）。
+    return {
+      subscribeFromId: '0-0',
+      terminalFrames: () => [{ event: 'done' as const, payload: { status: jobStatus } }],
+    };
+  }
+  return null;
 }
 
 /**

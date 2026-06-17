@@ -1,0 +1,10 @@
+VERDICT: PASS
+
+关键证据：
+- [create-capability.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/structure/create-capability.ts:56) 已先判 `code !== '23505'` 返回 false，且只认 `constraint === 'uq_capabilities_slug'` 或 message 词边界命中。
+- 非 slug 23505 会 `throw err`，到 [structure-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/structure-handlers.ts:161) 的 catch-all，返回 503 可重试，不会变 409。
+- 测试覆盖了 slug 正例、`uq_capability_version` 负例、空 `{ code: '23505' }` 负例：[structure-routes.test.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/__tests__/structure-routes.test.ts:191)。
+- 入参保持 `unknown` 窄化，没有 `any`。
+- `\b` 对 `uq_capabilities_slug_xxx`、`xuq_capabilities_slug`、`uq_capabilities_slug2` 都不命中。更严格解析 PG message 里的 quoted constraint 可以作为后续硬化，但当前修法不构成 FAIL。
+
+验证限制：尝试跑 `pnpm -F @cb/api test -- src/__tests__/structure-routes.test.ts`，但只读沙箱阻止 Vitest 写临时 config 文件，报 `EPERM ... vitest.config.ts.timestamp-...mjs`。静态复核通过。
