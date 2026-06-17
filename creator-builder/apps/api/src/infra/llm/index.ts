@@ -35,7 +35,7 @@ export interface ResolvedLlmProvider {
  *       有 OPENROUTER_API_KEY 而无 ANTHROPIC_API_KEY → openrouter;否则 anthropic(默认/原路径)。
  *   - 选中 provider 的 key 缺失 → sdk=null(degraded 兜底,不阻塞启动)。
  *   - 模型:LLM_MODEL 优先;否则按 provider 各自默认(anthropic→claude-opus-4-8,
- *     openrouter→anthropic/claude-3.7-sonnet)。
+ *     openrouter→anthropic/claude-sonnet-4.6)。
  */
 export function resolveLlmProvider(env: Env): ResolvedLlmProvider {
   const anthropicKey = env.ANTHROPIC_API_KEY?.trim();

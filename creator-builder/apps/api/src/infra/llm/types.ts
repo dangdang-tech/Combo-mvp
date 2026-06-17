@@ -29,8 +29,13 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   // Claude Haiku 4.5: $1 / $5 per MTok。
   'claude-haiku-4-5': { inputMicrosPerMTok: 1_000_000, outputMicrosPerMTok: 5_000_000 },
   // —— OpenRouter 上的 Claude(模型名带 anthropic/ 前缀;费率与对应官方档一致)——
-  // Claude 3.7 Sonnet(OpenRouter 默认):$3 / $15 per MTok。
-  'anthropic/claude-3.7-sonnet': {
+  // Claude Sonnet 4.6(OpenRouter 默认,实测 slug 有效):$3 / $15 per MTok。
+  'anthropic/claude-sonnet-4.6': {
+    inputMicrosPerMTok: 3_000_000,
+    outputMicrosPerMTok: 15_000_000,
+  },
+  // Claude Sonnet 4.5(OpenRouter 备选):$3 / $15 per MTok。
+  'anthropic/claude-sonnet-4.5': {
     inputMicrosPerMTok: 3_000_000,
     outputMicrosPerMTok: 15_000_000,
   },

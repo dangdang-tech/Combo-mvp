@@ -11,7 +11,13 @@ import { createMemoryAuditSink } from '../infra/llm/audit.js';
 import { createOpenRouterClient, OPENROUTER_DEFAULT_MODEL } from '../infra/llm/openrouter.js';
 import { OpenRouterApiError, normalizeOpenRouterError } from '../infra/llm/openrouter-errors.js';
 import { resolveLlmProvider } from '../infra/llm/index.js';
-import { computeCostMicros, type LlmClock, type LlmRateLimiter } from '../infra/llm/types.js';
+import {
+  computeCostMicros,
+  MODEL_PRICING,
+  FALLBACK_PRICING,
+  type LlmClock,
+  type LlmRateLimiter,
+} from '../infra/llm/types.js';
 import type { Env } from '../config/env.js';
 
 /** 快进时钟:退避立即 resolve(slept 记 ms);超时用 setTimeout(0)(已 settle 的 fetch 先胜出)。 */
@@ -56,7 +62,7 @@ const OPTS: LlmCallOptions = {
   ownerUserId: 'user-1',
 };
 
-const MODEL = OPENROUTER_DEFAULT_MODEL; // anthropic/claude-3.7-sonnet
+const MODEL = OPENROUTER_DEFAULT_MODEL; // anthropic/claude-sonnet-4.6（OpenRouter 上真实存在的 slug）
 
 /** 造一个 OpenAI 兼容非流式响应(Response 形态,res.ok=true)。 */
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -105,6 +111,32 @@ function gatewayWithFetch(
     ...(extra?.rateLimiter ? { rateLimiter: extra.rateLimiter } : {}),
   });
 }
+
+describe('OPENROUTER_DEFAULT_MODEL — 必须是 OpenRouter 上真实存在的 slug（非 3.7 死值）', () => {
+  // 根因锚：旧默认 'anthropic/claude-3.7-sonnet' 在 OpenRouter /api/v1/models 不存在 →
+  //   不设 LLM_MODEL 跑 OpenRouter 会拿不到模型 → 全程 degraded。
+  // 反向破坏：把 OPENROUTER_DEFAULT_MODEL 改回 'anthropic/claude-3.7-sonnet'（或任何已知无效值）→
+  //   下面三条断言转红。
+  const KNOWN_INVALID = 'anthropic/claude-3.7-sonnet';
+
+  it('默认 slug 不是已知无效的 anthropic/claude-3.7-sonnet', () => {
+    expect(OPENROUTER_DEFAULT_MODEL).not.toBe(KNOWN_INVALID);
+    expect(OPENROUTER_DEFAULT_MODEL).not.toContain('3.7');
+  });
+
+  it('默认 slug 与 .env(LLM_MODEL)一致，是 OpenRouter 上实测有效的 Claude Sonnet', () => {
+    // 实测 https://openrouter.ai/api/v1/models 存在该 slug；与 .env 的 LLM_MODEL 对齐。
+    expect(OPENROUTER_DEFAULT_MODEL).toBe('anthropic/claude-sonnet-4.6');
+    // OpenRouter 上的 Claude 模型 slug 形如 anthropic/claude-...（前缀必带 provider）。
+    expect(OPENROUTER_DEFAULT_MODEL.startsWith('anthropic/claude-')).toBe(true);
+  });
+
+  it('默认模型在计价表里有显式条目（不静默回落 Opus 费率高估成本）', () => {
+    const pricing = MODEL_PRICING[OPENROUTER_DEFAULT_MODEL];
+    expect(pricing).toBeDefined();
+    expect(pricing).not.toBe(FALLBACK_PRICING);
+  });
+});
 
 describe('OpenRouter.complete — 成功 + 计量记账(OpenRouter usage→cost)', () => {
   it('200 返回 choices[0].message.content + usage → text/usage/cost,落 degraded=false 审计', async () => {

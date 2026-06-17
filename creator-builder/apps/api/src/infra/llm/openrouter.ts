@@ -11,7 +11,10 @@ import { OpenRouterApiError } from './openrouter-errors.js';
 
 /** OpenRouter 默认网关与默认模型(OpenRouter 上的 Claude;可经 env 覆盖)。 */
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
-export const OPENROUTER_DEFAULT_MODEL = 'anthropic/claude-3.7-sonnet';
+// 必须是 OpenRouter 上真实存在的 slug(实测 /api/v1/models 校过)。
+//   旧默认 'anthropic/claude-3.7-sonnet' 在 OpenRouter 上不存在 → 不设 LLM_MODEL 跑 OpenRouter
+//   会拿不到模型 → 全程 degraded。改为有效 slug,与 .env(LLM_MODEL=anthropic/claude-sonnet-4.6)一致。
+export const OPENROUTER_DEFAULT_MODEL = 'anthropic/claude-sonnet-4.6';
 
 /** 注入(单测可替换 fetch);生产用全局 fetch(Node ≥18)。 */
 export interface OpenRouterClientOptions {

@@ -65,7 +65,7 @@ const EnvSchema = z.object({
   //   compose 留空（''）→ 规整成 undefined → 走 default（不让 '' 覆盖默认基址，否则 OpenRouter URL 拼空崩）。
   LLM_BASE_URL: z.preprocess(emptyToUndefined, z.string().default('https://openrouter.ai/api/v1')),
   // 显式模型覆盖；空 → 按 provider 各自默认（anthropic→claude-opus-4-8，
-  //   openrouter→anthropic/claude-3.7-sonnet）。compose 留空（''）→ undefined → default('')，
+  //   openrouter→anthropic/claude-sonnet-4.6）。compose 留空（''）→ undefined → default('')，
   //   resolveLlmProvider 再据 provider 各自兜底（统一「留空即默认」口径）。
   LLM_MODEL: z.preprocess(emptyToUndefined, z.string().default('')),
 
