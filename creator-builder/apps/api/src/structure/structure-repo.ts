@@ -2,6 +2,17 @@
 //   写入铁律（§11.A）：worker 写 structure_state / manifest 用【单条事务 CTE】，fence 经 jobs 联表内联进数据源
 //     `... FROM jobs WHERE id=:jobId AND fence_token=:fence AND status='running' AND v.id=:versionId`；
 //     禁「先 SELECT 校验 fence、再独立 UPDATE」两步（TOCTOU）。rowCount=0 = 已被 fence out（正常控制流，干净退出）。
+//   并发正确性（Codex r2 P0）：四个软字段受保护写（stuck/array-item/state-surgical/done-surgical）的 idx/next_state
+//     必须从【锁住的目标行】算——CTE 头 `WITH tgt AS MATERIALIZED (SELECT ... FROM capability_versions WHERE id=$3
+//     FOR UPDATE)` 先锁 version 行再读 structure_state，最终 UPDATE 改这把锁下的同一行（v.id = tgt.id AND v.id=$3）。
+//     无锁 stale 读会让迟到写（用 stale idx / stale 整列）覆盖并发已落的 done/failed（最严重：done-surgical 的整列写
+//     擦掉并发 PATCH / 别字段 done）。AS MATERIALIZED 防 CTE 内联把锁优化掉。
+//   锁序决策（死锁分析）：本文件四写【只锁 version 行】，jobs 仅在 UPDATE 的 FROM 里【无锁】读做 fence 守门（不锁 job
+//     行）。对齐其它写 version 的路径——structure-edit-repo.ts 的 patchManifestSoftFields / acquireRegenerateFieldJob
+//     都先 `SELECT ... FOR UPDATE OF v`（version 优先）；acquireRegenerateFieldJob 之后才 INSERT 新 job 行
+//     （version→job 序）。若本处反过来「先锁 job 再锁 version」（即 Codex 提的 job_guard FOR UPDATE 方案）会与 regen 的
+//     version→job 反向，构成 job↔version 死锁环；且 fence 守门已在最终 UPDATE 的 WHERE 内联（wrong-fence/cancelled →
+//     0 行安全退出），无需为 wrong-fence 额外锁 job 行。故【不引入 job_guard】，统一 version 优先锁序、零死锁环。
 //   B-24 建体：单 PG 事务建 capabilities + capability_versions（复合 FK 同 capability，UNIQUE(capability_id,id)）；幂等回放。
 //   血缘：source_candidate_id → capability_candidates.id；worker 经候选直读 candidate_evidence/session_segments（§4.C）。
 import type { Queryable } from '../jobs/types.js';
@@ -106,8 +117,29 @@ export async function writeFieldStuckIfGenerating(
     stuckMs: number;
   },
 ): Promise<boolean> {
+  // idx 经 CTE（tgt）算下标——LATERAL 引用 tgt 而非 UPDATE 目标 v（PG 禁 FROM 内 LATERAL 引用 UPDATE 目标表，
+  //   否则抛 invalid reference to FROM-clause entry for table "v"，整 job 立即 INTERNAL）。idx 跨连进 UPDATE FROM：
+  //   该字段不再 generating → idx 空 → CROSS JOIN 0 行 → UPDATE 0 行（保留原 LATERAL「0 元素=no-op」竞态兜底）。
+  // 并发正确性（Codex r2 P0）：tgt 必须 `FOR UPDATE` 锁住目标 version 行再读 structure_state——否则是无锁 stale 读，
+  //   迟到的 stuck 写会用 stale idx 覆盖已并发落 done/failed 的当前行（把 done 打回 stuck）。锁后 idx 从【锁住的最新行】
+  //   算，最终 UPDATE 改的就是这把锁下的同一行（v.id = tgt.id），读—算—写全在行锁内原子。`AS MATERIALIZED` 防 CTE
+  //   内联把 tgt 优化成可重读/丢锁。锁序：先锁 version 行（与 patchManifestSoftFields / acquireRegenerateFieldJob
+  //   一致，均 version 优先），不锁 jobs 行（jobs 仅在最终 UPDATE 的 FROM 里无锁读做 fence 守门），故与 PATCH/regen
+  //   写路径锁序统一、不构成 job↔version 死锁环（详见文件顶注锁序决策）。
   const res = await db.query(
-    `UPDATE capability_versions v
+    `WITH tgt AS MATERIALIZED (
+       SELECT id, structure_state FROM capability_versions WHERE id = $3 FOR UPDATE
+     ),
+     idx AS (
+       SELECT (e.ord - 1) AS i
+         FROM tgt,
+              LATERAL jsonb_array_elements(tgt.structure_state -> 'fields')
+                        WITH ORDINALITY AS e(elem, ord)
+        WHERE e.elem ->> 'field' = $4
+          AND e.elem ->> 'status' = 'generating'
+        LIMIT 1
+     )
+     UPDATE capability_versions v
         SET structure_state = jsonb_set(
               jsonb_set(
                 v.structure_state,
@@ -120,18 +152,11 @@ export async function writeFieldStuckIfGenerating(
               true
             ),
             updated_at = now()
-       FROM jobs j,
-            LATERAL (
-              SELECT (e.ord - 1) AS i
-                FROM jsonb_array_elements(v.structure_state -> 'fields')
-                       WITH ORDINALITY AS e(elem, ord)
-               WHERE e.elem ->> 'field' = $4
-                 AND e.elem ->> 'status' = 'generating'
-               LIMIT 1
-            ) idx
+       FROM jobs j, tgt, idx
       WHERE j.id = $1
         AND j.fence_token = $2
         AND j.status = 'running'
+        AND v.id = tgt.id
         AND v.id = $3`,
     [args.jobId, args.fenceToken, args.versionId, args.field, args.stuckMs],
   );
@@ -158,8 +183,25 @@ export async function writeArrayItemIfGenerating(
     item: string;
   },
 ): Promise<boolean> {
+  // idx 经 CTE（tgt）算下标——LATERAL 引用 tgt 而非 UPDATE 目标 v（PG 禁 FROM 内 LATERAL 引用 UPDATE 目标表）。
+  //   idx 跨连进 UPDATE FROM：该字段不再 generating → idx 空 → 0 行（保留原「迟到 item 写 no-op」竞态兜底）。
+  // 并发正确性（Codex r2 P0）：tgt `FOR UPDATE` 锁住目标 version 行——否则无锁 stale 读下，迟到的 item append 会基于
+  //   stale value 把并发已落的 item/done 覆盖。锁后 idx + COALESCE(...value...) 从锁住的最新行读现值再 append，最终
+  //   UPDATE 改这把锁下的同一行（v.id = tgt.id），读—改—写原子。`AS MATERIALIZED` 防 CTE 内联丢锁。锁序同上（version 优先）。
   const res = await db.query(
-    `UPDATE capability_versions v
+    `WITH tgt AS MATERIALIZED (
+       SELECT id, structure_state FROM capability_versions WHERE id = $3 FOR UPDATE
+     ),
+     idx AS (
+       SELECT (e.ord - 1) AS i
+         FROM tgt,
+              LATERAL jsonb_array_elements(tgt.structure_state -> 'fields')
+                        WITH ORDINALITY AS e(elem, ord)
+        WHERE e.elem ->> 'field' = $4
+          AND e.elem ->> 'status' = 'generating'
+        LIMIT 1
+     )
+     UPDATE capability_versions v
         SET structure_state = jsonb_set(
               v.structure_state,
               ARRAY['fields', (idx.i)::text, 'value'],
@@ -170,18 +212,11 @@ export async function writeArrayItemIfGenerating(
               true
             ),
             updated_at = now()
-       FROM jobs j,
-            LATERAL (
-              SELECT (e.ord - 1) AS i
-                FROM jsonb_array_elements(v.structure_state -> 'fields')
-                       WITH ORDINALITY AS e(elem, ord)
-               WHERE e.elem ->> 'field' = $4
-                 AND e.elem ->> 'status' = 'generating'
-               LIMIT 1
-            ) idx
+       FROM jobs j, tgt, idx
       WHERE j.id = $1
         AND j.fence_token = $2
         AND j.status = 'running'
+        AND v.id = tgt.id
         AND v.id = $3`,
     [args.jobId, args.fenceToken, args.versionId, args.field, args.item],
   );
@@ -218,8 +253,30 @@ export async function writeFieldStateSurgical(
   },
 ): Promise<boolean> {
   // 只 patch status/attempts（failed 带 error、清 stuckMs），value 保留 DB 现值（jsonb_set 逐键改本字段条目）。
+  // idx 经 CTE（tgt）算下标（含 guard 判定）——LATERAL 引用 tgt 而非 UPDATE 目标 v（PG 禁 FROM 内 LATERAL 引用目标）。
+  //   idx 跨连进 UPDATE FROM：guard 不满足 → idx 空 → 0 行 no-op（保留原 force/not-done/in-progress guard 语义）。
+  // 并发正确性（Codex r2 P0）：tgt `FOR UPDATE` 锁住目标 version 行再做 guard 判定 + 读现值条目——否则无锁 stale 读下，
+  //   guard（status<>'done' / status IN(generating,stuck)）可能针对 stale 状态判定通过，把并发已落的 done/done-value
+  //   错误地打回 generating/failed。锁后 guard 与 jsonb_set 现值条目都从锁住的最新行读，最终 UPDATE 改这把锁下的同一行
+  //   （v.id = tgt.id）。`AS MATERIALIZED` 防 CTE 内联丢锁。锁序同上（version 优先，与 PATCH/regen 写路径一致）。
   const res = await db.query(
-    `UPDATE capability_versions v
+    `WITH tgt AS MATERIALIZED (
+       SELECT id, structure_state FROM capability_versions WHERE id = $3 FOR UPDATE
+     ),
+     idx AS (
+       SELECT (e.ord - 1) AS i
+         FROM tgt,
+              LATERAL jsonb_array_elements(tgt.structure_state -> 'fields')
+                        WITH ORDINALITY AS e(elem, ord)
+        WHERE e.elem ->> 'field' = $4
+          AND (
+                $8::text = 'force'
+             OR ($8::text = 'not-done' AND e.elem ->> 'status' <> 'done')
+             OR ($8::text = 'in-progress' AND e.elem ->> 'status' IN ('generating', 'stuck'))
+              )
+        LIMIT 1
+     )
+     UPDATE capability_versions v
         SET structure_state = jsonb_set(
               v.structure_state,
               ARRAY['fields', (idx.i)::text],
@@ -234,22 +291,11 @@ export async function writeFieldStateSurgical(
               true
             ),
             updated_at = now()
-       FROM jobs j,
-            LATERAL (
-              SELECT (e.ord - 1) AS i
-                FROM jsonb_array_elements(v.structure_state -> 'fields')
-                       WITH ORDINALITY AS e(elem, ord)
-               WHERE e.elem ->> 'field' = $4
-                 AND (
-                       $8::text = 'force'
-                    OR ($8::text = 'not-done' AND e.elem ->> 'status' <> 'done')
-                    OR ($8::text = 'in-progress' AND e.elem ->> 'status' IN ('generating', 'stuck'))
-                     )
-               LIMIT 1
-            ) idx
+       FROM jobs j, tgt, idx
       WHERE j.id = $1
         AND j.fence_token = $2
         AND j.status = 'running'
+        AND v.id = tgt.id
         AND v.id = $3`,
     [
       args.jobId,
@@ -300,8 +346,76 @@ export async function writeFieldDoneSurgical(
   // manifest surgical set：本字段 value（+ instructions 派生的 inputs/output；仍锁定）。其余键从库内当前行带走。
   // structure_state surgical：整条替换本字段终态条目（done）；instructions 派生时刷新 inputs/output locked 条目值。
   // 守护：LATERAL 仅命中【仍 generating 的本字段】，0 元素 → 0 行 no-op（终态权威）。
+  // idx / 重建后的 next_state 全经 CTE（tgt）算——CTE 内 LATERAL 引用 tgt 而非 UPDATE 目标 v（PG 禁 FROM 内
+  //   LATERAL 引用目标表，否则抛 invalid reference to FROM-clause entry for table "v"）。idx 跨连进 UPDATE FROM：
+  //   本字段不再 generating/stuck → idx 空 → next_state 也空（CROSS JOIN idx）→ 0 行 no-op（保留原「迟到写不覆盖、
+  //   终态权威」竞态兜底）。tgt 是本语句单一快照，CTE 内重算与最终 UPDATE 同事务、对父行单语句只改一次（§11.A 原子）。
+  // 并发正确性（Codex r2 P0，本函数最敏感）：tgt 必须 `FOR UPDATE` 锁住目标 version 行——否则无锁 stale 读下，next_state
+  //   从 stale tgt.structure_state 重建后【整列写】structure_state，会擦掉锁读—写之间并发 PATCH / 别字段 done 落的写。
+  //   加锁后：并发写要么在本锁前已提交（则 tgt 读到它、rebuilt 原样保留其它字段）、要么阻塞到本语句提交后再跑（读到本次
+  //   done）——整列写不再丢并发字段。idx/rebuilt/next_state 全从锁住的最新 tgt 重建，最终 UPDATE 改这把锁下的同一行
+  //   （v.id = tgt.id）。`AS MATERIALIZED` 防 CTE 内联丢锁。锁序同上（version 优先，与 PATCH/regen 写路径一致，无死锁环）。
   const res = await db.query(
-    `UPDATE capability_versions v
+    `WITH tgt AS MATERIALIZED (
+       SELECT id, manifest, structure_state FROM capability_versions WHERE id = $3 FOR UPDATE
+     ),
+     idx AS (
+       -- 守护：本字段须仍 generating 或 stuck（stuck 是 generating 的瞬时子态，慢字段中途落 stuck 后才收口）。
+       --   终态（done/failed）/被换 fence 已先落库 → 命中 0 元素 → idx 空 → 0 行 no-op（迟到写不覆盖，终态权威）。
+       SELECT (e.ord - 1) AS i
+         FROM tgt,
+              LATERAL jsonb_array_elements(tgt.structure_state -> 'fields')
+                        WITH ORDINALITY AS e(elem, ord)
+        WHERE e.elem ->> 'field' = $4
+          AND e.elem ->> 'status' IN ('generating', 'stuck')
+        LIMIT 1
+     ),
+     rebuilt AS (
+       -- structure_state.fields 重建：本字段条目整条换终态（$7）；inputs/output 两条 locked 刷新派生值（仍 locked，
+       --   非 instructions 字段 $6 NULL → COALESCE 保持原 value）；其它字段条目（含并发 PATCH 改过的软字段）原样保留。
+       --   CROSS JOIN idx：idx 空（guard 不满足）→ rebuilt 无行 → next_state 无行 → UPDATE 0 行（与原 LATERAL 同语义）。
+       SELECT jsonb_agg(
+                CASE
+                  WHEN (e.ord - 1) = idx.i
+                    THEN $7::jsonb
+                  WHEN (e.elem ->> 'field') = 'inputs'
+                    THEN jsonb_set(e.elem, ARRAY['value'], COALESCE($6::jsonb -> 'inputs', e.elem -> 'value'), true)
+                  WHEN (e.elem ->> 'field') = 'output'
+                    THEN jsonb_set(e.elem, ARRAY['value'], COALESCE($6::jsonb -> 'output', e.elem -> 'value'), true)
+                  ELSE e.elem
+                END
+                ORDER BY e.ord
+              ) AS fields
+         FROM tgt, idx,
+              LATERAL jsonb_array_elements(tgt.structure_state -> 'fields')
+                        WITH ORDINALITY AS e(elem, ord)
+     ),
+     next_state AS (
+       -- doneCount/totalCount 从重建后的 fields 即时重算（只数软字段 done/全集；硬字段 locked 不计 total）——
+       --   surgical 写不再整列写启动快照、计数须自洽（避免 stale，与 manifest.buildStructureState 同口径）。
+       SELECT jsonb_set(
+                jsonb_set(
+                  jsonb_set(tgt.structure_state, ARRAY['fields'], rebuilt.fields, true),
+                  ARRAY['doneCount'],
+                  to_jsonb((
+                    SELECT count(*)
+                      FROM jsonb_array_elements(rebuilt.fields) AS sf
+                     WHERE sf ->> 'field' IN ('name','tagline','role','goal','instructions','skill_set','starter_prompts')
+                       AND sf ->> 'status' = 'done'
+                  )::int),
+                  true
+                ),
+                ARRAY['totalCount'],
+                to_jsonb((
+                  SELECT count(*)
+                    FROM jsonb_array_elements(rebuilt.fields) AS sf
+                   WHERE sf ->> 'field' IN ('name','tagline','role','goal','instructions','skill_set','starter_prompts')
+                )::int),
+                true
+              ) AS next
+         FROM tgt, rebuilt
+     )
+     UPDATE capability_versions v
         SET manifest =
               CASE
                 WHEN $6::jsonb IS NULL THEN
@@ -319,67 +433,13 @@ export async function writeFieldDoneSurgical(
                     true
                   )
               END,
-            structure_state = refresh_locked.next,
+            structure_state = next_state.next,
             updated_at = now()
-       FROM jobs j,
-            LATERAL (
-              -- 守护：本字段须仍 generating 或 stuck（stuck 是 generating 的瞬时子态，慢字段中途落 stuck 后才收口）。
-              --   终态（done/failed）/被换 fence 已先落库 → 命中 0 元素 → 0 行 no-op（迟到写不覆盖，终态权威）。
-              SELECT (e.ord - 1) AS i
-                FROM jsonb_array_elements(v.structure_state -> 'fields')
-                       WITH ORDINALITY AS e(elem, ord)
-               WHERE e.elem ->> 'field' = $4
-                 AND e.elem ->> 'status' IN ('generating', 'stuck')
-               LIMIT 1
-            ) idx,
-            LATERAL (
-              -- structure_state.fields 重建：本字段条目整条换终态（$7）；inputs/output 两条 locked 刷新派生值（仍 locked，
-              --   非 instructions 字段 $6 NULL → COALESCE 保持原 value）；其它字段条目（含并发 PATCH 改过的软字段）原样保留。
-              --   doneCount/totalCount 从重建后的 fields 即时重算（只数软字段 done/全集；硬字段 locked 不计 total）——
-              --   surgical 写不再整列写启动快照、计数须自洽（避免 stale，与 manifest.buildStructureState 同口径）。
-              SELECT (
-                       WITH rebuilt AS (
-                         SELECT jsonb_agg(
-                                  CASE
-                                    WHEN (e.ord - 1) = idx.i
-                                      THEN $7::jsonb
-                                    WHEN (e.elem ->> 'field') = 'inputs'
-                                      THEN jsonb_set(e.elem, ARRAY['value'], COALESCE($6::jsonb -> 'inputs', e.elem -> 'value'), true)
-                                    WHEN (e.elem ->> 'field') = 'output'
-                                      THEN jsonb_set(e.elem, ARRAY['value'], COALESCE($6::jsonb -> 'output', e.elem -> 'value'), true)
-                                    ELSE e.elem
-                                  END
-                                  ORDER BY e.ord
-                                ) AS fields
-                           FROM jsonb_array_elements(v.structure_state -> 'fields')
-                                  WITH ORDINALITY AS e(elem, ord)
-                       )
-                       SELECT jsonb_set(
-                                jsonb_set(
-                                  jsonb_set(v.structure_state, ARRAY['fields'], rebuilt.fields, true),
-                                  ARRAY['doneCount'],
-                                  to_jsonb((
-                                    SELECT count(*)
-                                      FROM jsonb_array_elements(rebuilt.fields) AS sf
-                                     WHERE sf ->> 'field' IN ('name','tagline','role','goal','instructions','skill_set','starter_prompts')
-                                       AND sf ->> 'status' = 'done'
-                                  )::int),
-                                  true
-                                ),
-                                ARRAY['totalCount'],
-                                to_jsonb((
-                                  SELECT count(*)
-                                    FROM jsonb_array_elements(rebuilt.fields) AS sf
-                                   WHERE sf ->> 'field' IN ('name','tagline','role','goal','instructions','skill_set','starter_prompts')
-                                )::int),
-                                true
-                              )
-                         FROM rebuilt
-                     ) AS next
-            ) refresh_locked
+       FROM jobs j, tgt, idx, next_state
       WHERE j.id = $1
         AND j.fence_token = $2
         AND j.status = 'running'
+        AND v.id = tgt.id
         AND v.id = $3`,
     [
       args.jobId,

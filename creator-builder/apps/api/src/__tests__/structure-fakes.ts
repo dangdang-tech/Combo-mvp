@@ -216,7 +216,7 @@ export class StructureFakeDb implements Queryable {
       sql.includes('UPDATE capability_versions v') &&
       sql.includes('SET manifest =') &&
       sql.includes('WHEN $6::jsonb IS NULL') &&
-      sql.includes('refresh_locked.next')
+      sql.includes('next_state.next')
     ) {
       const jobId = params[0] as string;
       const fence = params[1] as number;
