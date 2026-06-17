@@ -14,14 +14,23 @@
 //   code / OIDC 原始报错 / 上游状态）；服务端把 failureId → 内部 code + traceId 落日志。login 上游不可达走 escalate。
 import type { FastifyReply, FastifyRequest, RouteHandlerMethod } from 'fastify';
 import {
+  buildError,
   buildErrorWithCode,
   ErrorCode,
+  RoleSchema,
   type Envelope,
   type LogoutResult,
   type MeView,
+  type Role,
 } from '@cb/shared';
 import { provisionUser, readMeRow } from '../infra/users-repo.js';
 import { verifyLogtoIdToken, verifyLogtoJwt } from '../infra/logto.js';
+import {
+  DEFAULT_DEV_USER,
+  DEV_SESSION_MAX_AGE,
+  devLoginAvailable,
+  signDevSession,
+} from '../infra/dev-session.js';
 import {
   buildAuthorizeUrl,
   buildLogoutUrl,
@@ -338,6 +347,147 @@ export function meHandler(): RouteHandlerMethod {
     };
     const body: Envelope<MeView> = { data: me, meta: { traceId: req.id } };
     reply.code(200).send(body);
+    return reply;
+  };
+}
+
+// ===========================================================================
+// POST /auth/dev-login — 仅 dev/test 种子登录（live 测试拿有效会话跑主链路，10-auth 外挂）
+// ===========================================================================
+
+/** dev-login 请求体（全可选）：指定测试用户 email + role；缺省 = seeded 测试创作者 Wayne / creator。 */
+interface DevLoginBody {
+  email?: string;
+  account?: string;
+  role?: string;
+  roles?: string[];
+}
+
+/**
+ * 解析 dev-login body 的角色（RoleSchema 过滤，单 role 或 roles[] 都接受；缺省 creator）。
+ *   非法/未知角色被丢弃；全空则回落默认创作者角色（绝不强转 raw string，与全局口径一致）。
+ */
+function resolveDevRoles(body: DevLoginBody): Role[] {
+  const candidates: string[] = [];
+  if (typeof body.role === 'string') candidates.push(body.role);
+  if (Array.isArray(body.roles)) {
+    for (const r of body.roles) if (typeof r === 'string') candidates.push(r);
+  }
+  const seen = new Set<Role>();
+  const out: Role[] = [];
+  for (const c of candidates) {
+    const parsed = RoleSchema.safeParse(c);
+    if (parsed.success && !seen.has(parsed.data)) {
+      seen.add(parsed.data);
+      out.push(parsed.data);
+    }
+  }
+  return out.length > 0 ? out : DEFAULT_DEV_USER.roles;
+}
+
+/**
+ * 仅 dev/test 种子登录（安全双守卫，绝不上生产）：
+ *   - 仅当 devLoginAvailable(env)（NODE_ENV≠prod 且 DEV_LOGIN_ENABLED=true 且有 DEV_SESSION_SECRET）才工作；
+ *     否则当作【不存在】返 404 NOT_FOUND（不暴露端点存在性——routes 也只在可用时注册，此处再兜一层）。
+ *   - body 可指定 email/role（缺省 seeded 测试创作者 Wayne / creator）；provisionUser 建/取 users 行；
+ *     用 app 侧 DEV_SESSION_SECRET 签 HS256 dev 会话写 cb_session cookie（httpOnly/sameSite），返 MeView。
+ *   - cb_session 承载的是 dev token（非 Logto JWT）；requireAuth/SSE 的 dev 验证分支（同双守卫）认它。
+ * ErrorEnvelope 无 code（D1）；复用 provisionUser/readMeRow/MeView，不另造抽象。
+ */
+export function devLoginHandler(): RouteHandlerMethod {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    const env = req.server.infra.env;
+    // 双守卫兜底：不可用即「不存在」（404），绝不在生产/关闭态签发会话。
+    if (!devLoginAvailable(env)) {
+      const { code, envelope } = buildErrorWithCode(ErrorCode.NOT_FOUND, req.id);
+      req.log.warn({ code, traceId: req.id }, 'dev-login hit while unavailable (guarded)');
+      reply.code(404).send(envelope);
+      return reply;
+    }
+
+    const body = (req.body ?? {}) as DevLoginBody;
+    const email =
+      typeof body.email === 'string' && body.email.trim()
+        ? body.email.trim()
+        : DEFAULT_DEV_USER.email;
+    const account =
+      typeof body.account === 'string' && body.account.trim()
+        ? body.account.trim()
+        : DEFAULT_DEV_USER.account;
+    const roles = resolveDevRoles(body);
+    // 稳定 sub（去重键）：默认 Wayne 用固定 sub；自定义 email 派生稳定 sub，复登命中同一 users 行。
+    const sub =
+      email === DEFAULT_DEV_USER.email ? DEFAULT_DEV_USER.sub : `dev|${email.toLowerCase()}`;
+
+    // provision（建/取 users 行）：与真实登录同一条 provisionUser，得业务 users.id（owner 真源）。
+    let provisioned;
+    try {
+      provisioned = await provisionUser(req.server.infra.db, {
+        logtoUserId: sub,
+        account,
+        email,
+        roles,
+      });
+    } catch {
+      const { code, envelope } = buildErrorWithCode(ErrorCode.INTERNAL, req.id);
+      req.log.error({ code, traceId: req.id }, 'dev-login: provisionUser failed');
+      reply.code(500).send(envelope);
+      return reply;
+    }
+    if (provisioned.status === 'disabled') {
+      reply
+        .code(403)
+        .send(
+          buildError(ErrorCode.FORBIDDEN, req.id, { userMessage: '账号当前不可用，请联系支持。' }),
+        );
+      return reply;
+    }
+
+    // 签 dev 会话（HS256，DEV_SESSION_SECRET）写 cb_session（与 callback 同 cookie 名/属性）。
+    const token = await signDevSession(env, {
+      sub,
+      roles: provisioned.roles, // 以库内（provision 回写）为权威
+      account: provisioned.account,
+      email,
+    });
+    reply.setCookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      secure: isProd(req), // dev/test 下非 prod → false（http localhost 可用）
+      sameSite: 'lax',
+      path: '/',
+      maxAge: DEV_SESSION_MAX_AGE,
+    });
+
+    // 返 MeView（与 /me 同视图）：前端/测试拿到会话后即可读身份。
+    let row;
+    try {
+      row = await readMeRow(req.server.infra.db, provisioned.id);
+    } catch {
+      const { code, envelope } = buildErrorWithCode(ErrorCode.INTERNAL, req.id);
+      req.log.error({ code, traceId: req.id }, 'dev-login: readMeRow failed');
+      reply.code(500).send(envelope);
+      return reply;
+    }
+    if (!row) {
+      const { code, envelope } = buildErrorWithCode(ErrorCode.INTERNAL, req.id);
+      req.log.error({ code, traceId: req.id }, 'dev-login: user row missing after provision');
+      reply.code(500).send(envelope);
+      return reply;
+    }
+    const me: MeView = {
+      id: row.id,
+      logtoUserId: row.logtoUserId,
+      account: row.account,
+      email: row.email,
+      roles: row.roles,
+      status: row.status,
+      hasProfile: row.hasProfile,
+      creatorId: row.id,
+      createdAt: row.createdAt,
+      lastLoginAt: row.lastLoginAt,
+    };
+    const resBody: Envelope<MeView> = { data: me, meta: { traceId: req.id } };
+    reply.code(200).send(resBody);
     return reply;
   };
 }

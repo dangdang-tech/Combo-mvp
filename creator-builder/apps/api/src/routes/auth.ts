@@ -9,7 +9,13 @@
 import type { FastifyInstance } from 'fastify';
 import { bestEffortAuth, requireAuth } from '../middleware/auth.js';
 import { registerEndpoints, type EndpointDecl } from './_helpers.js';
-import { callbackHandler, loginHandler, logoutHandler, meHandler } from './auth-handlers.js';
+import {
+  callbackHandler,
+  devLoginHandler,
+  loginHandler,
+  logoutHandler,
+  meHandler,
+} from './auth-handlers.js';
 
 export const AUTH_ENDPOINTS: EndpointDecl[] = [
   { method: 'GET', url: '/auth/login', handler: loginHandler() }, // 无鉴权
@@ -27,4 +33,19 @@ export const AUTH_ENDPOINTS: EndpointDecl[] = [
 
 export async function registerAuthRoutes(scoped: FastifyInstance): Promise<void> {
   registerEndpoints(scoped, AUTH_ENDPOINTS);
+}
+
+/**
+ * 仅 dev/test 种子登录端点（安全双守卫，绝不进 ALL_ENDPOINTS / 契约集 / 生产）。
+ *   POST /auth/dev-login —— 无 Logto 浏览器登录即拿有效会话（无幂等守卫：dev 专用工具，非契约写命令）。
+ * 故意不并入 AUTH_ENDPOINTS：契约端点数（routes.test 守门 54）不含它；它只在 devLoginAvailable 时
+ *   由 app.ts 条件注册（生产/开关关 → 端点不存在 404）。handler 内再兜一层双守卫（不可用即 404）。
+ */
+export const DEV_AUTH_ENDPOINTS: EndpointDecl[] = [
+  { method: 'POST', url: '/auth/dev-login', handler: devLoginHandler() },
+];
+
+/** 条件注册 dev-login（仅 devLoginAvailable 时由 app.ts 调用；不可用则根本不注册 → 404）。 */
+export async function registerDevAuthRoutes(scoped: FastifyInstance): Promise<void> {
+  registerEndpoints(scoped, DEV_AUTH_ENDPOINTS);
 }

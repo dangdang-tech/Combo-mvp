@@ -10,6 +10,7 @@ import type { AuthContext, Role } from '@cb/shared';
 import { buildError, ErrorCode } from '@cb/shared';
 import { verifyLogtoJwt, type VerifiedToken } from '../infra/logto.js';
 import { provisionUser } from '../infra/users-repo.js';
+import { devLoginAvailable, verifyDevSession } from '../infra/dev-session.js';
 
 /** 会话 Cookie 名（10-auth §2：HttpOnly + Secure + SameSite=Lax 承载 access_token）。 */
 export const SESSION_COOKIE = 'cb_session';
@@ -83,13 +84,46 @@ async function buildAuthContext(
   }
 }
 
+/**
+ * dev-only 会话验证分支（仅 dev/test 种子登录，安全双守卫）：
+ *   仅当 devLoginAvailable(env) 为 true（NODE_ENV≠prod 且 DEV_LOGIN_ENABLED=true 且有 DEV_SESSION_SECRET）时，
+ *   对「不是有效 Logto JWT」的 token 尝试以 app 侧 HS256 dev 密钥验签。验通过则 provision 解出
+ *   userId+roles，构造与真实会话【等价】的 AuthContext（同样过 provisionUser、同样 owner 校验真源）。
+ * 生产路径【完全不进入】（devLoginAvailable 恒 false）；不可用时返回 null，调用方按原 Logto 判定（invalid → 401）。
+ */
+async function tryDevAuth(
+  req: FastifyRequest,
+  token: string,
+  source: 'bearer' | 'cookie',
+): Promise<AuthResolution | null> {
+  const env = req.server.infra.env;
+  if (!devLoginAvailable(env)) return null; // 双守卫：生产/开关关一律不走 dev 分支
+  const dev = await verifyDevSession(token, env);
+  if (dev.kind === 'invalid') return null; // 既非有效 Logto 也非有效 dev token → 交回原 invalid 路径
+  // dev 会话等价真实会话：同样 provision → 同源 users.id + 库内权威角色。
+  return buildAuthContext(
+    req,
+    {
+      sub: dev.claims.sub,
+      roles: dev.claims.roles,
+      account: dev.claims.account,
+      email: dev.claims.email,
+    },
+    source,
+  );
+}
+
 /** 解析 AuthContext（普通 HTTP：Bearer/Cookie 双来源）。 */
 async function resolveAuth(req: FastifyRequest): Promise<AuthResolution> {
   const extracted = extractToken(req);
   if (!extracted) return { kind: 'anonymous' };
   const verified = await verifyLogtoJwt(extracted.token, req.server.infra.env);
   if (verified.kind === 'upstream_unavailable') return { kind: 'upstream_unavailable' };
-  if (verified.kind === 'invalid') return { kind: 'invalid' };
+  if (verified.kind === 'invalid') {
+    // dev-only 兜底分支（双守卫；生产恒不走）：Logto 判 invalid 时尝试验 dev token。
+    const dev = await tryDevAuth(req, extracted.token, extracted.source);
+    return dev ?? { kind: 'invalid' };
+  }
   return buildAuthContext(req, verified.token, extracted.source);
 }
 
@@ -99,7 +133,11 @@ async function resolveSseAuth(req: FastifyRequest): Promise<AuthResolution> {
   if (!extracted) return { kind: 'anonymous' };
   const verified = await verifyLogtoJwt(extracted.token, req.server.infra.env);
   if (verified.kind === 'upstream_unavailable') return { kind: 'upstream_unavailable' };
-  if (verified.kind === 'invalid') return { kind: 'invalid' };
+  if (verified.kind === 'invalid') {
+    // dev-only 兜底分支：SSE 同样仅认同源 Cookie（extractCookieOnlyToken 已守门），dev token 走 cookie。
+    const dev = await tryDevAuth(req, extracted.token, extracted.source);
+    return dev ?? { kind: 'invalid' };
+  }
   return buildAuthContext(req, verified.token, extracted.source);
 }
 

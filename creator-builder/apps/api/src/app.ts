@@ -6,12 +6,20 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
-import { buildErrorWithCode, ErrorCode, httpStatusFor, type ErrorCodeValue } from '@cb/shared';
+import {
+  API_PREFIX,
+  buildErrorWithCode,
+  ErrorCode,
+  httpStatusFor,
+  type ErrorCodeValue,
+} from '@cb/shared';
 import { loadEnv, type Env } from './config/env.js';
 import { buildInfra } from './infra/index.js';
 import { persistIdempotencyResponse } from './middleware/idempotency.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerBusinessRoutes } from './routes/index.js';
+import { registerDevAuthRoutes } from './routes/auth.js';
+import { devLoginAvailable } from './infra/dev-session.js';
 // 副作用导入：注册 Fastify 类型增强（req.auth / app.infra 等）。
 import './types/fastify.js';
 
@@ -107,6 +115,19 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // 业务路由（Phase 3 实现，本期 501 占位，但路径/方法/前缀/鉴权/幂等标注真实可调）。
   await registerBusinessRoutes(app);
+
+  // —— 仅 dev/test 种子登录（安全双守卫，绝不上生产）——
+  //   仅当 devLoginAvailable（NODE_ENV≠prod 且 DEV_LOGIN_ENABLED=true 且有 DEV_SESSION_SECRET）才注册
+  //   POST /api/v1/auth/dev-login；生产/开关关 → 端点【根本不存在】（命中走 setNotFoundHandler → 404）。
+  if (devLoginAvailable(env)) {
+    await app.register(
+      async (scoped) => {
+        await registerDevAuthRoutes(scoped);
+      },
+      { prefix: API_PREFIX },
+    );
+    app.log.warn('[dev-login] 已启用种子登录端点 POST /api/v1/auth/dev-login（仅 dev/test）');
+  }
 
   // 进程退出时关闭基础设施连接（onClose 钩子）。
   app.addHook('onClose', async () => {
