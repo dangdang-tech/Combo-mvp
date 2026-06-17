@@ -5,6 +5,7 @@
 //   handler 由 3B-3E 经 registerHandler 注册；本期注册表可空（执行框架就绪、诚实标推迟具体 handler）。
 import { Worker, type ConnectionOptions } from 'bullmq';
 import { hostname } from 'node:os';
+import pino, { type Logger } from 'pino';
 import type { JobType } from '@cb/shared';
 import { ACTIVE_JOB_TYPES, QUEUE_PREFIX } from '@cb/shared';
 import { loadEnv, type Env } from '../config/env.js';
@@ -26,6 +27,24 @@ const TIMEOUT_BY_TYPE: Record<JobType, number> = {
   runtime_gen: 60_000, // 冻结，不注册
 };
 
+/**
+ * worker 进程的结构化 logger（pino，写 stdout/stderr）。
+ *   worker 是独立进程、无 Fastify，必须自带 logger，否则 runner 的 log?.* 全是 no-op，
+ *   job 失败的内部 code/堆栈完全不落 docker logs（排障只能进容器复现）——本次修复的核心。
+ *   formatters.log 直透对象（与 app.ts 一致，按 traceId 串联）。开发期走 pino-pretty 易读。
+ */
+function buildWorkerLogger(env: Env): Logger {
+  return pino({
+    // env.LOG_LEVEL 在正常启动经 zod .default('info') 必有值；但部分测试以裁剪过的 env 桩调 main()
+    //   （只给 REDIS_QUEUE_URL），LOG_LEVEL 为 undefined 会让 pino 抛 "default level:undefined ..."。
+    //   兜底回 'info'（与 env schema 默认一致），保证 worker 进程任何入口都不因 logger 构造裸崩。
+    level: env.LOG_LEVEL ?? 'info',
+    base: { svc: 'worker' },
+    formatters: { log: (obj) => obj },
+    ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
+  });
+}
+
 function connectionFor(env: Env): ConnectionOptions {
   const url = new URL(env.REDIS_QUEUE_URL);
   return {
@@ -40,6 +59,7 @@ function connectionFor(env: Env): ConnectionOptions {
 
 function main(): void {
   const env = loadEnv();
+  const log = buildWorkerLogger(env);
   const db = getPool(env);
   const bridge = new RedisEventStream(getHotRedis(env));
   const leaseOwner = `${hostname()}#${process.pid}`;
@@ -47,9 +67,9 @@ function main(): void {
   const missing = missingActiveHandlers();
   if (missing.length > 0) {
     // 诚实标推迟：缺 handler 的类型不起 Worker（不裸崩、不空转）；3B-3E 落位后自动启。
-    console.warn(
-      `[worker] 未注册 handler（暂不消费，待对应模块落位）：${missing.join(', ')}；` +
-        `已注册：${registeredTypes().join(', ') || '（无）'}`,
+    log.warn(
+      { missing, registered: registeredTypes() },
+      'worker: some active job types have no registered handler (not consuming, awaiting module landing)',
     );
   }
 
@@ -68,12 +88,19 @@ function main(): void {
         //   attempt 不跳号、执行 fence 与 BullMQ 触发 id 对齐、不出现 N+2）。
         const { jobId } = job.data as { jobId: string };
         const traceId = (job.data as { traceId?: string }).traceId ?? job.id ?? jobId;
-        const outcome = await runJob(db, bridge, handler, jobId, {
-          leaseOwner,
-          traceId,
-          timeoutMs: TIMEOUT_BY_TYPE[type],
-          slowAfterMs: 30_000,
-        });
+        const outcome = await runJob(
+          db,
+          bridge,
+          handler,
+          jobId,
+          {
+            leaseOwner,
+            traceId,
+            timeoutMs: TIMEOUT_BY_TYPE[type],
+            slowAfterMs: 30_000,
+          },
+          log, // 注入 logger：让 runner 把 job 失败/fence-out 的内部 code+堆栈结构化落 stdout/stderr。
+        );
         // outcome 仅用于 BullMQ 完成态/日志；jobs 表才是状态真源（脊柱 §6.1）。
         // fenced_out / not_claimed 不抛错（正常控制流，§11.A）：BullMQ 视作成功，不重试触发。
         return outcome;
@@ -85,15 +112,32 @@ function main(): void {
       },
     );
     worker.on('failed', (job, err) => {
-      // runner 已把业务失败落 jobs.failed（人话）；这里只记 BullMQ 框架级失败（连接/反序列化）。
-      console.error(`[worker] bullmq job failed type=${type} id=${job?.id}: ${String(err)}`);
+      // runner 已把业务失败落 jobs.failed（人话 + 内部日志）；这里记 BullMQ 框架级失败（连接/反序列化）
+      //   及【重试耗尽】（attemptsMade >= attempts）——结构化落内部错误 message/stack + jobId/jobType/attempt/traceId，
+      //   让 docker logs 直接可见，不必进容器复现。注意：这是服务端内部诊断日志，绝不外泄客户端。
+      const data = (job?.data ?? {}) as { jobId?: string; traceId?: string };
+      const attemptsMade = job?.attemptsMade ?? 0;
+      const maxAttempts = job?.opts?.attempts ?? 1;
+      log.error(
+        {
+          jobType: type,
+          bullJobId: job?.id,
+          jobId: data.jobId,
+          traceId: data.traceId ?? job?.id,
+          attempt: attemptsMade,
+          maxAttempts,
+          retriesExhausted: attemptsMade >= maxAttempts,
+          err, // pino err 序列化器：带 message + stack（内部诊断）。
+        },
+        'bullmq job failed (framework-level / retries exhausted)',
+      );
     });
     workers.push(worker);
   }
 
-  console.log(
-    `[worker] booted; leaseOwner=${leaseOwner}; ` +
-      `active workers: ${startable.join(', ') || '（无——handler 待注册）'}`,
+  log.info(
+    { leaseOwner, activeWorkers: startable },
+    `worker booted; active workers: ${startable.join(', ') || '(none — handlers pending)'}`,
   );
 
   const shutdown = (): void => {

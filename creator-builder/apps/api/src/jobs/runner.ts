@@ -105,13 +105,20 @@ export async function runJob(
   logger?: Logger,
 ): Promise<RunOutcome> {
   const leaseTtlMs = opts.leaseTtlMs ?? DEFAULT_LEASE_TTL_MS;
-  const log = logger?.child({ jobId, traceId: opts.traceId, leaseOwner: opts.leaseOwner });
+  // 领租约前的基础上下文（含 jobId/traceId/leaseOwner）。领到后再叠加 jobType/attempt/fenceToken。
+  let log = logger?.child({ jobId, traceId: opts.traceId, leaseOwner: opts.leaseOwner });
 
   const leased = await claimLease(db, jobId, opts.leaseOwner, leaseTtlMs);
   if (!leased) {
     log?.info('job not claimed (held by active lease or terminal)');
     return { kind: 'not_claimed', jobId };
   }
+  // 领到租约：把本次执行的 jobType/attempt/fenceToken 绑进结构化日志上下文（排障定位用，内部日志，绝不外泄）。
+  log = log?.child({
+    jobType: leased.type,
+    attempt: leased.attemptNo,
+    fenceToken: leased.fenceToken,
+  });
 
   const abort = new AbortController();
   let cancelled = false;
@@ -206,6 +213,9 @@ export async function runJob(
     }
     // 业务/超时失败：归一人话 ErrorBody（禁堆栈），受保护落 failed + 推 error/done 帧。
     const { code, body } = normalizeToErrorBody(err, opts.traceId);
+    // 【服务端内部日志】：落内部 code + 原始错误 message/stack（pino err 序列化器带 stack），
+    //   叠加 jobId/jobType/attempt/fenceToken/traceId/leaseOwner（child 已绑），便于 docker logs 直接排障。
+    //   注意：这是内部诊断日志，绝不外泄客户端；对外只发上面归一后的人话 ErrorBody（无 code/无堆栈）。
     log?.error({ code, err }, 'job failed');
     const wrote = await failJob(db, jobId, leased.fenceToken, body);
     if (!wrote) {

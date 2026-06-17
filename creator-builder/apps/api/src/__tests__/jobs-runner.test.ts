@@ -4,8 +4,50 @@ import { describe, it, expect } from 'vitest';
 import { runJob, FencedOutError, normalizeToErrorBody } from '../jobs/runner.js';
 import { reclaimExpired } from '../jobs/repo.js';
 import { ErrorCode } from '@cb/shared';
+import type { Logger } from 'pino';
 import type { JobContext, JobHandler, JobEventBridge, LeasedJob } from '../jobs/types.js';
 import { FakeDb, FakeBridge, makeJob, type FakeClock, type FakeJob } from './jobs-fence.js';
+
+/** 一次被捕获的日志调用：合并后的 child bindings + 本次 mergeObject + msg。 */
+interface CapturedLog {
+  level: 'error' | 'info' | 'warn';
+  bindings: Record<string, unknown>;
+  obj: Record<string, unknown>;
+  msg: string | undefined;
+}
+
+/**
+ * 假 pino logger（捕获结构化日志，断言 job 失败时 logger.error 含 code/jobId/jobType/attempt/fenceToken）。
+ *   忠实复刻 pino 的 child bindings 继承（child 合并父 bindings）与 (obj, msg) 调用形态。
+ *   只实现 runner 用到的 child/info/error；其余 method 桩成空，便于 as 成 Logger 给 runner。
+ */
+function makeFakeLogger(): { logger: Logger; calls: CapturedLog[] } {
+  const calls: CapturedLog[] = [];
+  function build(bindings: Record<string, unknown>): Logger {
+    const record =
+      (level: CapturedLog['level']) =>
+      (a?: unknown, b?: unknown): void => {
+        // pino 形态：logger.error(mergeObj, msg) 或 logger.error(msg)。
+        if (typeof a === 'object' && a !== null) {
+          calls.push({ level, bindings, obj: a as Record<string, unknown>, msg: b as string });
+        } else {
+          calls.push({ level, bindings, obj: {}, msg: a as string });
+        }
+      };
+    const stub = (): void => {};
+    return {
+      child: (b: Record<string, unknown>) => build({ ...bindings, ...b }),
+      error: record('error'),
+      info: record('info'),
+      warn: record('warn'),
+      debug: stub,
+      trace: stub,
+      fatal: stub,
+      silent: stub,
+    } as unknown as Logger;
+  }
+  return { logger: build({}), calls };
+}
 
 function setup(
   jobs: FakeJob[],
@@ -301,5 +343,85 @@ describe('FencedOutError', () => {
     const e = new FencedOutError();
     expect(e).toBeInstanceOf(Error);
     expect(e.name).toBe('FencedOutError');
+  });
+});
+
+describe('job 失败的【服务端内部日志】（排障可见性：内部 code+堆栈落 stdout/stderr，绝不外泄客户端）', () => {
+  it('handler 抛错 → logger.error 被调用且含内部 code + 原始 err(带 stack) + jobId/jobType/attempt/fenceToken/traceId', async () => {
+    const { db, bridge } = setup([makeJob('j1', { type: 'extract' })]);
+    const { logger, calls } = makeFakeLogger();
+    const raw = new Error('ECONNREFUSED 127.0.0.1:5432'); // 原始报错（含 stack）
+    const h: JobHandler = {
+      type: 'extract',
+      run: async () => {
+        throw raw;
+      },
+    };
+    const outcome = await runJob(
+      db,
+      bridge as unknown as JobEventBridge,
+      h,
+      'j1',
+      { leaseOwner: 'w1', traceId: 'trace-xyz' },
+      logger,
+    );
+    expect(outcome.kind).toBe('failed');
+
+    // 关键断言：失败时 logger.error 被调用，msg='job failed'。
+    const failLog = calls.find((c) => c.level === 'error' && c.msg === 'job failed');
+    expect(failLog).toBeTruthy();
+    // 内部 code（如 INTERNAL）必须落内部日志（便于排障），但绝不进对外响应（对外 ErrorBody 无 code，见上一组测试）。
+    expect(failLog!.obj.code).toBe(ErrorCode.INTERNAL);
+    // 原始错误对象（pino err 序列化器据此落 message + stack）原样传入，不被人话归一吞掉。
+    expect(failLog!.obj.err).toBe(raw);
+    // 结构化定位字段：claimLease 后 child 绑定的 jobId/jobType/attempt/fenceToken/traceId/leaseOwner。
+    expect(failLog!.bindings.jobId).toBe('j1');
+    expect(failLog!.bindings.jobType).toBe('extract');
+    expect(failLog!.bindings.traceId).toBe('trace-xyz');
+    expect(failLog!.bindings.leaseOwner).toBe('w1');
+    // attempt：claimLease 把 queued(attempt_no=0) 递增到 1；fenceToken 同步到 1。
+    expect(failLog!.bindings.attempt).toBe(1);
+    expect(failLog!.bindings.fenceToken).toBe(1);
+  });
+
+  it('失败内部日志不泄漏给客户端：error/done 帧 payload 不含 code/stack（对外只人话 ErrorBody）', async () => {
+    const { db, bridge } = setup([makeJob('j1')]);
+    const { logger } = makeFakeLogger();
+    const h: JobHandler = {
+      type: 'import',
+      run: async () => {
+        throw new Error('ECONNREFUSED 127.0.0.1:5432\n  at db.connect (pg.js:42)');
+      },
+    };
+    await runJob(
+      db,
+      bridge as unknown as JobEventBridge,
+      h,
+      'j1',
+      { leaseOwner: 'w1', traceId: 't' },
+      logger,
+    );
+    // 对外帧（error/done）只带归一人话 ErrorBody：无 code、无原始报错、无堆栈。
+    const errFrame = bridge.published.find((p) => p.event === 'error');
+    const body = (errFrame!.payload as { error: Record<string, unknown> }).error;
+    expect(body).not.toHaveProperty('code');
+    expect(JSON.stringify(errFrame!.payload)).not.toContain('ECONNREFUSED');
+    expect(JSON.stringify(errFrame!.payload)).not.toContain('pg.js:42');
+  });
+
+  it('不传 logger 时不崩（log?.* 全 no-op）——但那样 docker logs 看不到内部失败，正是本次修复的痛点', async () => {
+    const { db, bridge } = setup([makeJob('j1')]);
+    const h: JobHandler = {
+      type: 'import',
+      run: async () => {
+        throw new Error('boom');
+      },
+    };
+    // 不传第 6 个参数 logger：runner 内 log 为 undefined，不应抛。
+    const outcome = await runJob(db, bridge as unknown as JobEventBridge, h, 'j1', {
+      leaseOwner: 'w1',
+      traceId: 't',
+    });
+    expect(outcome.kind).toBe('failed');
   });
 });
