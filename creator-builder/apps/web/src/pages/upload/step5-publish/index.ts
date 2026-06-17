@@ -6,6 +6,7 @@ export { MarketCardPreview, type MarketCardPreviewProps } from './MarketCardPrev
 export { CoverPicker, type CoverPickerProps } from './CoverPicker.js';
 export { SourceTable } from './SourceTable.js';
 export { BatchResults, type BatchResultsProps } from './BatchResults.js';
+export { BatchCardPreview, type BatchCardPreviewProps } from './BatchCardPreview.js';
 export { PublishStatus, type PublishStatusProps } from './PublishStatus.js';
 export { yuanToMicros, microsToYuan, priceDisplay } from './price.js';
 export { buildCoverInput, AVAILABLE_COVER_SOURCES } from './coverInput.js';

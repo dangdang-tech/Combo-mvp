@@ -56,6 +56,11 @@ export interface WizardState {
   capabilityId: string | undefined;
   /** 当前批量发布批次 id（STEP⑤「全部发布」建批回填 + 续传从 DraftView.batchId 回填，续传恢复同一批次不重建）。 */
   batchId: string | undefined;
+  /**
+   * 底栏步骤摘要前缀（各步可选注入，如 STEP① 完成态「原始数据仅你可见 · 」5.1.3 / 导入-17）。
+   * 各步在 effect 内 setSummaryPrefix（离开/卸载时清回 undefined），WizardShell 透传给 WizardFooter。
+   */
+  summaryPrefix: string | undefined;
 }
 
 export interface WizardActions {
@@ -87,6 +92,8 @@ export interface WizardActions {
   hydrateFromDraft: (draft: DraftView) => void;
   /** 注册底栏主按钮行为（各步在 effect 里注册自己的「下一步」；卸载置空回机器默认）。 */
   setPrimaryAction: (action: PrimaryAction | null) => void;
+  /** 设/清底栏摘要前缀（各步 effect 内注入，如 STEP① 完成态「原始数据仅你可见 · 」5.1.3；卸载置 undefined）。 */
+  setSummaryPrefix: (prefix: string | undefined) => void;
 }
 
 export interface WizardContextValue extends WizardState, WizardActions {
@@ -106,7 +113,8 @@ type Action =
   | { type: 'setCapabilityId'; capabilityId: string | undefined }
   | { type: 'setBatchId'; batchId: string | undefined }
   | { type: 'hydrateFromDraft'; draft: DraftView }
-  | { type: 'setPrimaryAction'; action: PrimaryAction | null };
+  | { type: 'setPrimaryAction'; action: PrimaryAction | null }
+  | { type: 'setSummaryPrefix'; prefix: string | undefined };
 
 interface InternalState extends WizardState {
   primaryAction: PrimaryAction | null;
@@ -171,6 +179,10 @@ function reducer(state: InternalState, action: Action): InternalState {
       };
     case 'setPrimaryAction':
       return { ...state, primaryAction: action.action };
+    case 'setSummaryPrefix':
+      return state.summaryPrefix === action.prefix
+        ? state
+        : { ...state, summaryPrefix: action.prefix };
     default:
       return state;
   }
@@ -216,6 +228,7 @@ export function WizardProvider({
     versionId: initialVersionId,
     capabilityId: initialCapabilityId,
     batchId: initialBatchId,
+    summaryPrefix: undefined,
     primaryAction: null,
   });
 
@@ -267,6 +280,10 @@ export function WizardProvider({
     (action: PrimaryAction | null) => dispatch({ type: 'setPrimaryAction', action }),
     [],
   );
+  const setSummaryPrefix = useCallback(
+    (prefix: string | undefined) => dispatch({ type: 'setSummaryPrefix', prefix }),
+    [],
+  );
 
   const value = useMemo<WizardContextValue>(
     () => ({
@@ -283,6 +300,7 @@ export function WizardProvider({
       setBatchId,
       hydrateFromDraft,
       setPrimaryAction,
+      setSummaryPrefix,
     }),
     [
       state,
@@ -298,6 +316,7 @@ export function WizardProvider({
       setBatchId,
       hydrateFromDraft,
       setPrimaryAction,
+      setSummaryPrefix,
     ],
   );
 

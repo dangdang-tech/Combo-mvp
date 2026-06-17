@@ -86,7 +86,14 @@ function ImportJobStream({
 export function ImportStepPage(): ReactElement {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { draftId, setSnapshotId, setPrimaryAction, markStepError, clearStepError } = useWizard();
+  const {
+    draftId,
+    setSnapshotId,
+    setPrimaryAction,
+    setSummaryPrefix,
+    markStepError,
+    clearStepError,
+  } = useWizard();
 
   // 深链续传：?snapshotId= 直进完成态、?jobId= 直进加载态（工作台草稿条可带）；?draftId= 续传带入。
   const urlJobId = searchParams.get('jobId') ?? undefined;
@@ -169,11 +176,13 @@ export function ImportStepPage(): ReactElement {
   }, [markStepError]);
 
   // 完成态：回填 snapshotId 到向导（STEP②/续传据它续提取、不重导；等价后端建快照同事务回填 drafts.snapshot_id），
-  // 并注册底栏「下一步：提取能力项 →」（带 snapshotId 进 STEP②）。
+  // 注册底栏「下一步：提取能力项 →」（带 snapshotId 进 STEP②），并注入底栏摘要前缀
+  // 「原始数据仅你可见 · 」（§5.1.3 / 导入-17；离开完成态时清回 undefined）。
   useEffect(() => {
     if (phase.kind !== 'complete') return;
     const snapshotId = phase.snapshot.id;
     setSnapshotId(snapshotId);
+    setSummaryPrefix('原始数据仅你可见 · ');
     setPrimaryAction({
       label: '下一步：提取能力项 →',
       enabled: true,
@@ -182,8 +191,11 @@ export function ImportStepPage(): ReactElement {
         navigate(`${pathForStep('extract')}?snapshotId=${encodeURIComponent(snapshotId)}${dq}`);
       },
     });
-    return () => setPrimaryAction(null);
-  }, [phase, draftId, navigate, setPrimaryAction]);
+    return () => {
+      setPrimaryAction(null);
+      setSummaryPrefix(undefined);
+    };
+  }, [phase, draftId, navigate, setPrimaryAction, setSummaryPrefix]);
 
   // —— 动作 ——
   const handleStart = useCallback(async (): Promise<void> => {
@@ -226,6 +238,14 @@ export function ImportStepPage(): ReactElement {
     clearStepError('import');
     setAttempt((a) => a + 1); // remount 流子组件 → 整条重订阅。
   }, [clearStepError]);
+
+  // 完成态「重新导入」（导入-13/21）：清完成态主按钮 + 回空态重新发起导入流程（铸新码 → 新快照；
+  //   旧快照后端保留，导入-21）。先回 empty 让底栏主按钮 effect 卸载，再 handleStart 铸码进配对态。
+  const handleReimport = useCallback((): void => {
+    setPrimaryAction(null);
+    setPhase({ kind: 'empty' });
+    void handleStart();
+  }, [setPrimaryAction, handleStart]);
 
   // —— 渲染 ——
   // 草稿 bootstrap 失败（全新进入建草稿没成）：就地人话错误 + 重试（复用同 key 回放/补建，永不裸错）。
@@ -287,5 +307,11 @@ export function ImportStepPage(): ReactElement {
     );
   }
 
-  return <ImportComplete snapshot={phase.snapshot} segments={phase.segments} />;
+  return (
+    <ImportComplete
+      snapshot={phase.snapshot}
+      segments={phase.segments}
+      onReimport={handleReimport}
+    />
+  );
 }

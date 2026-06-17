@@ -18,10 +18,16 @@ function PathProbe() {
   return <span data-testid="path">{`${loc.pathname}${loc.search}`}</span>;
 }
 
-/** 底栏探针：容器自身不渲染底栏（在 WizardShell 内），测试补一个以点「下一步」主按钮。 */
+/** 底栏探针：容器自身不渲染底栏（在 WizardShell 内），测试补一个以点「下一步」主按钮 + 验摘要前缀（导入-17）。 */
 function FooterProbe() {
-  const { currentStep, primaryAction } = useWizard();
-  return <WizardFooter currentStep={currentStep} primaryAction={primaryAction} />;
+  const { currentStep, primaryAction, summaryPrefix } = useWizard();
+  return (
+    <WizardFooter
+      currentStep={currentStep}
+      primaryAction={primaryAction}
+      summaryPrefix={summaryPrefix}
+    />
+  );
 }
 
 /** 步骤异常态探针（断 markStepError('import')）。 */
@@ -167,8 +173,11 @@ describe('ImportStepPage', () => {
       conn().emit('done', { status: 'completed', result: { snapshotId: 'snap1' } }, { id: '2-0' }),
     );
     await waitFor(() =>
-      expect(screen.getByText(/已导入 Claude \+ Codex 的对话历史/)).toBeInTheDocument(),
+      expect(screen.getByText('已导入全部对话历史（Claude + Codex）')).toBeInTheDocument(),
     );
+    // §5.1.3 副行 + 重新导入入口（导入-13）。
+    expect(screen.getByText('生成了一份原始数据，下一步从中提取能力项')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新导入' })).toBeInTheDocument();
     expect(screen.getByText('215')).toBeInTheDocument();
     expect(screen.getByText('8,420')).toBeInTheDocument();
   });
@@ -205,6 +214,8 @@ describe('ImportStepPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: '下一步：提取能力项 →' })).toBeInTheDocument(),
     );
+    // 导入-17：完成态底栏摘要带「原始数据仅你可见 · 」前缀（Context→Shell→Footer 全链路接通）。
+    expect(screen.getByText('原始数据仅你可见 · 第 1 步，共 5 步')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '下一步：提取能力项 →' }));
     await waitFor(() =>
       expect(screen.getByTestId('path')).toHaveTextContent(

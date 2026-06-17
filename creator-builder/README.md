@@ -155,6 +155,37 @@ pnpm -F @cb/infra compose:down  # 拆栈
 
 ---
 
+## CI（持续集成）·当前为「模板」，需激活才生效
+
+CI workflow 现位于本子目录内：`creator-builder/.github/workflows/ci.yml`。
+它三个 job（`gate` / `integration` / `image`）全部用 `defaults.run.working-directory: creator-builder` 把每一步限定进 monorepo——
+**前提是工作流运行在仓库根（repo-root）目录下**，即 monorepo 是仓库根的子目录 `creator-builder/`。
+
+> **当前状态：模板，尚未激活。** GitHub Actions **只读取仓库根的 `.github/workflows/`**（不会递归扫描子目录）。
+> 本文件物理放在 `creator-builder/.github/`，是因为「全部产物归拢到本子目录」，故它现在是一份**待激活的模板**——GitHub 不会自动发现并运行它。
+
+### 激活方式（任选一）
+
+1. **复制 / 软链到仓库根**（最直接，保持本文件 `working-directory: creator-builder` 不变）：
+
+   ```bash
+   # 在仓库根（creator-builder 的上一级）执行
+   mkdir -p .github/workflows
+   cp creator-builder/.github/workflows/ci.yml .github/workflows/ci.yml
+   # 或软链（让两处始终一致，避免漂移）：
+   ln -s ../../creator-builder/.github/workflows/ci.yml .github/workflows/ci.yml
+   ```
+
+   这样 `actions/checkout` 检出仓库根，每一步再 `cd creator-builder` 执行——与本文件的 `working-directory: creator-builder` 假定一致，无需改 yaml。
+
+2. **monorepo 即为仓库根时**：若把本 monorepo 单独作为一个仓库（`creator-builder/` 即仓库根），需把 `.github/` 提到该仓库根、并**去掉** `defaults.run.working-directory: creator-builder`（及各 `cache-dependency-path: creator-builder/pnpm-lock.yaml`、`docker build … creator-builder`/`-f infra/...` 等相对路径的 `creator-builder` 前缀），否则路径会多套一层 `creator-builder/creator-builder`。
+
+### 与 yaml 内容一致性确认
+
+已核 `ci.yml`：`defaults.run.working-directory: creator-builder`（行 14-16）成立；缓存键 `cache-dependency-path: creator-builder/pnpm-lock.yaml`、`image` job 的 `docker build … .` / `-f infra/Dockerfile.*` 均以 `creator-builder` 为基准——**全部按「在 repo-root 运行、步骤切入 creator-builder」的假定写就，自洽**。激活方式 1（复制/软链到 repo-root）下 yaml 无需改动。
+
+---
+
 ## 目录结构
 
 ```
@@ -166,7 +197,7 @@ creator-builder/
 ├── infra/             # @cb/infra docker-compose + 一镜像四入口 Dockerfile + nginx + Redis 双配置 + 建库/建桶脚本
 ├── scripts/           # @cb/scripts start / migrate / smoke / openapi-dump / 集成脚本
 ├── docs/              # 契约真源（contracts/）+ 技术方案 + 脚手架说明（非 workspace）
-└── .github/workflows/ # CI（物理在 repo-root，因 GitHub Actions 仅识别 repo-root）
+└── .github/workflows/ # CI 模板（ci.yml）。GitHub 仅识别 repo-root 的 .github/，激活需复制/软链到仓库根（见上「CI（持续集成）」节）
 ```
 
 更细的目录 / 各包职责 / 已验证 vs 待验证，见 `docs/02-脚手架说明.md`。

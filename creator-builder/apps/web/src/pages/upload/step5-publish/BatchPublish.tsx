@@ -24,6 +24,7 @@ import { useSSE, type ApiError } from '../../../api/index.js';
 import { ErrorState, LoadingState, StreamLoading } from '../../../components/index.js';
 import { toApiError, isAbort } from '../localError.js';
 import { BatchResults } from './BatchResults.js';
+import { BatchCardPreview } from './BatchCardPreview.js';
 import { createPublishBatch, fetchPublishBatch, retryBatchItem } from './publishApi.js';
 import { itemsFromSnapshot, mergeBatchState } from './batchState.js';
 
@@ -35,6 +36,11 @@ type SetupState =
 export interface BatchPublishProps {
   /** STEP③「全部发布」选中的候选集合（each → 一个 batch item）。 */
   candidateIds: string[];
+  /**
+   * 左侧切换列表当前选中的 candidateId（§5.5 / 发布-09）：中间市集卡预览随它切换（切换看卡），
+   * 与下方发布结果列表并存（切换看卡 + 发布后看结果）。无（null）则不预览（落回首项由父层兜底）。
+   */
+  activeCandidateId?: string | null;
   /** 失败项「去补齐」：回结构化向导补字段（决策⑤）。 */
   onFixUp: (item: PublishBatchItemView) => void;
   /**
@@ -60,6 +66,7 @@ function newItemKey(): string {
 
 export function BatchPublish({
   candidateIds,
+  activeCandidateId,
   onFixUp,
   resumeBatchId,
   onBatchReady,
@@ -183,9 +190,17 @@ export function BatchPublish({
 
   const m = merged!;
   const allDone = m.processedCount >= m.total && m.total > 0;
+  // 当前左侧切换选中的 item（按 candidateId 命中；§5.5 切换看卡，发布-09）。
+  const activeItem = activeCandidateId
+    ? (m.items.find((it) => it.candidateId === activeCandidateId) ?? null)
+    : null;
 
   return (
     <div className="cb-batch-publish">
+      {/* 中间市集卡预览：跟随左侧切换换到当前能力（切换看卡，发布-09）。版本就绪即预览其卡，
+          尚在整理（无 versionId）则给量化占位短语（永不裸转圈），不阻塞下方结果列表。 */}
+      <BatchCardPreview item={activeItem} />
+
       {retryError && (
         <ErrorState
           error={retryError}

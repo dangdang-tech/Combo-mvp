@@ -1,10 +1,11 @@
-// STEP① 导入完成态（F-10，开工总纲 §5.1）——成功横幅 + 原始数据统计四格 + 原始会话列表（只读）。
+// STEP① 导入完成态（F-10，开工总纲 §5.1.3）——成功横幅 + 原始数据统计四格 + 原始会话列表（只读）。
 //
-// 完成态（导入-14/15/16/27）：
-//   1. 成功横幅：「已导入 X 来源的对话历史」（source/sources，「Codex + Claude」口径）。
+// 完成态（导入-13/14/15/16/27）：
+//   1. 成功横幅（§5.1.3 逐字，导入-13）：主行「已导入全部对话历史（Codex + Claude）」（来源动态拼）+
+//      副行「生成了一份原始数据，下一步从中提取能力项」+「重新导入」链接（触发重新导入流程，回 empty 态重铸码）。
 //   2. 统计四格（真实值，非 usage 占位）：会话段数 / 消息条数 / 时间跨度 / 涉及项目数。
 //   3. 原始会话列表（只读）：去敏后标题 + 日期 + 条数；readOnly:true 契约级保证（导入-15/16）。
-//   底栏「下一步：提取能力项 →」由容器 SelectStep 式注册主按钮，不在本件渲染（§5.0 底栏恒定）。
+//   底栏「下一步：提取能力项 →」由容器 ImportStepPage 注册主按钮，不在本件渲染（§5.0 底栏恒定）。
 import type { ReactElement } from 'react';
 import type { SnapshotView, SnapshotSegmentView, ImportSource } from '@cb/shared';
 
@@ -13,6 +14,8 @@ export interface ImportCompleteProps {
   snapshot: SnapshotView;
   /** 原始会话节选（只读列表，GET /snapshots/{id}/segments）。 */
   segments: SnapshotSegmentView[];
+  /** 点「重新导入」（导入-13）：回空态重新发起导入流程（旧快照后端保留，导入-21）。 */
+  onReimport: () => void;
 }
 
 /** 来源人话（横幅「Codex + Claude」口径，导入-27）。 */
@@ -44,18 +47,28 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-export function ImportComplete({ snapshot, segments }: ImportCompleteProps): ReactElement {
+export function ImportComplete({
+  snapshot,
+  segments,
+  onReimport,
+}: ImportCompleteProps): ReactElement {
   const { stats } = snapshot;
   return (
     <section className="cb-import-done" aria-label="导入完成">
-      {/* 1. 成功横幅。 */}
+      {/* 1. 成功横幅（§5.1.3 / 导入-13：主行来源口径 + 副行下一步指引 + 重新导入入口）。 */}
       <div className="cb-import-done__banner" role="status">
         <span className="cb-import-done__banner-icon" aria-hidden="true">
           ✓
         </span>
-        <span className="cb-import-done__banner-text">
-          已导入 {sourcesText(snapshot)} 的对话历史，隐私信息已抹除。
-        </span>
+        <div className="cb-import-done__banner-body">
+          <p className="cb-import-done__banner-title">
+            已导入全部对话历史（{sourcesText(snapshot)}）
+          </p>
+          <p className="cb-import-done__banner-sub">生成了一份原始数据，下一步从中提取能力项</p>
+        </div>
+        <button type="button" className="cb-link cb-import-done__reimport" onClick={onReimport}>
+          重新导入
+        </button>
       </div>
 
       {/* 2. 统计四格（真实值）。 */}

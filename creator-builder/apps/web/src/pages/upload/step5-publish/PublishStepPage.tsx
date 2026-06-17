@@ -107,6 +107,16 @@ export function PublishStepPage(): ReactElement {
     return [];
   }, [isBatch, batchCandidateIds, mode, urlVersionId]);
 
+  // 左侧当前选中项（§5.5「在这一批能力之间切换」，发布-09）：默认首项；onSelect 真实切换
+  //   → 批量页中间市集卡预览随之换到该能力（切换看卡），与发布结果列表并存（切换看卡 + 发布后看结果）。
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  // switcherItems 变化（首挂载 / 批次候选恢复）时，无选中或选中项已不在列表 → 落回首项（不悬空）。
+  useEffect(() => {
+    setActiveKey((prev) =>
+      prev && switcherItems.some((it) => it.key === prev) ? prev : (switcherItems[0]?.key ?? null),
+    );
+  }, [switcherItems]);
+
   // —— 缺 selection：回上一步补选 ——
   if (!mode) {
     return (
@@ -122,13 +132,9 @@ export function PublishStepPage(): ReactElement {
   return (
     <div className="cb-publish" data-mode={mode}>
       <div className="cb-publish__cols">
-        {/* 左：能力切换列表（§5.5 与上一步一致）。 */}
+        {/* 左：能力切换列表（§5.5 与上一步一致；切换换中间市集卡预览，发布-09）。 */}
         <aside className="cb-publish__left">
-          <CapabilitySwitcher
-            items={switcherItems}
-            activeKey={switcherItems[0]?.key ?? null}
-            onSelect={() => undefined}
-          />
+          <CapabilitySwitcher items={switcherItems} activeKey={activeKey} onSelect={setActiveKey} />
         </aside>
 
         <div className="cb-publish__content">
@@ -156,6 +162,7 @@ export function PublishStepPage(): ReactElement {
           ) : (
             <BatchPublish
               candidateIds={batchCandidateIds}
+              activeCandidateId={activeKey}
               onFixUp={(item) => goStructure(item)}
               resumeBatchId={resumeBatchId}
               onBatchReady={setBatchId}

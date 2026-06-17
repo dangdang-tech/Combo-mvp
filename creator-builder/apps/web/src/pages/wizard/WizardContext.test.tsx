@@ -19,6 +19,7 @@ function Capture() {
       <span data-testid="draftId">{captured.draftId ?? 'none'}</span>
       <span data-testid="capabilityId">{captured.capabilityId ?? 'none'}</span>
       <span data-testid="errors">{Object.keys(captured.stepErrors).join(',') || 'none'}</span>
+      <span data-testid="summaryPrefix">{captured.summaryPrefix ?? 'none'}</span>
     </div>
   );
 }
@@ -103,5 +104,14 @@ describe('WizardContext', () => {
     expect(captured.primaryAction?.label).toBe('X');
     act(() => captured.setPrimaryAction(null));
     expect(captured.primaryAction).toBeNull();
+  });
+
+  it('setSummaryPrefix 注入/清空底栏摘要前缀（导入-17，STEP① 完成态「原始数据仅你可见 · 」）', () => {
+    setup();
+    expect(screen.getByTestId('summaryPrefix')).toHaveTextContent('none');
+    act(() => captured.setSummaryPrefix('原始数据仅你可见 · '));
+    expect(screen.getByTestId('summaryPrefix')).toHaveTextContent('原始数据仅你可见 ·');
+    act(() => captured.setSummaryPrefix(undefined));
+    expect(screen.getByTestId('summaryPrefix')).toHaveTextContent('none');
   });
 });

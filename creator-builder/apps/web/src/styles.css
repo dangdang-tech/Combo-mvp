@@ -1784,11 +1784,6 @@ body {
   font-weight: 600;
   color: var(--cb-fg);
 }
-.cb-import-empty__lead {
-  margin: 0;
-  color: var(--cb-muted);
-  font-size: 14px;
-}
 .cb-import-empty__cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1847,14 +1842,10 @@ body {
   font-size: 13px;
   font-weight: 600;
 }
-.cb-import-empty__notes-list {
+.cb-import-empty__notes-text {
   margin: 0;
-  padding-left: 18px;
   color: var(--cb-muted);
   font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 /* ======== STEP① 导入：配对命令框 ======== */
@@ -1979,6 +1970,26 @@ body {
   background: #389e0d;
   color: #fff;
   font-size: 13px;
+  flex-shrink: 0;
+}
+.cb-import-done__banner-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cb-import-done__banner-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--cb-fg);
+}
+.cb-import-done__banner-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cb-muted);
+}
+.cb-import-done__reimport {
+  flex-shrink: 0;
 }
 .cb-import-done__stats {
   display: grid;
@@ -2294,4 +2305,17 @@ body {
   color: var(--cb-muted);
   padding: 16px;
   text-align: center;
+}
+
+/* ======== STEP⑤ 批量发布：当前能力市集卡预览（发布-09 切换看卡） ======== */
+.cb-batch-card-preview {
+  margin-bottom: 16px;
+}
+.cb-batch-card-preview__hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cb-muted);
+  padding: 16px;
+  border: 1px dashed var(--cb-border);
+  border-radius: 10px;
 }

@@ -65,7 +65,7 @@ function fullManifest(over: Partial<Manifest> = {}): Manifest {
 }
 
 function emptyStructureState(versionId: string): StructureState {
-  return { versionId, fields: [] } as StructureState;
+  return { versionId, fields: [], doneCount: 0, totalCount: 0 };
 }
 
 function createCapabilityResult(): CreateCapabilityResult {

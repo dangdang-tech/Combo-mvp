@@ -28,7 +28,7 @@ export function WizardShell(): ReactElement {
 
   // 当前步：路由派生（非五步子路由兜底首步，与 App 路由 index→import 重定向一致）。
   const routeStep = stepForPath(location.pathname) ?? WIZARD_STEPS[0]!;
-  const { setCurrentStep, stepErrors, primaryAction, currentStep } = wizard;
+  const { setCurrentStep, stepErrors, primaryAction, currentStep, summaryPrefix } = wizard;
 
   // 路由变化 → 同步当前步到上下文（步骤条/底栏/各步据它算）。
   useEffect(() => {
@@ -97,8 +97,12 @@ export function WizardShell(): ReactElement {
         <Outlet />
       </div>
 
-      {/* 4. 底栏（左摘要 + 右动态主按钮，§5.0 恒定底栏）。 */}
-      <WizardFooter currentStep={currentStep} primaryAction={primaryAction} />
+      {/* 4. 底栏（左摘要 + 右动态主按钮，§5.0 恒定底栏；各步可注入摘要前缀，如 STEP① 完成态 5.1.3）。 */}
+      <WizardFooter
+        currentStep={currentStep}
+        primaryAction={primaryAction}
+        summaryPrefix={summaryPrefix}
+      />
     </div>
   );
 }
