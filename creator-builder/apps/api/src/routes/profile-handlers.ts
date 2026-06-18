@@ -95,6 +95,15 @@ function reply400Page(req: FastifyRequest, reply: FastifyReply): FastifyReply {
   return reply;
 }
 
+/**
+ * PG 22P02（invalid_text_representation）：path 的 creatorId 不是合法 UUID 文本，绑定到 uuid 列即抛此码。
+ * 非法链接/参数不是可重试的服务故障——映射成 404「没找到 / 链接失效」（reply404，change_input，§2.7 不暴露存在性、
+ * 不下钻），而不是 500 重试态（BUG-011）。fake DB 不抛此码，单测 throwNext 仍走原 500 路径、不受影响。
+ */
+function isInvalidIdError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '22P02';
+}
+
 /** 解析 limit（非法 → null，调用方 400）。 */
 function parseLimit(raw: string | undefined, def: number, max: number): number | null {
   if (raw === undefined) return def;
@@ -122,7 +131,9 @@ export function getCreatorProfileHandler(): RouteHandlerMethod {
     let result;
     try {
       result = await readCreatorProfile(req.server.infra.db, creatorId, viewerId);
-    } catch {
+    } catch (err) {
+      // 非法 UUID 文本（22P02）→ 404 链接失效（非可重试 500，BUG-011）。
+      if (isInvalidIdError(err)) return reply404(req, reply);
       return reply500Aggregate(req, reply);
     }
     if (!result) return reply404(req, reply);
@@ -166,6 +177,8 @@ export function getDensityHandler(): RouteHandlerMethod {
     } catch (err) {
       // cursor 失效/畸形 → 400（非静默回首页、非 500，契约 60 §2.7 / Codex r1#2）。
       if (err instanceof InvalidCursorError) return reply400Page(req, reply);
+      // 非法 UUID 文本（22P02）→ 404 链接失效（非可重试 500，BUG-011）。
+      if (isInvalidIdError(err)) return reply404(req, reply);
       return reply500Section(req, reply);
     }
     if (!page) return reply404(req, reply);
@@ -201,7 +214,9 @@ export function getHeatmapHandler(): RouteHandlerMethod {
     let heatmap;
     try {
       heatmap = await readHeatmap(req.server.infra.db, creatorId, range);
-    } catch {
+    } catch (err) {
+      // 非法 UUID 文本（22P02）→ 404 链接失效（非可重试 500，BUG-011）。
+      if (isInvalidIdError(err)) return reply404(req, reply);
       return reply500Section(req, reply);
     }
     if (!heatmap) return reply404(req, reply);
@@ -229,7 +244,9 @@ export function getNetworkHandler(): RouteHandlerMethod {
     let network;
     try {
       network = await readNetwork(req.server.infra.db, creatorId);
-    } catch {
+    } catch (err) {
+      // 非法 UUID 文本（22P02）→ 404 链接失效（非可重试 500，BUG-011）。
+      if (isInvalidIdError(err)) return reply404(req, reply);
       return reply500Section(req, reply);
     }
     if (!network) return reply404(req, reply);
@@ -268,6 +285,8 @@ export function getWorksHandler(): RouteHandlerMethod {
     } catch (err) {
       // cursor 失效/畸形 → 400（非静默回首页、非 500，契约 60 §2.7 / Codex r1#2）。
       if (err instanceof InvalidCursorError) return reply400Page(req, reply);
+      // 非法 UUID 文本（22P02）→ 404 链接失效（非可重试 500，BUG-011）。
+      if (isInvalidIdError(err)) return reply404(req, reply);
       return reply500Section(req, reply);
     }
     if (!page) return reply404(req, reply);

@@ -88,6 +88,8 @@ export class ProfileFakeDb implements Queryable {
   follows: FakeFollow[] = [];
   /** 注入：下一条 query 抛错（验聚合/分区失败 500）。 */
   throwNext = false;
+  /** 注入：下一条 query 抛带 PG SQLSTATE 的错误（验 22P02 非法 UUID 文本 → 404 链接失效，BUG-011）。 */
+  throwCodeNext: string | null = null;
   /**
    * 注入：按分区数据源【定向】抛错（验主聚合分区局部失败不连坐，Codex#r3 P1）。
    *   key 取分区源标识：'base' | 'viewerFollowing' | 'caps' | 'heatmap' | 'hits'。
@@ -108,6 +110,13 @@ export class ProfileFakeDb implements Queryable {
     if (this.throwNext) {
       this.throwNext = false;
       throw new Error('injected db failure');
+    }
+    if (this.throwCodeNext !== null) {
+      const code = this.throwCodeNext;
+      this.throwCodeNext = null;
+      const e = new Error(`injected pg error ${code}`) as Error & { code: string };
+      e.code = code;
+      throw e;
     }
     // 定向分区失败注入（§2.7 分区不连坐）：命中的源查询抛错，由 repo 的 allSettled 隔离成该分区 null。
     const failIf = (src: 'base' | 'viewerFollowing' | 'caps' | 'heatmap' | 'hits'): void => {

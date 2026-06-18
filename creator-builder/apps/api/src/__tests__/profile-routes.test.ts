@@ -133,6 +133,19 @@ describe('GET /creators/:id/profile（主聚合）', () => {
     expect(body.error.userMessage).not.toMatch(/SELECT|Error|at /);
   });
 
+  it('creatorId 非法 UUID 文本（PG 22P02）→ 404 链接失效（change_input），不落 500 重试态（BUG-011）', async () => {
+    // 真实 PG 把非 UUID 文本绑定 uuid 列会抛 22P02；非法链接不是可重试服务故障，应 404 而非 500。
+    const db = new ProfileFakeDb();
+    db.throwCodeNext = '22P02';
+    const ctx = makeReqReply({ params: { creatorId: 'not-a-uuid' }, db });
+    await call(getCreatorProfileHandler(), ctx);
+    expect(ctx.sent.code).toBe(404);
+    const body = ctx.sent.body as { error: { action: string; userMessage: string } };
+    expect(body.error.action).toBe('change_input');
+    expect(body.error.userMessage).toContain('没找到');
+    assertNoCode(body);
+  });
+
   // —— 分区局部失败不连坐（§2.7，主页-17，Codex#r3 P1）：次要分区失败仍 200，失败分区有标记 ——
   it('次要分区（热力图/网络）失败 → 整页仍 200，失败分区 null + sectionErrors；核心分区在', async () => {
     const db = new ProfileFakeDb();
@@ -334,5 +347,15 @@ describe('分区子端点 handler', () => {
     const ctx = makeReqReply({ params: { creatorId: 'nope' }, db });
     await call(getWorksHandler(), ctx);
     expect(ctx.sent.code).toBe(404);
+  });
+
+  it('子端点 creatorId 非法 UUID（22P02）→ 404 链接失效（非 500 分区重试，BUG-011）', async () => {
+    const db = new ProfileFakeDb();
+    db.throwCodeNext = '22P02';
+    const ctx = makeReqReply({ params: { creatorId: 'not-a-uuid' }, db });
+    await call(getWorksHandler(), ctx);
+    expect(ctx.sent.code).toBe(404);
+    expect((ctx.sent.body as { error: { action: string } }).error.action).toBe('change_input');
+    assertNoCode(ctx.sent.body);
   });
 });
