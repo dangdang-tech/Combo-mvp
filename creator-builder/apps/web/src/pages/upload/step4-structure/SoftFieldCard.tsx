@@ -7,7 +7,7 @@
 //   - failed：人话错误态（ErrorState 只 userMessage + action，无 code）——两次失败转人工，单次失败可重试。
 //
 // 软硬一眼区分：软字段卡带「可改 / 可重生成」操作；硬字段卡（HardFieldCard）锁定无操作。
-import { useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { ErrorState, Skeleton } from '../../../components/index.js';
 import type { SoftFieldView } from './manifestFields.js';
 import { isGenerating, isDone } from './manifestFields.js';
@@ -33,27 +33,48 @@ export function SoftFieldCard({
 }: SoftFieldCardProps): ReactElement {
   const [editing, setEditing] = useState(false);
   const [draftText, setDraftText] = useState('');
+  // stuck 态内联编辑器的草稿（卡住字段「留空可手填」，验收 选择结构化-16；独立于 done/failed 的 editing 切换：
+  // 卡住字段无须先点「编辑」即可直接填，初值用已生成 partial（数组拼行 / 单值原文），continue/released 后留作可手填）。
+  const [stuckText, setStuckText] = useState('');
 
   const generating = isGenerating(view.status);
   const done = isDone(view.status);
   const failed = view.status === 'failed';
   const stuck = view.status === 'stuck';
 
+  // 进入 stuck 态时把已生成 partial 灌进可手填的编辑器一次（已生成不丢；用户随后可接着改 / 清空补填）。
+  // 用 ref 守门只在「转入 stuck」的那一刻同步：避免流式 partial 后续每帧回灌覆盖用户输入。
+  const seededStuckRef = useRef(false);
+  useEffect(() => {
+    if (stuck) {
+      if (!seededStuckRef.current) {
+        setStuckText(view.isArray ? view.items.join('\n') : view.text);
+        seededStuckRef.current = true;
+      }
+    } else {
+      seededStuckRef.current = false;
+    }
+  }, [stuck, view.isArray, view.items, view.text]);
+
   const beginEdit = (): void => {
     setDraftText(view.isArray ? view.items.join('\n') : view.text);
     setEditing(true);
   };
 
-  const commitEdit = (): void => {
+  const saveDraft = (text: string): void => {
     if (view.isArray) {
-      const items = draftText
+      const items = text
         .split('\n')
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       onSave(items);
     } else {
-      onSave(draftText);
+      onSave(text);
     }
+  };
+
+  const commitEdit = (): void => {
+    saveDraft(draftText);
     setEditing(false);
   };
 
@@ -132,21 +153,43 @@ export function SoftFieldCard({
           </div>
         </>
       ) : stuck ? (
-        // 卡住：本卡显安抚 + 已生成 partial；三退路按钮由父层 SlowHint 统一渲染（避免重复）。
-        <div className="cb-soft-field__stuck" role="status">
+        // 卡住（40 §3.3，验收 选择结构化-15/16）：绝不冻在骨架干等。本卡给一句安抚 +「就地可手填」内联编辑器
+        // （卡住字段留空可手填，与 done/failed 同一 onSave 落库路径）；三退路总按钮由父层 SlowHint 渲染。
+        // continue/released 后 SSE 停订阅，该字段恒停在 stuck → 此处编辑器是用户补全它的唯一出口（永不裸转圈）。
+        <div
+          className="cb-soft-field__stuck"
+          role="group"
+          aria-label={`${view.label}（卡住，可手填）`}
+        >
           <p className="cb-soft-field__stuck-hint">
-            这一项生成得有点慢，可在下方选择继续 / 重生成 / 再等等。
+            这一项生成得有点慢。可在下方先填，或选「继续 / 重生成 / 再等等」。
           </p>
-          {view.isArray && view.items.length > 0 && (
-            <ul className="cb-soft-field__items">
-              {view.items.map((it, i) => (
-                <li key={i} className="cb-soft-field__item">
-                  {it}
-                </li>
-              ))}
-            </ul>
-          )}
-          {!view.isArray && view.text && <p className="cb-soft-field__partial">{view.text}</p>}
+          <div className="cb-soft-field__editor">
+            <textarea
+              className="cb-soft-field__input"
+              aria-label={`手填${view.label}`}
+              value={stuckText}
+              onChange={(e) => setStuckText(e.target.value)}
+              rows={view.isArray ? 4 : 2}
+              placeholder={
+                view.isArray ? `每行一条，手动补全${view.label}` : `手动填写${view.label}`
+              }
+            />
+            {view.isArray && <p className="cb-soft-field__hint">每行一条。</p>}
+            <div className="cb-soft-field__actions">
+              <button
+                type="button"
+                className="cb-btn cb-btn--primary"
+                onClick={() => saveDraft(stuckText)}
+                disabled={busy}
+              >
+                保存
+              </button>
+              <button type="button" className="cb-btn" onClick={onRegenerate} disabled={busy}>
+                {busy ? '重新生成中…' : '重新生成'}
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         // 兜底（理论不达）：骨架，绝不空白。

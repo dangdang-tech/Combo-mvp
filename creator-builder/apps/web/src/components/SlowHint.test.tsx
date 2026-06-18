@@ -28,7 +28,7 @@ describe('SlowHint', () => {
         stuck={{ field: 'tagline', elapsedMs: 30000, options: ['continue', 'regen', 'wait'] }}
       />,
     );
-    expect(screen.getByRole('button', { name: '继续生成' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '继续用已生成' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '重新生成' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '再等等' })).toBeInTheDocument();
   });

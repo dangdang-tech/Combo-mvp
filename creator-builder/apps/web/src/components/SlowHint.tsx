@@ -10,7 +10,9 @@ import type { SlowHintPayload, FieldStuckPayload } from '@cb/shared';
 
 /** field_stuck 三退路的人话标签。 */
 const STUCK_OPTION_LABEL: Record<FieldStuckPayload['options'][number], string> = {
-  continue: '继续生成',
+  // continue 实为「停流、用已生成部分先继续，卡住字段留待手动填」（§3.3 / StructureStepPage setReleased），
+  // 不是「让模型接着生成」——文案与该语义对齐，避免误导用户选错退路（绝不裸露误导文案）。
+  continue: '继续用已生成',
   regen: '重新生成',
   wait: '再等等',
 };

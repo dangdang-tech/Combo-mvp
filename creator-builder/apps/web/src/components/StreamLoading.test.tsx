@@ -75,7 +75,7 @@ describe('StreamLoading 永不裸转圈', () => {
       stuck: { field: 'tagline', elapsedMs: 30000, options: ['continue', 'regen', 'wait'] },
     });
     render(<StreamLoading state={state} onStuckChoice={onStuckChoice} />);
-    await userEvent.click(screen.getByRole('button', { name: '继续生成' }));
+    await userEvent.click(screen.getByRole('button', { name: '继续用已生成' }));
     expect(onStuckChoice).toHaveBeenCalledWith('continue');
   });
 });

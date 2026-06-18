@@ -1,0 +1,9 @@
+VERDICT: PASS
+
+P1 真修复。`state_snapshot` 现在从 `structureState.fields` 中 `status === 'stuck'` 派生 `{ field, elapsedMs: stuckMs ?? 0, options:['continue','regen','wait'] }`，形状匹配 `FieldStuckPayload`；无 stuck 字段会清空旧 `stuck`。live `field_stuck` 也同步字段级 `status='stuck'`、保留 partial，并落 `stuckMs`，和 snapshot 路径一致。`SlowHint` 与 `StructureStepPage.handleStuckChoice` 的消费字段也对得上。
+
+P2 也修复。可见按钮文案已改为「继续用已生成」，action key 仍是 `continue`，`SlowHint.test.tsx` / `StreamLoading.test.tsx` 断言已同步。
+
+新增 `useSSE` 测试是实质断言：覆盖 stuck 字段名、`elapsedMs = stuckMs`、三退路 options，以及无 stuck snapshot 清空旧状态。未发现 items/progress snapshot 重建被破坏，也未发现本轮阻断性新回归。
+
+Nit：snapshot 派生用的是 `next.structureState`；当前调用点 kind 固定没问题，但未来若同一个 hook 实例切换 stream kind，建议改成只从本帧 `p.structureState` 派生，避免旧 structure state 复活。未重跑测试，按只读复审基于 diff 与工作树代码判定。

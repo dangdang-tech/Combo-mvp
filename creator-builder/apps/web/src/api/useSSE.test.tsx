@@ -261,10 +261,90 @@ describe('field_* / item-appended（structure 流，真实 payload）', () => {
     expect(latest.stuck?.options).toEqual(['continue', 'regen', 'wait']);
   });
 
+  it('field_stuck 帧把该字段 structureState.status 置 stuck（40 §3.5，避免 continue 后冻在骨架）', () => {
+    // name 在 snapshot 里是 pending；先开始生成（generating）模拟「正生成中卡住」。
+    act(() => conn().emit('field_start', { field: 'name', index: 0, total: 2 }));
+    act(() => conn().emit('field_delta', { field: 'name', deltaText: '半截' }));
+    expect(latest.structureState?.fields.find((f) => f.field === 'name')?.status).toBe(
+      'generating',
+    );
+    act(() =>
+      conn().emit('field_stuck', {
+        field: 'name',
+        elapsedMs: 48000,
+        options: ['continue', 'regen', 'wait'],
+      }),
+    );
+    const f = latest.structureState?.fields.find((x) => x.field === 'name');
+    // 关键：字段级 status 也置 stuck（不仅顶层 stuck payload），buildSoftFields 据此渲染可手填编辑器而非骨架。
+    expect(f?.status).toBe('stuck');
+    // 已生成 partial 不丢（边生成边显示内容继续可见）。
+    expect(f?.value).toBe('半截');
+    // 卡住时长落进 stuckMs（与后端受保护写一致）。
+    expect(f?.stuckMs).toBe(48000);
+    // 顶层 stuck payload 仍在（驱动 SlowHint 三退路总按钮）。
+    expect(latest.stuck?.field).toBe('name');
+  });
+
   it('slow_hint 帧暴露安抚文案（非错误）', () => {
     act(() => conn().emit('slow_hint', { phrase: '内容较多，正在认真生成…', elapsedMs: 12000 }));
     expect(latest.slowHint?.phrase).toBe('内容较多，正在认真生成…');
     expect(latest.status).not.toBe('error');
+  });
+
+  it('重连 state_snapshot 携 status=stuck 字段 → 重建顶层三退路 stuck payload（40 §3.5）', () => {
+    // 断线/超窗重连：后端快照携 structure_state[field].status='stuck'+stuckMs，但顶层瞬时 stuck 已随旧连接丢。
+    act(() =>
+      conn().emit('state_snapshot', {
+        kind: 'structure',
+        structureState: {
+          versionId: 'ver_1',
+          fields: [
+            { field: 'name', status: 'done', value: '助手' },
+            // 卡住字段：已生成 partial 不丢 + stuckMs 持久化。
+            { field: 'instructions', status: 'stuck', value: '第一步…', stuckMs: 48000 },
+            { field: 'skill_set', status: 'pending' },
+          ],
+          doneCount: 1,
+          totalCount: 3,
+        },
+      }),
+    );
+    // 字段级 status 经快照重建（buildSoftFields 据此渲染可手填编辑器）。
+    expect(latest.structureState?.fields.find((f) => f.field === 'instructions')?.status).toBe(
+      'stuck',
+    );
+    // 关键：顶层 stuck payload 从快照派生回（驱动 SlowHint 三退路 + StructureStepPage handleStuckChoice）。
+    expect(latest.stuck?.field).toBe('instructions');
+    expect(latest.stuck?.elapsedMs).toBe(48000); // = stuckMs。
+    expect(latest.stuck?.options).toEqual(['continue', 'regen', 'wait']);
+  });
+
+  it('重连 state_snapshot 无 stuck 字段 → 顶层 stuck 清空（不残留过期退路）', () => {
+    // 先制造一个顶层 stuck（live field_stuck），再来一帧无 stuck 字段的快照。
+    act(() =>
+      conn().emit('field_stuck', {
+        field: 'name',
+        elapsedMs: 30000,
+        options: ['continue', 'regen', 'wait'],
+      }),
+    );
+    expect(latest.stuck?.field).toBe('name');
+    act(() =>
+      conn().emit('state_snapshot', {
+        kind: 'structure',
+        structureState: {
+          versionId: 'ver_1',
+          fields: [
+            { field: 'name', status: 'done', value: '助手' },
+            { field: 'tagline', status: 'generating' },
+          ],
+          doneCount: 1,
+          totalCount: 2,
+        },
+      }),
+    );
+    expect(latest.stuck).toBeUndefined();
   });
 });
 

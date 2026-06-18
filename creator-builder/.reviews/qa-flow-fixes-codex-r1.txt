@@ -1,0 +1,7 @@
+VERDICT: FAIL
+
+[P1] [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:111) — `state_snapshot` 无条件 `next.stuck = undefined`。断线/超窗重连时，即使后端快照里已有 `structure_state[field].status='stuck' + stuckMs`，前端也只会通过 `buildSoftFields` 显示 stuck 卡片编辑器，无法重建 `SlowHint` 的 `continue / regen / wait` 三退路；这违反 40 §3.5 “state_snapshot 能重建三退路状态”。修法：在 snapshot 分支从 `p.structureState.fields` 派生 stuck payload，例如找 `status === 'stuck'` 的软字段并设置 `{ field, elapsedMs: stuckMs ?? 0, options: ['continue','regen','wait'] }`，否则才清空；补一个 `state_snapshot(structure)` 含 stuck 字段的 reducer 测试。
+
+[P2] [SlowHint.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/components/SlowHint.tsx:13) — `continue` 可见文案是“继续生成”，但实际处理在 [StructureStepPage.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/pages/upload/step4-structure/StructureStepPage.tsx:259) 会 `setReleased(true)` 停 SSE、放行“用已生成部分先继续”。文案与契约 §3.3 的“用已生成的部分先继续，剩下手动填”相反，容易误导用户选择错误退路。修法：改成“继续用已生成”或“用已生成先继续”。
+
+其余检查：live `field_stuck` reducer 保留 partial、写 `status: stuck` / `stuckMs`；`released` 后 hook state 不会被重置；SoftFieldCard 的 stuck 编辑器、数组拆分和保存回调路径有实质测试。BatchResults 与 Dashboard 的两处修复未见明显副作用；新增测试有断言，但漏了上面的 snapshot 重连路径。

@@ -108,7 +108,21 @@ function reducer(state: UseSSEState, action: Action): UseSSEState {
             next.items = p.progress.items ?? [];
           }
           if (p.structureState) next.structureState = p.structureState;
-          next.stuck = undefined;
+          // 三退路重建（40 §3.5「state_snapshot 能重建三退路状态」）：断线/超窗重连时后端快照携
+          // structure_state[field].status='stuck'(+stuckMs)，但顶层瞬时 stuck payload 已随旧连接丢失。
+          // 若不从快照派生回 stuck payload，buildSoftFields 虽能据字段 status='stuck' 渲染可手填编辑器，
+          // 但 SlowHint 的 continue/regen/wait 三退路按钮（读 sse.stuck）不会重建——等于断线后退路消失。
+          // 故从 fields 找首个 status==='stuck' 的软字段，重建 FieldStuckPayload（elapsedMs 取 stuckMs ?? 0，
+          // options 恒为契约三退路），与 StructureStepPage handleStuckChoice 读的 field / SlowHint 读的
+          // elapsedMs/options 完全对齐；无 stuck 字段才清空（不残留过期退路）。
+          const stuckField = next.structureState?.fields.find((f) => f.status === 'stuck');
+          next.stuck = stuckField
+            ? {
+                field: stuckField.field,
+                elapsedMs: stuckField.stuckMs ?? 0,
+                options: ['continue', 'regen', 'wait'],
+              }
+            : undefined;
           return next;
         }
         case 'progress': {
@@ -257,7 +271,30 @@ function reducer(state: UseSSEState, action: Action): UseSSEState {
           return next;
         }
         case 'field_stuck': {
-          next.stuck = action.payload as FieldStuckPayload;
+          // 卡住三退路（40 §3.3）。除保留顶层 stuck payload（驱动 SlowHint 三退路按钮）外，
+          // 还把该字段在 structureState.fields 里的 status 置 'stuck'（与后端受保护写
+          // structure_state[field].status='stuck'+stuckMs 一致，40 §3.5）——否则该字段仍停在
+          // 'generating'，buildSoftFields 渲染骨架；continue/released 后字段冻在骨架、永远填不了
+          // （永不裸转圈 / 已生成不丢：已生成 partial 仍保留进 value，只改 status）。
+          const sp = action.payload as FieldStuckPayload;
+          next.stuck = sp;
+          const ss = state.structureState;
+          if (ss && typeof sp.field === 'string') {
+            const fields = ss.fields.slice();
+            const idx = fields.findIndex((x) => x.field === sp.field);
+            const prev = idx >= 0 ? fields[idx] : undefined;
+            const entry: StructureState['fields'][number] = {
+              field: sp.field,
+              status: 'stuck',
+              // 已生成 partial 不丢（边生成边显示的内容继续可见）。
+              ...(prev?.value !== undefined ? { value: prev.value } : {}),
+              ...(prev?.attempts !== undefined ? { attempts: prev.attempts } : {}),
+              ...(sp.elapsedMs !== undefined ? { stuckMs: sp.elapsedMs } : {}),
+            };
+            if (idx >= 0) fields[idx] = entry;
+            else fields.push(entry);
+            next.structureState = { ...ss, fields };
+          }
           return next;
         }
         case 'slow_hint': {
