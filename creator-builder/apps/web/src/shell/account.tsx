@@ -4,6 +4,7 @@
 // 故此处用 typed context + 可注入 mock 默认值（设计 persona Wayne · CGO）；Phase 4 接真实
 // 会话/身份端点时只替换 ViewAccountProvider 的 value，外壳与消费方零改动（D14：外壳恒定）。
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
+import type { MeView, Role } from '@cb/shared';
 
 export interface ShellAccount {
   /** 头像 URL；null → 前端兜底首字母占位（非破图，对齐契约 avatarUrl 兜底口径）。 */
@@ -20,6 +21,27 @@ export const DEFAULT_ACCOUNT: ShellAccount = {
   name: 'Wayne',
   title: 'CGO',
 };
+
+/** 角色枚举 → 中文展示标签（职位位展示用，非鉴权口径）。 */
+const ROLE_LABEL: Record<Role, string> = {
+  creator: '创作者',
+  consumer: '消费者',
+  reviewer: '评审',
+};
+
+/**
+ * 真实会话身份 MeView → 外壳账号（杀掉 persona Wayne）。
+ * 姓名取 account（发布署名同源，10-auth §6）；职位取首个角色的中文标签，缺省回退「创作者」；
+ * avatarUrl 暂无（MeView 不含），走首字母兜底（非破图）。
+ */
+export function accountFromMe(me: MeView): ShellAccount {
+  const role = me.roles[0];
+  return {
+    avatarUrl: null,
+    name: me.account,
+    title: role ? ROLE_LABEL[role] : '创作者',
+  };
+}
 
 const AccountContext = createContext<ShellAccount>(DEFAULT_ACCOUNT);
 

@@ -21,6 +21,8 @@ export interface ErrorStateProps {
   onChangeInput?: () => void;
   /** action=escalate 时的「去登录 / 联系支持」回调。 */
   onEscalate?: () => void;
+  /** 覆盖 escalate 退路按钮文案（如会话过期场景用「去登录」）；不传走默认「去处理」。 */
+  escalateLabel?: string;
 }
 
 const ACTION_LABEL: Record<ErrorAction, string> = {
@@ -58,6 +60,7 @@ export function ErrorState({
   onRetry,
   onChangeInput,
   onEscalate,
+  escalateLabel,
 }: ErrorStateProps): ReactElement {
   const body = toErrorBody(error);
   const showAction = (DISPLAYABLE_ACTIONS as readonly string[]).includes(body.action);
@@ -71,13 +74,17 @@ export function ErrorState({
           ? onEscalate
           : undefined;
 
+  // escalate 可由调用方覆盖按钮文案（如「去登录」）；其余 action 沿用默认标签，行为不变。
+  const actionLabel =
+    body.action === 'escalate' && escalateLabel ? escalateLabel : ACTION_LABEL[body.action];
+
   return (
     <div role="alert" className="cb-error-state" data-action={body.action}>
       {/* 唯一主文案：人话 userMessage。对外信封无 code（D1），无可裸露。 */}
       <p className="cb-error-state__message">{body.userMessage}</p>
       {showAction && handler && (
         <button type="button" className="cb-error-state__action" onClick={handler}>
-          {ACTION_LABEL[body.action]}
+          {actionLabel}
         </button>
       )}
       {/* traceId 仅作「反馈代码」小字（报障用），不是错误码、不是主文案；兜底哨兵不展示。 */}

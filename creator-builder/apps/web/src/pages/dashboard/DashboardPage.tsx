@@ -19,6 +19,7 @@ import {
   type TrendMetric,
 } from '../../components/index.js';
 import { CREATE_STEPS } from '../../shell/routes.js';
+import { goToLogin } from '../../shell/auth.js';
 import { RangeSwitch } from './RangeSwitch.js';
 import { SummaryHeader } from './SummaryHeader.js';
 import { MetricCards } from './MetricCards.js';
@@ -40,6 +41,11 @@ export function DashboardPage(): ReactElement {
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('tokens');
   const trial = useTrialNotice();
   const more = useMoreMenu();
+
+  // 会话中途过期（mid-session）防御：读失败若 action=escalate，给可用「去登录」CTA（整页跳后端登录端点）。
+  // 新鲜未登录由路由守卫拦截，这里补的是登录后会话过期的场景（守卫已放行进外壳后才 401）。
+  // 带 returnTo=当前位置：登录后回到原页（外壳内深链），不被默认踢回 /creator。
+  const goLogin = (): void => goToLogin(window.location.pathname + window.location.search);
 
   const summaryQ = useSummary(range);
   const metricsQ = useMetrics(range);
@@ -75,7 +81,12 @@ export function DashboardPage(): ReactElement {
         {summaryQ.isLoading ? (
           <LoadingState skeletonRows={2} label="摘要加载中" />
         ) : summaryQ.isError ? (
-          <ErrorState error={summaryQ.error} onRetry={() => void summaryQ.refetch()} />
+          <ErrorState
+            error={summaryQ.error}
+            onRetry={() => void summaryQ.refetch()}
+            onEscalate={goLogin}
+            escalateLabel="去登录"
+          />
         ) : summaryQ.data ? (
           <SummaryHeader
             summary={summaryQ.data.data}
@@ -91,7 +102,12 @@ export function DashboardPage(): ReactElement {
         {metricsQ.isLoading ? (
           <LoadingState skeletonRows={1} label="指标加载中" />
         ) : metricsQ.isError ? (
-          <ErrorState error={metricsQ.error} onRetry={() => void metricsQ.refetch()} />
+          <ErrorState
+            error={metricsQ.error}
+            onRetry={() => void metricsQ.refetch()}
+            onEscalate={goLogin}
+            escalateLabel="去登录"
+          />
         ) : metricsQ.data ? (
           <MetricCards metrics={metricsQ.data.data} meta={metricsQ.data.meta} />
         ) : null}
@@ -101,7 +117,12 @@ export function DashboardPage(): ReactElement {
       <section className="cb-dashboard__trend" aria-label="每日 token 消耗趋势">
         <h3 className="cb-dashboard__section-title">每日 token 消耗趋势</h3>
         {trendQ.isError ? (
-          <ErrorState error={trendQ.error} onRetry={() => void trendQ.refetch()} />
+          <ErrorState
+            error={trendQ.error}
+            onRetry={() => void trendQ.refetch()}
+            onEscalate={goLogin}
+            escalateLabel="去登录"
+          />
         ) : trendQ.isLoading ? (
           <ChartSkeleton height={260} label="趋势加载中" />
         ) : (
@@ -125,7 +146,12 @@ export function DashboardPage(): ReactElement {
         {caps.isLoading ? (
           <LoadingState skeletonRows={4} label="能力列表加载中" />
         ) : caps.isError ? (
-          <ErrorState error={caps.error} onRetry={caps.retry} />
+          <ErrorState
+            error={caps.error}
+            onRetry={caps.retry}
+            onEscalate={goLogin}
+            escalateLabel="去登录"
+          />
         ) : (
           <>
             <CapabilityTable
@@ -154,7 +180,12 @@ export function DashboardPage(): ReactElement {
         {drafts.isLoading ? (
           <LoadingState skeletonRows={1} label="草稿加载中" />
         ) : drafts.isError ? (
-          <ErrorState error={drafts.error} onRetry={drafts.retry} />
+          <ErrorState
+            error={drafts.error}
+            onRetry={drafts.retry}
+            onEscalate={goLogin}
+            escalateLabel="去登录"
+          />
         ) : (
           <>
             <DraftStrip drafts={drafts.items} onResume={resumeDraft} />

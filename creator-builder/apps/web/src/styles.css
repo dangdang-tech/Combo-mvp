@@ -2319,3 +2319,121 @@ body {
   border: 1px dashed var(--cb-border);
   border-radius: 10px;
 }
+
+/* ======== 登录守卫闸门（裸页：无创作者外壳/侧栏/账号） ======== */
+.cb-auth-gate {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+.cb-auth-gate__brand {
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.2px;
+  color: var(--cb-accent);
+}
+.cb-auth-gate__msg {
+  margin: 0;
+  font-size: 15px;
+  color: var(--cb-fg);
+}
+.cb-auth-gate__action {
+  border: none;
+  background: var(--cb-accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 24px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ======== 对外裸壳 PublicLayout（无创作者外壳/侧栏/账号） ======== */
+.cb-public-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.cb-public-shell__top {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--cb-border);
+  background: #fff;
+}
+.cb-public-shell__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--cb-fg);
+}
+.cb-public-shell__brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--cb-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+.cb-public-shell__brand-word {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.2px;
+}
+.cb-public-shell__content {
+  flex: 1;
+  padding: 24px;
+}
+
+/* ======== 对外诚实态 / 404（即将上线 / 页面不存在） ======== */
+.cb-public__notice {
+  max-width: 480px;
+  margin: 48px auto;
+  text-align: center;
+}
+.cb-public__title {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+.cb-public__lead {
+  margin: 0 0 20px;
+  color: var(--cb-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.cb-public__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.cb-public__action {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: var(--cb-accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cb-public__action--ghost {
+  background: #fff;
+  color: var(--cb-accent);
+  border: 1px solid var(--cb-border);
+}
+.cb-public__feedback {
+  margin: 16px 0 0;
+  color: var(--cb-muted);
+  font-size: 12px;
+}

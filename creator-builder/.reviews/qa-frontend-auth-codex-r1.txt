@@ -1,0 +1,18 @@
+VERDICT: FAIL
+
+[P1] [creator-builder/apps/web/src/App.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/App.tsx:38): `/creators/:creatorId/profile` 被放在 `RequireAuth -> ProtectedLayout -> Shell` 下。后端契约和实现是 `optionalAuth` 公开只读，匿名可访问；现在匿名会被登录闸门挡住，已登录访问也会套后台 Shell/账号区。  
+修法：把 `/creators/:creatorId/profile` 移到 `PublicLayout` 下；如要保留 `/creators/me/profile` 私有语义，单独加更具体路由或让公开页收到 401 后显示裸登录 CTA。
+
+[P1] [creator-builder/apps/web/src/shell/auth.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/shell/auth.tsx:45): `AuthProvider` 把 `/me` 的任何错误都收敛成 `anon`。这只对 401 正确；503 登录服务不可用、500、403 disabled 都会被伪装成“请先登录”，并给错误的去登录动作。  
+修法：`AuthState` 增加 `error` 状态，只把真实 401/UNAUTHENTICATED 判为 `anon`；其他错误渲染人话 ErrorState + retry/支持动作。可用专用 `fetchMe` 保留内部 HTTP status，禁止把 status 渲染到 UI。
+
+[P2] [creator-builder/apps/web/src/shell/auth.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/shell/auth.tsx:16): 登录 CTA 统一跳 `/api/v1/auth/login`，没有带 `returnTo`。未登录深链 `/create/...?...draftId=...` 或公开/个人页登录后默认回 `/creator`，会丢失原访问上下文。  
+修法：提供 `loginUrl(returnTo)`，在守卫和页面级 401 CTA 中用 `location.pathname + location.search` 填 `returnTo`。
+
+BUG 判定：
+- BUG-001..004：指定路径上基本修住，未登录不会挂后台 Shell，也不会挂载 `/create` 写草稿。
+- BUG-005..006：`/a/:slug`、`/c/:slug` 和 `*` 公开裸壳文案基本修住，不伪造数据、不再走 Placeholder。
+- BUG-007：`/profile` 新鲜未登录由守卫给登录 CTA，mid-session 401 也有 CTA。
+- 但上面两个 P1 回归违反“只保护认证页”和“401 才 anon”的修复前提，所以不能过。
+
+只读审查，未运行测试。

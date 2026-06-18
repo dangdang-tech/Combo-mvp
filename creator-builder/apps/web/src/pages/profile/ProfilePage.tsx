@@ -13,6 +13,7 @@
 import type { ReactElement } from 'react';
 import { useParams } from 'react-router-dom';
 import { ErrorState, Skeleton } from '../../components/index.js';
+import { goToLogin } from '../../shell/auth.js';
 import { useProfile, type RetriableSection, type SectionDisplayState } from './useProfile.js';
 import { SectionError } from './SectionError.js';
 import { HeroSection } from './sections/HeroSection.js';
@@ -91,11 +92,19 @@ export function ProfilePage({ creatorId: creatorIdProp }: ProfilePageProps = {})
     );
   }
 
-  // 整页错误（404 / 整页聚合失败）：人话 + 退路，绝不裸码。
+  // 整页错误（404 / 整页聚合失败 / 会话过期 401-escalate）：人话 + 退路，绝不裸码。
+  // 会话过期（self 主页 'me' 未登录 → 后端 401 escalate）给可用「去登录」CTA（整页跳后端登录端点，
+  // 带 returnTo=当前位置，登录后回到原页不丢上下文），不再是无动作死页（BUG-007）。
   if (phase === 'error' || !profile) {
     return (
       <div className="cb-page cb-profile">
-        <ErrorState error={error} onRetry={retry} onChangeInput={retry} />
+        <ErrorState
+          error={error}
+          onRetry={retry}
+          onChangeInput={retry}
+          onEscalate={() => goToLogin(window.location.pathname + window.location.search)}
+          escalateLabel="去登录"
+        />
       </div>
     );
   }

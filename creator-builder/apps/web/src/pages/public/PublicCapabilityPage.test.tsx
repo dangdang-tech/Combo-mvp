@@ -1,7 +1,7 @@
-// 公开能力页 /a/:slug 测试（Phase 4B P1）——路由可达（非 NotFound）+ 只读最小卡渲染 + slug 透传。
+// 公开能力页 /a/:slug 测试——诚实「即将上线」态（公开 by-slug 端点本期范围外、契约冻结、不造）。
 //
-// 工作台「查看公开页」/ 作品墙卡片导航到 /a/{slug}，此前路由树无 /a/:slug → 落 NotFound。
-// 本测试用真实 NotFoundPage 同台对照：/a/:slug 命中公开页（非 NotFound），且 :slug 透传进页面。
+// 历史缺陷（BUG-005）：此前从 slug 伪造一张「源自一次真实会话」假卡、把 slug 当标题回显、号称
+// 「公开只读页」，且渲染在创作者外壳内。修复后：不伪造、不回显 slug、诚实告知即将上线，且不裸 404。
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -19,23 +19,20 @@ function renderAt(path: string): void {
 }
 
 describe('公开能力页 /a/:slug', () => {
-  it('路由可达：命中公开页（非 NotFound），渲染只读最小卡', () => {
+  it('路由可达：命中公开页（非 NotFound），渲染诚实「即将上线」态', () => {
     renderAt('/a/my-cap');
-    expect(screen.getByLabelText('公开能力卡')).toBeInTheDocument();
-    // 不是 NotFound 占位。
-    expect(screen.queryByText('未找到页面')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '公开能力页即将上线' })).toBeInTheDocument();
+    // 不是 NotFound 兜底页。
+    expect(screen.queryByText('页面不存在或已失效')).not.toBeInTheDocument();
   });
 
-  it(':slug 透传进页面（标题 + data-slug）', () => {
+  it('不伪造卡片、不把 slug 当标题回显（BUG-005 反向破坏）', () => {
     renderAt('/a/insurance-helper');
-    expect(screen.getByRole('heading', { name: 'insurance-helper' })).toBeInTheDocument();
-    expect(
-      document.querySelector('.cb-public-capability[data-slug="insurance-helper"]'),
-    ).not.toBeNull();
-  });
-
-  it('对外只读：明示市集完整详情本期未开放（不裸 404、不进管理）', () => {
-    renderAt('/a/my-cap');
-    expect(screen.getByText(/公开只读页/)).toBeInTheDocument();
+    // slug 不得作为标题/内容回显。
+    expect(screen.queryByRole('heading', { name: 'insurance-helper' })).not.toBeInTheDocument();
+    expect(screen.queryByText('insurance-helper')).not.toBeInTheDocument();
+    // 不得出现伪造的「源自一次真实会话」假卡 / 「公开只读页」措辞。
+    expect(screen.queryByText(/源自一次真实会话/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/公开只读页/)).not.toBeInTheDocument();
   });
 });
