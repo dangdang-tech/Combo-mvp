@@ -210,6 +210,9 @@ services:
       REDIS_QUEUE_URL: redis://redis_queue:6379/0
       REDIS_HOT_URL: redis://redis_hot:6379/0
       S3_ENDPOINT: http://minio:9000
+      # 浏览器直传专用公网端点（BUG-013）：API 内网走 minio:9000，但浏览器拿到的 presigned URL 必须宿主可达。
+      #   dev 默认 http://localhost:9000（minio 已 publish 9000）；生产设为对外 S3/CDN 公网端点。仅 API 服务需要（唯一 presign 方）。
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?}
       S3_REGION: ${S3_REGION:-us-east-1}

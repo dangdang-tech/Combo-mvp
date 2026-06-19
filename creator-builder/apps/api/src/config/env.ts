@@ -34,6 +34,11 @@ const EnvSchema = z.object({
 
   // ObjectStore（70 §8.2）
   S3_ENDPOINT: z.string().default('http://localhost:9000'),
+  // 预签名直传专用「公网/浏览器可达」端点（BUG-013）：浏览器拿到的 presigned PUT/GET URL 用它，
+  //   而 API/worker 内部走 S3_ENDPOINT。Docker 下 S3_ENDPOINT=http://minio:9000（容器内网名，浏览器
+  //   不可解析），故 dev 须把本值设为宿主可达的 http://localhost:9000。缺省回退 S3_ENDPOINT（生产端点本就公网
+  //   可达时无需单设；签名按本端点 host 计算，绝不签后改 host——那会让 V4 签名失配 SignatureDoesNotMatch）。
+  S3_PUBLIC_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY: z.string().default('minioadmin'),
   S3_SECRET_KEY: z.string().default('minioadmin'),
   S3_REGION: z.string().default('us-east-1'),

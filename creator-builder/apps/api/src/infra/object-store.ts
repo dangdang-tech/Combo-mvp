@@ -16,6 +16,9 @@ import type { Bucket, ObjectStorePort } from '@cb/shared';
 import type { Env } from '../config/env.js';
 
 let client: S3Client | undefined;
+// 预签名专用客户端（端点 = S3_PUBLIC_ENDPOINT，浏览器可达）；仅用于 getSignedUrl 计算 URL，不发网络请求。
+//   与内网操作客户端分离：API/worker 实际 get/put/list 走 minio:9000，浏览器拿到的 presigned URL 走 localhost:9000。
+let presignClient: S3Client | undefined;
 
 function getClient(env: Env): S3Client {
   if (!client) {
@@ -33,6 +36,27 @@ function getClient(env: Env): S3Client {
     });
   }
   return client;
+}
+
+/**
+ * 取预签名客户端（BUG-013）：端点 = S3_PUBLIC_ENDPOINT ?? S3_ENDPOINT。
+ *   presigned URL 的 host 取自该客户端 endpoint；浏览器据此直传，故必须是宿主/公网可达地址。
+ *   公网端点 == 内网端点（生产真实 S3）时与原行为完全一致，无副作用。
+ */
+function getPresignClient(env: Env): S3Client {
+  const publicEndpoint = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
+  // 公网端点与内网相同 → 直接复用操作客户端，不多建一份。
+  if (publicEndpoint === env.S3_ENDPOINT) return getClient(env);
+  if (!presignClient) {
+    presignClient = new S3Client({
+      endpoint: publicEndpoint,
+      region: env.S3_REGION,
+      forcePathStyle: true,
+      credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
+      maxAttempts: 1,
+    });
+  }
+  return presignClient;
 }
 
 const DEFAULT_EXPIRES_SEC = 900; // 15min 预签名默认有效期
@@ -100,6 +124,8 @@ export async function readStreamToString(
 /** S3/MinIO 实现的 ObjectStorePort。 */
 export function createS3ObjectStore(env: Env): ObjectStorePort {
   const s3 = getClient(env);
+  // 预签名用「公网可达」客户端（BUG-013：浏览器直传 PUT/GET 的 URL host 必须宿主/公网可达）。
+  const presignS3 = getPresignClient(env);
   return {
     async presignPut(bucket, key, opts) {
       const cmd = new PutObjectCommand({
@@ -107,14 +133,14 @@ export function createS3ObjectStore(env: Env): ObjectStorePort {
         Key: key,
         ...(opts?.contentType ? { ContentType: opts.contentType } : {}),
       });
-      const url = await getSignedUrl(s3, cmd, {
+      const url = await getSignedUrl(presignS3, cmd, {
         expiresIn: opts?.expiresSec ?? DEFAULT_EXPIRES_SEC,
       });
       return { url, key };
     },
     async presignGet(bucket, key, opts) {
       const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
-      const url = await getSignedUrl(s3, cmd, {
+      const url = await getSignedUrl(presignS3, cmd, {
         expiresIn: opts?.expiresSec ?? DEFAULT_EXPIRES_SEC,
       });
       return { url };
@@ -175,4 +201,6 @@ export async function pingObjectStore(env: Env, bucket: Bucket = 'agora-raw'): P
 export function closeObjectStore(): void {
   client?.destroy();
   client = undefined;
+  presignClient?.destroy();
+  presignClient = undefined;
 }
