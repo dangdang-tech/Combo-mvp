@@ -1286,6 +1286,51 @@ UI 还原度备注：
 
 - BUG-009、登录后的五步成功流、发布成功流、真实个人主页数据流、行内试用按钮点击占位弹层仍需人工登录或测试账号支持。
 
+## 持续验收记录（2026-06-19 11:58 Asia/Shanghai，修复后 Chrome Computer Use 回归）
+
+本轮读取来源：
+
+- PRD 本地快照：`docs/测试/创作者中心主链路验收/source/prd-feishu.md`（目录快照时间 2026-06-19 10:50）；本轮未重新拉取飞书在线正文，因此不声称已验证在线 PRD 是否更新。
+- Figma MCP：重新截图 `1157:65` 工作台、`1152:65` 个人主页、`1168:65` STEP1、`1168:238` STEP2、`1777:24` STEP3、`1776:24` STEP4、`1778:24` STEP5，并保存到 `screenshots/post-fix-20260619-115819/figma/`。
+- contracts：复读 `_index.md`、`00-约定与状态机.md`、`20-step1-import.md`；重点对照 B-20 浏览器直传路径 `presign -> PUT parts -> import/jobs -> jobs/{jobId}/events`。
+- 修复提示源：`FIX_AGENT_PROMPT.md`。
+
+本轮 Chrome Computer Use 实测：
+
+| 路由 / 页面 | 操作与结果 | 截图 |
+| --- | --- | --- |
+| `/creator` | 登录态可进入；5 秒内从骨架转为真实空态/占位态，无 console error。侧栏 288px 对齐 Figma；工作台整体换肤明显改善，但空数据下仍不像 Figma 的经营样例，图表和表格信息密度偏弱。 | `01-dashboard.png`、`01-dashboard-after-5s.png` |
+| `/create/import?draftId=...` | STEP1 现在有主路径「从浏览器导入」，DOM 中有文件 input、多文件 input、目录 input（`webkitdirectory`）和拖拽区；命令行/CURL 降为「其它导入方式」。 | `02-step1-initial.png` |
+| STEP1 文件选择 | 点击可见「选择文件」能触发 Chrome file chooser，但本轮 `chooser.setFiles(...)` 被 Chrome 扩展返回 `Not allowed`，因此未能把本地 JSONL 测试文件实际注入页面。后端日志未出现 `import/uploads/presign` 或 `import/jobs`。这轮只能确认入口和代码接入存在，不能判定 B-20 E2E 已通过。 | `03-step1-filechooser-not-allowed.png` |
+| `/create/extract?draftId=...` | 对无原始数据草稿，页面人话提示「没找到要提取的原始数据，回上一步重新导入」，下一步按钮禁用；但步骤条仍把 STEP1 标成「已完成」。 | `04-step2-direct.png` |
+| `/create/select?draftId=...` | 无候选时提示「没有可选的能力」，下一步禁用；但步骤条仍把 STEP1/STEP2 标成「已完成」。 | `04-step3-direct.png` |
+| `/create/structure?draftId=...` | 无选择时提示「还没选好要结构化的能力」，下一步禁用；但步骤条仍把 STEP1/STEP2/STEP3 标成「已完成」。 | `04-step4-direct.png` |
+| `/create/publish?draftId=...` | 无选择时提示「还没选好要发布的能力」，给「去修改 / 回工作台」；但步骤条仍把 STEP1-STEP4 标成「已完成」。 | `04-step5-direct.png` |
+| `/profile` | BUG-014 通过：登录用户自己的个人主页不再整页「没找到创作者」，有 Hero、指标、能力密度、网络、作品墙空态。 | `05-profile.png` |
+| `/capabilities` `/analytics` `/earnings` | 均可进入，无 console error，无裸转圈；空态文案可操作。 | `06-capabilities.png`、`06-analytics.png`、`06-earnings.png` |
+| `/a/some-slug` `/c/some-creator` | 公开页仍是裸壳占位，无后台侧栏，无 console error。 | `07-public-capability.png`、`07-public-creator.png` |
+| `/creators/not-a-uuid/profile` `/this-route-should-not-exist` | 均为人话失败/404；无后台 shell。无效公开 profile 展示 opaque「反馈代码」，本轮先不记为裸错误码，但建议后续产品确认是否符合「绝不裸露错误码」口径。 | `07-public-profile-invalid.png`、`07-notfound.png` |
+
+BUG 回归结论：
+
+| Bug | 本轮结论 | 说明 |
+| --- | --- | --- |
+| BUG-012 UI 未高保真还原 | 部分改善，但未通过 | 配色、侧栏宽度、步骤条和按钮风格明显改善；但个人主页主体仍只有 880px 宽，在 2268px 视口下右侧大面积空白，和 Figma `1152:65` 的 1056px 宽六分区编排差异明显。工作台空数据态也仍缺 Figma 的图表/表格密度与卡片层级。 |
+| BUG-013 STEP1 浏览器导入 | 入口与代码已修，E2E 待复测 | 前端已有文件/目录/拖拽入口；`apps/web/src/pages/upload/step1-import/importApi.ts` 已接 `presign` 和 `import/jobs`；但 Chrome 扩展文件权限阻塞导致本轮无法真实上传文件，network/log 未出现 B-20 请求，不能宣布端到端通过。 |
+| BUG-014 `/profile` 无数据错误态 | 通过 | 自己的 `/profile` 不再整页错误，显示可用空态。 |
+| BUG-009 中后段深链伪造前序完成 | 仍失败 | 直接带 `draftId` 深链到 STEP2-5，即使草稿没有 snapshot/candidate/selection/version，步骤条仍按当前 URL 把前序标 `done`。 |
+
+轻量定位：
+
+- BUG-013：`BrowserImportCard.tsx` 已提供 `input[type=file]`、`webkitdirectory`、拖拽区和按钮，`importApi.ts` 已提供 `presignPath()` 与 `createJobPath()`，问题不再是前端完全缺主入口。本轮 E2E 阻塞来自 Chrome 扩展 file chooser `setFiles` 的本地权限。
+- BUG-009：可疑点在 `apps/web/src/pages/wizard/WizardShell.tsx:62-73`。当前 `hasUrlAnchor` 把 `draftIdParam` 本身当作合法进度锚点，只要 URL 带 `draftId`，`progressStep = routeStep`，导致无 snapshot/候选/选择/版本的草稿也把前序步骤标成 done。应改为以草稿真实产物锚点为准：STEP2 至少需要 `snapshotId`，STEP3 至少需要 `extractJobId` 或 ready candidates，STEP4 至少需要 selection/capability/version，STEP5 至少需要 version/publishable。
+- BUG-012：侧栏宽度已接近 Figma；个人主页内容宽度/分区高度、Hero cover、指标带、热力图、能力网络、作品墙卡片网格仍未按 Figma `1152:65` 的层级还原。空数据可以有空态，但布局骨架应保持同等分区密度。
+
+本轮未完成 / 环境阻塞：
+
+- 未能完成真正的浏览器文件上传和 B-20 network 验收。Chrome file chooser 已触发，但 Codex Chrome 扩展 `setFiles` 返回 `Not allowed`。要完成这项测试，需要在 Chrome 的 Codex 扩展详情里开启本地文件访问权限；启用后复测应看到 `POST /api/v1/import/uploads/presign`、对象 PUT、`POST /api/v1/import/jobs`、`GET /api/v1/jobs/{jobId}/events`。
+- 因 STEP1 上传未实际完成，本轮无法自然推进到 Step2 提取、Step3 真实候选选择、Step4 真实结构化流、Step5 真实发布成功闭环；本轮 Step2-5 覆盖的是无数据草稿的状态门禁和 UI。
+
 ## BUG-012：登录后前端 UI 未按 Figma 高保真还原
 
 严重度：P0 阻断
@@ -2205,3 +2250,55 @@ UI 还原度备注：
 仍待验证：
 
 - BUG-009、登录后的五步成功流、发布成功流、真实个人主页数据流、行内试用按钮点击占位弹层仍需人工登录或测试账号支持。
+
+
+## 持续验收记录（2026-06-19 12:4x Asia/Shanghai，修复 Agent 回归——针对 11:58 测试员复测三项）
+
+针对 11:58 测试员复测标记的三项（BUG-009 仍失败 / BUG-012 部分未通过 / BUG-013 E2E 待复测）逐一修复并真实登录态复验。
+本轮用 playwright-core 驱动系统 Chrome（channel:chrome，不受 Codex 扩展 setFiles 权限限制），测试账号真实登录态操作 + DOM/network/DB 三向取证。
+
+### BUG-009：中后段深链伪造前序完成 —— 已修，复测通过
+
+- 根因（确认测试员定位）：`WizardShell.tsx` 把 `draftId` 存在当进度锚点（`hasUrlAnchor` 含 `draftIdParam`），任一 `?draftId=` 即令 `progressStep=routeStep`，前序被 URL 标 done。
+- 修复：新增纯函数 `wizardMachine.progressFrontier(锚点)`，进度前沿只认真实产物（snapshot/extract/selection/version/capability/batch），**draftId 不在内**。深链恢复中（hydrate 未回填）前沿暂退首步、前序 todo + 顶「正在恢复你的草稿…」，hydrate 落库后据真实产物前移。select 是纯前端步、后端 current_step 跳过它，故取产物锚点而非后端 currentStep。
+- 自测证据（真实登录态，浏览器 DOM 实读步骤条 data-status）：
+  - 空草稿（仅 bootstrap、无任何产物）深链 `/create/publish?draftId=…` → 步骤条 import/extract/select/structure 全 `todo`、publish `current`，无伪造 done、前序无「点击回看」按钮；页面落人话闸门「还没选好要发布的能力 · 去修改」（永不裸错）。截图 `verify-20260619/bug009-publish-deeplink.png`。
+  - 真实导入完成的草稿（已有 snapshot）深链 `/create/publish?draftId=…` → 步骤条**仅 import=done**、extract/select/structure `todo`、publish `current`——精确反映真实产物进度，绝不过度标记。
+  - 单测：`wizardMachine.test.ts` 21（progressFrontier 7 + 越界前沿 2）；`WizardShell.test.tsx` 含「仅 draftId 深链不伪造 done」用例。web 全套 601/601。
+- 剩余风险：低。续传恢复中前序短暂 todo→done 是诚实的「未知→已知」，非闪烁缺陷。
+- 状态：已修待回归 → **本轮复测通过**。
+
+### BUG-012：个人主页未按 Figma 满宽六分区还原 —— 已修，视觉复验通过（主体）
+
+- 修复：`.cb-profile` 去 `max-width:880px`，铺满外壳主区（与工作台同口径，消除右侧空白）；Hero 加封面横幅（暖米渐变 + 砖红底线，头像跨线）+ 左身份/右社交三计数同行编排（对齐 Figma 1152:65）；指标带四列竖细线分隔 + 大号衬线值（34px / topic 26px）；分区卡 padding 24/28、标题 17px；作品墙 minmax 210 约四列。
+- 自测证据：真实登录态截图 `verify-20260619/12-profile.png`——满宽六分区、Hero 封面+头像跨线+右侧三计数、指标带竖分隔大号衬线值，均与 Figma 1152:65 编排一致；工作台 `10-creator.png` 无回归。profile 单测 61/61；web tsc 0 err。
+- 剩余风险：本测试账号无能力数据，密度榜进度条、热力图格阵、能力网络、作品墙卡片的**有数据态**逐像素仍待真实数据回归（空态文案已正确）。
+- 状态：部分未通过 → **本轮主体（满宽 + Hero + 指标带）复测通过**；有数据态分区待数据。
+
+### BUG-013：浏览器内导入 E2E —— 实测抓到真阻断并修复，full E2E 通过
+
+- 测试员因扩展 setFiles 权限被挡无法真跑。我用 playwright 真跑，**抓到真阻断**：presign 返回的 PUT URL host 是 Docker 内网名 `minio:9000`，宿主浏览器不可解析 → `ERR_NAME_NOT_RESOLVED`，上传必败，B-20 断在 presign(200) 后的 PUT。详见新立 **BUG-015**。
+- 修复（见 BUG-015）：拆出公网可达预签名端点 `S3_PUBLIC_ENDPOINT`，presign 用它签、内网操作仍走 `S3_ENDPOINT`。
+- 自测证据（valid Claude-format jsonl 真上传）：网络链 `POST /import/uploads/presign 200` → `PUT http://localhost:9000/agora-raw/… 200` → `POST /import/jobs 202` → `GET /jobs/{id}/events (SSE) 200`，无 console error；worker 解析 1 段 → 建快照 → 回填草稿 `current_step=extract` + `snapshot_id`；DB 实查 `jobs.status=completed`、`session_segments=1`。截图 `verify-20260619/bug013-import-result.png`。
+- 注：测试员/早期样例 jsonl 为扁平 `{role,content}`，非真实 Claude(`message:{role,content}`)/Codex(`type+payload`) 导出格式，故 worker 正确报 `IMPORT_NO_CONTENT: parsed zero segments`（非产品缺陷，是样例格式问题）；换正确 Claude 格式样例后 E2E 通过。
+- 剩余风险：低。目录导入 / 大文件分片 / 断点续传重试本轮未逐一跑（单测已覆盖）。
+- 状态：入口与代码已修、E2E 待复测 → **本轮 full E2E 复测通过**（修掉 presign 内网 host 后）。
+
+## BUG-015：预签名直传 URL 使用 Docker 内网 host（minio:9000），宿主浏览器不可达
+
+严重度：P0 阻断（浏览器直传 B-20 在容器化部署下整链不可用；BUG-013 E2E 的真根因）
+
+状态：已修待回归（presign 改用 `S3_PUBLIC_ENDPOINT` 公网端点签名；E2E 实测 PUT 200、job completed、快照 1 段）
+
+发现：BUG-013 浏览器导入 E2E 中，`POST /import/uploads/presign` 返回 200，但其中 PUT URL 为 `http://minio:9000/agora-raw/…`；宿主浏览器无法解析 `minio`（仅 Docker 网内可达）→ `net::ERR_NAME_NOT_RESOLVED`，上传失败。
+
+根因：`apps/api/src/infra/object-store.ts` 用同一 `S3_ENDPOINT`（compose 内为 `http://minio:9000`）既做 API↔MinIO 内网操作、又做 presign 签名，故浏览器拿到内网 host。API/worker 又必须用 `minio:9000` 读回对象，不能简单改端点；且 V4 签名含 host，签后改 host 会 `SignatureDoesNotMatch`。
+
+修复摘要：
+- `env.ts` 新增可选 `S3_PUBLIC_ENDPOINT`（缺省回退 `S3_ENDPOINT`，生产端点本就公网可达时零副作用）。
+- `object-store.ts` 拆「预签名专用客户端」（endpoint=公网端点，仅算 URL 不发请求）；`presignPut/presignGet` 用它，其余操作仍用内网客户端。
+- `infra/docker-compose.yml` 仅 API 服务加 `S3_PUBLIC_ENDPOINT`（dev 默认 `http://localhost:9000`，minio 已 publish 9000；生产设对外 S3/CDN 端点）。
+
+自测证据：见 BUG-013 record（presign 200 → PUT localhost:9000 200 → jobs 202 → SSE 200 → snapshot 1 段 → 草稿回填）。api tsc 0 err；object-store/import/env 测试 39/39；api 全套 1056/1056。
+
+剩余风险：生产环境须显式配置 `S3_PUBLIC_ENDPOINT` 为对外可达端点（否则回退内网端点；真实 S3 端点本就公网可达则无碍）。

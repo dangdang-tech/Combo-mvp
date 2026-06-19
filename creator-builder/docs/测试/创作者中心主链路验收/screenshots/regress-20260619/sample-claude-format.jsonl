@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"我想做一个面向独立创作者的能力体：输入一段会议记录，输出按 ICE 优先级排序的增长实验清单。"},"timestamp":"2026-06-18T10:00:00Z","cwd":"/home/wayne/projects/growth-planner","sessionId":"sess-qa-001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"可以把它定义为 Growth Experiment Planner，核心输入是会议纪要、当前目标、约束条件，输出按 ICE 优先级排序的实验列表。每条实验包含假设、执行步骤、所需数据、预计耗时与风险。"}]},"timestamp":"2026-06-18T10:01:00Z","cwd":"/home/wayne/projects/growth-planner","sessionId":"sess-qa-001"}
+{"type":"user","message":{"role":"user","content":"希望能区分快赢实验和长期实验，并给出每周可执行的节奏建议。"},"timestamp":"2026-06-18T10:02:00Z","cwd":"/home/wayne/projects/growth-planner","sessionId":"sess-qa-001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"能力体分四个模块：上下文摘要、增长机会提取、实验设计、优先级排序。验证标准是用户能在 3 分钟内拿到 5 条可执行实验，并标注快赢/长期与每周节奏。"}]},"timestamp":"2026-06-18T10:03:00Z","cwd":"/home/wayne/projects/growth-planner","sessionId":"sess-qa-001"}
