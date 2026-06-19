@@ -21,7 +21,7 @@ export function Shell(): ReactElement {
   const account = useAccount();
   const crumbs = breadcrumbFor(location.pathname);
   // 顶栏居中字标的页名（Figma：AGORA · CREATOR · 工作台）。/creator 只有根 crumb，特判为「工作台」。
-  const pageTitle = crumbs.length > 1 ? crumbs[crumbs.length - 1].label : '工作台';
+  const pageTitle = crumbs.length > 1 ? (crumbs[crumbs.length - 1]?.label ?? '工作台') : '工作台';
 
   return (
     <div className="cb-shell" data-view-mode={mode} data-collapsed={collapsed ? 'true' : 'false'}>

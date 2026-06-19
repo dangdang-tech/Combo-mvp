@@ -272,12 +272,30 @@ body {
 .cb-shell__topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   height: 52px;
-  padding: 0 20px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--cb-border);
   background: var(--cb-surface);
+  position: relative;
+}
+
+/* 顶栏居中字标（Figma：AGORA · CREATOR · 当前页，等宽大写小字）。 */
+.cb-shell__eyebrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  font-family: var(--cb-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--cb-muted);
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .cb-shell__breadcrumb {
@@ -1598,94 +1616,117 @@ body {
 /* ---------- 步骤条 StepBar（五段四态，§5.0） ---------- */
 .cb-stepbar {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 0;
   list-style: none;
   padding: 0;
   margin: 0;
-  flex-wrap: wrap;
 }
 
 .cb-stepbar__seg {
   flex: 1 1 0;
-  min-width: 130px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* 段间 1px seam 连接线（除第一段外，段前画线连接前一圆点）。 */
+.cb-stepbar__seg + .cb-stepbar__seg::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--cb-border);
+  margin: 0 10px;
 }
 
 .cb-stepbar__btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  border: 1px solid var(--cb-border);
-  background: var(--cb-surface);
-  border-radius: 8px;
-  padding: 8px 12px;
+  border: none;
+  background: none;
+  padding: 0;
   font-size: 13px;
-  color: var(--cb-fg);
+  color: var(--cb-muted);
   cursor: pointer;
   text-align: left;
+  white-space: nowrap;
 }
 
 .cb-stepbar__btn--static {
   cursor: default;
 }
 
+/* 圆点序号 pill（26px，等宽数字）。 */
 .cb-stepbar__mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--cb-radius-pill);
+  font-family: var(--cb-font-mono);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   flex-shrink: 0;
-  background: var(--cb-skeleton);
+  background: var(--cb-rail);
+  border: 1px solid var(--cb-border);
   color: var(--cb-muted);
 }
 
 .cb-stepbar__label {
-  flex: 1;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
+/* Figma 步骤段不带「已完成/进行中」文字后缀，状态靠圆点配色表达；文字保留给无障碍（视觉隐藏）。 */
 .cb-stepbar__status {
-  font-size: 11px;
-  color: var(--cb-muted);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-/* 已完成：对勾、绿意 */
+/* 已完成：砖红实心圆 + 白勾，opacity 0.55（弱于当前步）。 */
 .cb-stepbar__seg[data-status='done'] .cb-stepbar__mark {
-  background: #e6f4ea;
-  color: var(--cb-ok-olive);
+  background: var(--cb-accent);
+  border-color: var(--cb-accent);
+  color: #fff;
+  opacity: 0.55;
+}
+.cb-stepbar__seg[data-status='done'] .cb-stepbar__label {
+  color: var(--cb-fg);
 }
 
-/* 进行中：高亮强调色 */
-.cb-stepbar__seg[data-status='current'] .cb-stepbar__btn {
-  border-color: var(--cb-accent);
-  box-shadow: 0 0 0 1px var(--cb-accent) inset;
-}
+/* 进行中：砖红实心圆 + 白数字 + 加粗标签。 */
 .cb-stepbar__seg[data-status='current'] .cb-stepbar__mark {
   background: var(--cb-accent);
+  border-color: var(--cb-accent);
   color: #fff;
 }
+.cb-stepbar__seg[data-status='current'] .cb-stepbar__label {
+  color: var(--cb-fg);
+  font-weight: 600;
+}
 
-/* 待办：灰序号（默认 mark 样式即灰） */
-.cb-stepbar__seg[data-status='todo'] .cb-stepbar__btn {
+/* 待办：rail 底 + seam 边 + 灰数字（默认 mark 即是），标签弱色。 */
+.cb-stepbar__seg[data-status='todo'] .cb-stepbar__label {
   color: var(--cb-muted);
 }
 
-/* 异常：标红 */
-.cb-stepbar__seg[data-status='error'] .cb-stepbar__btn {
-  border-color: #d83931;
-}
+/* 异常：标红圆点 + 红标签。 */
 .cb-stepbar__seg[data-status='error'] .cb-stepbar__mark {
-  background: #fdecea;
-  color: #d83931;
+  background: var(--cb-accent-soft);
+  border-color: var(--cb-danger);
+  color: var(--cb-danger);
+  opacity: 1;
 }
-.cb-stepbar__seg[data-status='error'] .cb-stepbar__status {
-  color: #d83931;
+.cb-stepbar__seg[data-status='error'] .cb-stepbar__label {
+  color: var(--cb-danger);
 }
 
 /* ---------- 底栏 WizardFooter（左摘要 + 右动态主按钮，§5.0） ---------- */
@@ -2502,3 +2543,15 @@ body {
   color: var(--cb-muted);
   font-size: 12px;
 }
+
+/* 草稿条单 bar（Figma：暖米横 bar，label + 胶囊行 + 单 CTA，BUG-012 结构精修）。 */
+.cb-draft-strip { display: flex; align-items: center; gap: 16px; background: var(--cb-rail); border-radius: var(--cb-radius-card); padding: 14px 20px; margin-top: 24px; }
+.cb-draft-strip__label { font-family: var(--cb-font-mono); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--cb-muted); white-space: nowrap; flex-shrink: 0; }
+.cb-draft-strip__chips { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; overflow-x: auto; }
+.cb-draft-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--cb-surface); border: 1px solid var(--cb-border); border-radius: var(--cb-radius-pill); padding: 5px 12px; font-size: 13px; color: var(--cb-fg); cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.cb-draft-chip:hover { border-color: var(--cb-accent); }
+.cb-draft-chip__dot { width: 6px; height: 6px; border-radius: var(--cb-radius-pill); background: var(--cb-accent); flex-shrink: 0; }
+.cb-draft-chip__name { font-weight: 500; }
+.cb-draft-chip__phrase { color: var(--cb-muted); font-size: 12px; }
+.cb-draft-strip__cta { border: none; background: none; color: var(--cb-accent); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+

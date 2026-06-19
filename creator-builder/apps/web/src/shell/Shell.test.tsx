@@ -46,7 +46,8 @@ describe('Shell 三段式结构 + 常驻元素（外壳首页-02）', () => {
   it('侧栏 + 顶栏 + 主内容区三者同时存在', () => {
     renderShell();
     expect(screen.getByRole('complementary', { name: '侧边导航' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: '面包屑' })).toBeInTheDocument();
+    expect(screen.getByRole('banner')).toBeInTheDocument();
+    expect(screen.getByText(/AGORA · CREATOR/)).toBeInTheDocument();
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByTestId('page')).toHaveTextContent('工作台页');
   });
@@ -66,10 +67,10 @@ describe('Shell 三段式结构 + 常驻元素（外壳首页-02）', () => {
     expect(within(aside).getByRole('img', { name: 'Wayne · CGO' })).toHaveTextContent('W');
   });
 
-  it('顶栏右上角常驻账号头像', () => {
+  it('顶栏居中字标 AGORA · CREATOR · 当前页（Figma 顶栏）', () => {
     renderShell();
     const topbar = screen.getByRole('banner');
-    expect(within(topbar).getByRole('img', { name: 'Wayne · CGO' })).toBeInTheDocument();
+    expect(within(topbar).getByText('AGORA · CREATOR · 工作台')).toBeInTheDocument();
   });
 });
 
@@ -160,23 +161,21 @@ describe('收起 / 展开纯图标态（外壳首页-04/05/36）', () => {
   });
 });
 
-describe('面包屑分层（外壳首页-06）', () => {
+describe('顶栏居中字标页名（Figma 顶栏：AGORA · CREATOR · 当前页）', () => {
   beforeEach(() => globalThis.localStorage.clear());
 
-  it('工作台 → 仅 Creator Builder', () => {
+  it('工作台 → AGORA · CREATOR · 工作台', () => {
     renderShell('/creator');
-    const bc = screen.getByRole('navigation', { name: '面包屑' });
-    expect(bc).toHaveTextContent('Creator Builder');
-    expect(bc).not.toHaveTextContent('上传能力');
+    expect(
+      within(screen.getByRole('banner')).getByText('AGORA · CREATOR · 工作台'),
+    ).toBeInTheDocument();
   });
 
-  it('五步页 → Creator Builder / 上传能力 / STEP② 提取，末段为当前页不可点', () => {
+  it('五步页 extract → AGORA · CREATOR · STEP② 提取', () => {
     renderShell('/create/extract');
-    const bc = screen.getByRole('navigation', { name: '面包屑' });
-    expect(bc).toHaveTextContent('Creator Builder / 上传能力 / STEP② 提取');
-    expect(within(bc).getByText('STEP② 提取')).toHaveAttribute('aria-current', 'page');
-    // 前序段可点回跳。
-    expect(within(bc).getByRole('link', { name: '上传能力' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('banner')).getByText('AGORA · CREATOR · STEP② 提取'),
+    ).toBeInTheDocument();
   });
 });
 
@@ -208,27 +207,27 @@ describe('当前页高亮（外壳首页-28）', () => {
 describe('五步流程外壳不重建（外壳首页-07，批注 D14）', () => {
   beforeEach(() => globalThis.localStorage.clear());
 
-  it('从 import 走到 publish，侧栏/品牌/账号区/顶栏头像始终在原位且为同一节点', async () => {
+  it('从 import 走到 publish，侧栏/品牌/账号区始终在原位且为同一节点', async () => {
     const user = userEvent.setup();
     renderShell('/create/import');
 
     const asideBefore = screen.getByRole('complementary', { name: '侧边导航' });
     const brandBefore = screen.getByText('Agora');
-    const topAvatarBefore = within(screen.getByRole('banner')).getByRole('img', {
-      name: 'Wayne · CGO',
-    });
+    const accountAvatarBefore = within(asideBefore).getByRole('img', { name: 'Wayne · CGO' });
     expect(screen.getByTestId('page')).toHaveTextContent('上传 import');
 
-    // 面包屑里的「上传能力」在五步内恒定可见。
-    await user.click(screen.getByRole('link', { name: '收益' })); // 离开再回，验证外壳不随内容重建
+    // 离开再回，验证外壳不随内容重建。
+    await user.click(screen.getByRole('link', { name: '收益' }));
     await user.click(screen.getByRole('link', { name: '上传能力' }));
 
     // 同一外壳 DOM 节点（toBe 引用相等 → 没有被卸载重建）。
     expect(screen.getByRole('complementary', { name: '侧边导航' })).toBe(asideBefore);
     expect(screen.getByText('Agora')).toBe(brandBefore);
-    expect(within(screen.getByRole('banner')).getByRole('img', { name: 'Wayne · CGO' })).toBe(
-      topAvatarBefore,
-    );
+    expect(
+      within(screen.getByRole('complementary', { name: '侧边导航' })).getByRole('img', {
+        name: 'Wayne · CGO',
+      }),
+    ).toBe(accountAvatarBefore);
   });
 });
 
