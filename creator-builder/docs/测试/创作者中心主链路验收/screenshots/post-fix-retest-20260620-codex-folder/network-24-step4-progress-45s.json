@@ -1,0 +1,21 @@
+{
+  "cursor": 1579,
+  "events": [
+    {
+      "sequence": 1577,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFailed",
+      "params": {
+        "canceled": true,
+        "errorText": "net::ERR_ABORTED",
+        "requestId": "91908.3502",
+        "timestamp": 3839834.442361,
+        "type": "Fetch"
+      }
+    }
+  ],
+  "hasMore": false,
+  "truncated": false
+}

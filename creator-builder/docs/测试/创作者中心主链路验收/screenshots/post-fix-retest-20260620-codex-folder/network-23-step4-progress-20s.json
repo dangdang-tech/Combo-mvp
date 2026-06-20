@@ -1,0 +1,299 @@
+{
+  "cursor": 1562,
+  "events": [
+    {
+      "sequence": 1342,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/structure?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": false,
+        "initiator": {
+          "type": "parser",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "renderBlockingBehavior": "NonBlocking",
+        "request": {
+          "headers": {
+            "Origin": "http://localhost",
+            "Referer": "https://fonts.googleapis.com/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "VeryHigh",
+          "isSameSite": false,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLIiP-Q-87KaAaH7rzeAODp22mF0qmF4CSjmPC6A0Rg5g1igg1w.87.woff2"
+        },
+        "requestId": "91908.3051",
+        "timestamp": 3839810.712102,
+        "type": "Font",
+        "wallTime": 1781887263.968981
+      }
+    },
+    {
+      "sequence": 1343,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": false,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3051",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "",
+          "connectionId": 0,
+          "connectionReused": false,
+          "encodedDataLength": 0,
+          "fromDiskCache": true,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "*",
+            "age": "517341",
+            "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+            "cache-control": "public, max-age=31536000",
+            "content-length": "7988",
+            "content-security-policy-report-only": "require-trusted-types-for 'script'; report-uri https://csp.withgoogle.com/csp/apps-themes",
+            "content-type": "font/woff2",
+            "cross-origin-opener-policy": "same-origin; report-to=\"apps-themes\"",
+            "cross-origin-resource-policy": "cross-origin",
+            "date": "Wed, 10 Jun 2026 14:34:09 GMT",
+            "expires": "Thu, 10 Jun 2027 14:34:09 GMT",
+            "last-modified": "Tue, 06 Jan 2026 19:07:10 GMT",
+            "report-to": "{\"group\":\"apps-themes\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/apps-themes\"}]}",
+            "server": "sffe",
+            "timing-allow-origin": "*",
+            "x-content-type-options": "nosniff",
+            "x-xss-protection": "0"
+          },
+          "mimeType": "font/woff2",
+          "protocol": "h2",
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 59527,
+          "responseTime": 1781619391088.575,
+          "securityDetails": {
+            "certificateId": 0,
+            "certificateTransparencyCompliance": "unknown",
+            "cipher": "AES_128_GCM",
+            "encryptedClientHello": false,
+            "issuer": "WE2",
+            "keyExchange": "",
+            "keyExchangeGroup": "X25519MLKEM768",
+            "protocol": "TLS 1.3",
+            "sanList": [
+              "*.gstatic.com",
+              "gstatic.com",
+              "*.metric.gstatic.com"
+            ],
+            "serverSignatureAlgorithm": 1027,
+            "signedCertificateTimestampList": [],
+            "subjectName": "*.gstatic.com",
+            "validFrom": 1779698298,
+            "validTo": 1786955897
+          },
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 1.292,
+            "receiveHeadersStart": 1.224,
+            "requestTime": 3839810.713628,
+            "sendEnd": 0.177,
+            "sendStart": 0.177,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLIiP-Q-87KaAaH7rzeAODp22mF0qmF4CSjmPC6A0Rg5g1igg1w.87.woff2"
+        },
+        "timestamp": 3839810.71846,
+        "type": "Font"
+      }
+    },
+    {
+      "sequence": 1345,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 0,
+        "requestId": "91908.3051",
+        "timestamp": 3839810.715412
+      }
+    },
+    {
+      "sequence": 1361,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/structure?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": false,
+        "initiator": {
+          "type": "parser",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "renderBlockingBehavior": "NonBlocking",
+        "request": {
+          "headers": {
+            "Origin": "http://localhost",
+            "Referer": "https://fonts.googleapis.com/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "VeryHigh",
+          "isSameSite": false,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLIiP-Q-87KaAaH7rzeAODp22mF0qmF4CSjmPC6A0Rg5g1igg1w.101.woff2"
+        },
+        "requestId": "91908.3060",
+        "timestamp": 3839812.068187,
+        "type": "Font",
+        "wallTime": 1781887265.325039
+      }
+    },
+    {
+      "sequence": 1362,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": false,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3060",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "",
+          "connectionId": 0,
+          "connectionReused": false,
+          "encodedDataLength": 0,
+          "fromDiskCache": true,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "*",
+            "age": "323221",
+            "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+            "cache-control": "public, max-age=31536000",
+            "content-length": "58144",
+            "content-security-policy-report-only": "require-trusted-types-for 'script'; report-uri https://csp.withgoogle.com/csp/apps-themes",
+            "content-type": "font/woff2",
+            "cross-origin-opener-policy": "same-origin; report-to=\"apps-themes\"",
+            "cross-origin-resource-policy": "cross-origin",
+            "date": "Fri, 12 Jun 2026 20:29:29 GMT",
+            "expires": "Sat, 12 Jun 2027 20:29:29 GMT",
+            "last-modified": "Tue, 06 Jan 2026 19:05:11 GMT",
+            "report-to": "{\"group\":\"apps-themes\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/apps-themes\"}]}",
+            "server": "sffe",
+            "timing-allow-origin": "*",
+            "x-content-type-options": "nosniff",
+            "x-xss-protection": "0"
+          },
+          "mimeType": "font/woff2",
+          "protocol": "h2",
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 59527,
+          "responseTime": 1781619391017.119,
+          "securityDetails": {
+            "certificateId": 0,
+            "certificateTransparencyCompliance": "unknown",
+            "cipher": "AES_128_GCM",
+            "encryptedClientHello": false,
+            "issuer": "WE2",
+            "keyExchange": "",
+            "keyExchangeGroup": "X25519MLKEM768",
+            "protocol": "TLS 1.3",
+            "sanList": [
+              "*.gstatic.com",
+              "gstatic.com",
+              "*.metric.gstatic.com"
+            ],
+            "serverSignatureAlgorithm": 1027,
+            "signedCertificateTimestampList": [],
+            "subjectName": "*.gstatic.com",
+            "validFrom": 1779698298,
+            "validTo": 1786955897
+          },
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 1.129,
+            "receiveHeadersStart": 1.039,
+            "requestTime": 3839812.068747,
+            "sendEnd": 0.099,
+            "sendStart": 0.099,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLIiP-Q-87KaAaH7rzeAODp22mF0qmF4CSjmPC6A0Rg5g1igg1w.101.woff2"
+        },
+        "timestamp": 3839812.073699,
+        "type": "Font"
+      }
+    },
+    {
+      "sequence": 1364,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 0,
+        "requestId": "91908.3060",
+        "timestamp": 3839812.070835
+      }
+    }
+  ],
+  "hasMore": false,
+  "truncated": false
+}

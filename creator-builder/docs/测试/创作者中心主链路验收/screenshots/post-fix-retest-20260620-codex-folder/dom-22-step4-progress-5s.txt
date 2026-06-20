@@ -1,0 +1,123 @@
+- complementary "侧边导航":
+  - link "Agora 创作者中心 首页":
+    - /url: /creator
+    - generic: Agora
+  - button "收起侧栏":
+  - navigation "主导航":
+    - paragraph: 创作
+    - list:
+      - link "工作台":
+        - /url: /creator
+        - generic: 工作台
+      - link "我的能力":
+        - /url: /capabilities
+        - generic: 我的能力
+      - link "上传能力":
+        - /url: /create
+        - generic: 上传能力
+      - link "数据分析":
+        - /url: /analytics
+        - generic: 数据分析
+      - link "收益":
+        - /url: /earnings
+        - generic: 收益
+    - paragraph: 我的
+    - list:
+      - link "个人主页":
+        - /url: /profile
+        - generic: 个人主页
+  - img "f645ddpk87wi · 创作者": F
+  - generic: f645ddpk87wi
+  - generic: 创作者
+- banner:
+  - paragraph:
+    - generic: 上传能力
+    - generic: /
+    - generic: Creator Builder
+  - img "f645ddpk87wi · 创作者": F
+- main:
+  - button "保存草稿"
+  - list "上传五步进度":
+    - button "第 1 步：STEP① 导入（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP① 导入
+      - generic: 已完成
+    - button "第 2 步：STEP② 提取（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP② 提取
+      - generic: 已完成
+    - button "第 3 步：STEP③ 选择（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP③ 选择
+      - generic: 已完成
+    - generic "第 4 步：STEP④ 结构化（进行中）":
+      - generic: "4"
+      - generic: STEP④ 结构化
+      - generic: 进行中
+    - generic "第 5 步：STEP⑤ 发布（待办）":
+      - generic: "5"
+      - generic: STEP⑤ 发布
+      - generic: 待办
+  - complementary:
+    - navigation "在这一批能力之间切换":
+      - list:
+        - button "创作者经验工作流沉淀":
+          - generic: 创作者经验工作流沉淀
+  - main:
+    - region "创作者经验工作流沉淀 的 App Identity":
+      - heading "创作者经验工作流沉淀" [level=2]
+      - status:
+        - text: 已补全字段 4 / 7
+        - generic: · 剩余字段正在生成，完成后即可进入发布；可以稍等，或先编辑已生成的字段。
+      - heading "软字段 · 经验体生成（可改 / 可重生成）" [level=3]
+      - generic: 名称
+      - generic: 可改 / 可重生成
+      - paragraph: 创作者经验工作流沉淀
+      - button "编辑"
+      - button "重新生成"
+      - generic: 一句话卖点
+      - generic: 可改 / 可重生成
+      - paragraph: 把创作者访谈与运营经验，提炼成可直接发布的标准化工作流。
+      - button "编辑"
+      - button "重新生成"
+      - generic: 它扮演的角色
+      - generic: 可改 / 可重生成
+      - paragraph: "**创作者经验工作流提炼师**"
+      - button "编辑"
+      - button "重新生成"
+      - generic: 它要达成的目标
+      - generic: 可改 / 可重生成
+      - paragraph: "**把创作者的访谈与运营经验，提炼并输出为可直接发布的标准化工作流文档。**"
+      - button "编辑"
+      - button "重新生成"
+      - generic: 工作步骤 / 说明
+      - generic: 可改 / 可重生成
+      - status "正在生成工作步骤 / 说明"
+      - generic: 拿手本事
+      - generic: 可改 / 可重生成
+      - status "正在生成拿手本事"
+      - generic: 起手示例
+      - generic: 可改 / 可重生成
+      - status "正在生成起手示例"
+      - heading "硬字段 · 平台固定契约（锁定）" [level=3]
+      - generic: 唯一标识
+      - generic "平台锁定": 🔒 平台锁定
+      - paragraph: c6f561cb-c869-4dac-947b-3e56ea2284ea
+      - generic: 版本号
+      - generic "平台锁定": 🔒 平台锁定
+      - paragraph: 0.1.0
+      - generic: 当前状态
+      - generic "平台锁定": 🔒 平台锁定
+      - paragraph: 未提交的草稿
+      - generic: 运行时输入项
+      - generic "平台锁定": 🔒 平台锁定
+      - paragraph: 无运行时输入项
+      - generic: 产出物形态
+      - generic "平台锁定": 🔒 平台锁定
+      - paragraph: 文本产物
+      - generic: 风险等级与红线
+      - generic "平台锁定": 🔒 平台锁定
+      - paragraph: 风险低；红线：不输出违法、欺诈或人身伤害相关内容、不替代专业医疗/法律/金融建议、不泄露使用者的隐私信息
+  - generic "向导导航":
+    - paragraph: 第 4 步，共 5 步
+    - button "下一步：发布到市集 →" [disabled]

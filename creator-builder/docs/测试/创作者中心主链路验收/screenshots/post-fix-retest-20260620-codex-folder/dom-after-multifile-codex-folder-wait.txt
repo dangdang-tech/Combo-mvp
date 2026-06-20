@@ -1,0 +1,180 @@
+- complementary "侧边导航":
+  - link "Agora 创作者中心 首页":
+    - /url: /creator
+    - generic: Agora
+  - button "收起侧栏":
+  - navigation "主导航":
+    - paragraph: 创作
+    - list:
+      - link "工作台":
+        - /url: /creator
+        - generic: 工作台
+      - link "我的能力":
+        - /url: /capabilities
+        - generic: 我的能力
+      - link "上传能力":
+        - /url: /create
+        - generic: 上传能力
+      - link "数据分析":
+        - /url: /analytics
+        - generic: 数据分析
+      - link "收益":
+        - /url: /earnings
+        - generic: 收益
+    - paragraph: 我的
+    - list:
+      - link "个人主页":
+        - /url: /profile
+        - generic: 个人主页
+  - img "f645ddpk87wi · 创作者": F
+  - generic: f645ddpk87wi
+  - generic: 创作者
+- banner:
+  - paragraph:
+    - generic: 上传能力
+    - generic: /
+    - generic: Creator Builder
+  - img "f645ddpk87wi · 创作者": F
+- main:
+  - button "保存草稿"
+  - list "上传五步进度":
+    - generic "第 1 步：STEP① 导入（进行中）":
+      - generic: "1"
+      - generic: STEP① 导入
+      - generic: 进行中
+    - generic "第 2 步：STEP② 提取（待办）":
+      - generic: "2"
+      - generic: STEP② 提取
+      - generic: 待办
+    - generic "第 3 步：STEP③ 选择（待办）":
+      - generic: "3"
+      - generic: STEP③ 选择
+      - generic: 待办
+    - generic "第 4 步：STEP④ 结构化（待办）":
+      - generic: "4"
+      - generic: STEP④ 结构化
+      - generic: 待办
+    - generic "第 5 步：STEP⑤ 发布（待办）":
+      - generic: "5"
+      - generic: STEP⑤ 发布
+      - generic: 待办
+  - region "导入完成":
+    - status:
+      - generic: ✓
+      - paragraph: 已导入全部对话历史（Codex）
+      - paragraph: 生成了一份原始数据，下一步从中提取能力项
+      - button "重新导入"
+    - term: 会话段
+    - definition: "25"
+    - term: 消息条数
+    - definition: "100"
+    - term: 时间跨度
+    - definition: 2026-06-20 – 2026-06-20
+    - term: 涉及项目
+    - definition: "25"
+    - generic "原始会话（只读）":
+      - paragraph: 原始会话（只读）
+      - list:
+        - generic: 06-20
+        - generic: 第 001 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-001
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 002 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-002
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 003 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-003
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 004 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-004
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 005 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-005
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 006 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-006
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 007 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-007
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 008 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-008
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 009 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-009
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 010 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-010
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 011 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-011
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 012 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-012
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 013 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-013
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 014 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-014
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 015 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-015
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 016 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-016
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 017 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-017
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 018 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-018
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 019 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-019
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 020 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-020
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 021 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-021
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 022 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-022
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 023 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-023
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 024 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-024
+        - generic: 4 条
+        - generic: 06-20
+        - generic: 第 025 个会话：我想沉淀一个面向创作者的能力体，帮助把访谈、运营和增长经验整理成可发布工作流。
+        - generic: codex-many-025
+        - generic: 4 条
+  - generic "向导导航":
+    - paragraph: 原始数据仅你可见 · 第 1 步，共 5 步
+    - button "下一步：提取能力项 →"

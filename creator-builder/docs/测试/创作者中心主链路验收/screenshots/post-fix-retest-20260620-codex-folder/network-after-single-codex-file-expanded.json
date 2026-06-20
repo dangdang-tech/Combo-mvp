@@ -1,0 +1,37 @@
+[
+  {
+    "requestId": "91908.1739",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/import/uploads/presign",
+    "method": "POST",
+    "type": "Fetch",
+    "status": 200
+  },
+  {
+    "requestId": "91908.1740",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4t9au-2s61k4yh/0-retest-codex-folder-session.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T161704Z&X-Amz-Expires=900&X-Amz-Signature=34db2597b4aaa6c643b7f37cc6b7283838a671bd4976f461d90448cae85a56f3&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "errorText": "net::ERR_FILE_NOT_FOUND"
+  },
+  {
+    "requestId": "C556B6BC2354229A0B77932F89D2C868",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4t9au-2s61k4yh/0-retest-codex-folder-session.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T161704Z&X-Amz-Expires=900&X-Amz-Signature=34db2597b4aaa6c643b7f37cc6b7283838a671bd4976f461d90448cae85a56f3&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  }
+]

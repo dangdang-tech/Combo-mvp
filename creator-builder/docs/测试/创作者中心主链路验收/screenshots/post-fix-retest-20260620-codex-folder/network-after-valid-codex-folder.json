@@ -1,0 +1,63 @@
+[
+  {
+    "requestId": "91908.2312",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/import/uploads/presign",
+    "method": "POST",
+    "type": "Fetch",
+    "status": 200
+  },
+  {
+    "requestId": "91908.2313",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4wt6q-n4bt4ti4/0-.codex/sessions/2026/06/20/retest-codex-folder-session.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T161949Z&X-Amz-Expires=900&X-Amz-Signature=3d1b9369f0ea47f1ea452016263c97fc9124671820aa2111223605597a53583b&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "A7F96CDE5BFA22EC353384D3BF9CAFDD",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4wt6q-n4bt4ti4/0-.codex/sessions/2026/06/20/retest-codex-folder-session.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T161949Z&X-Amz-Expires=900&X-Amz-Signature=3d1b9369f0ea47f1ea452016263c97fc9124671820aa2111223605597a53583b&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2314",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/import/jobs",
+    "method": "POST",
+    "type": "Fetch",
+    "status": 202
+  },
+  {
+    "requestId": "91908.2315",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/jobs/019ee0ae-753f-7405-af5e-16c99f5a73cc/events",
+    "method": "GET",
+    "type": "Fetch",
+    "status": 200
+  }
+]

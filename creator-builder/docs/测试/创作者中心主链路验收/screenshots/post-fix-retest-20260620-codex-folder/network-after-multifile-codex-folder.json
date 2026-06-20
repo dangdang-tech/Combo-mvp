@@ -1,0 +1,663 @@
+[
+  {
+    "requestId": "91908.2889",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/import/uploads/presign",
+    "method": "POST",
+    "type": "Fetch",
+    "status": 200
+  },
+  {
+    "requestId": "E81C29BA39E1546DCB4C641DA5D7128A",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/0-.codex/sessions/2026/06/20/session-012.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=1003cbe4f33a51e28486bcf74e452dc0ebb7e0771e66b8a25de30f36508ef337&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2890",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/0-.codex/sessions/2026/06/20/session-012.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=1003cbe4f33a51e28486bcf74e452dc0ebb7e0771e66b8a25de30f36508ef337&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "91908.2891",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/1-.codex/sessions/2026/06/20/session-010.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=91536cb77234b7a6860dac6f2807f426800913c2de106abf872ffa8a0c229343&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "91908.2892",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/2-.codex/sessions/2026/06/20/session-009.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=ec0f4e3b3745707195b605a8698bc201c9ada227677f2817621d58cebaacd1c5&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "0830F2F995CEAE0C9E036A8A44CAC12E",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/1-.codex/sessions/2026/06/20/session-010.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=91536cb77234b7a6860dac6f2807f426800913c2de106abf872ffa8a0c229343&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "B4BF849064DF03068D60BC14D758DB76",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/2-.codex/sessions/2026/06/20/session-009.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=ec0f4e3b3745707195b605a8698bc201c9ada227677f2817621d58cebaacd1c5&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2893",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/3-.codex/sessions/2026/06/20/session-014.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=c01b02195b03e21ecbcc43f1dbc4355bbae0cc0f166c1ac9af14f197fad5e918&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "E4AAA6D3ABBEA8F5B29D1625CE17287B",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/3-.codex/sessions/2026/06/20/session-014.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=c01b02195b03e21ecbcc43f1dbc4355bbae0cc0f166c1ac9af14f197fad5e918&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2894",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/4-.codex/sessions/2026/06/20/session-016.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=89714ae735f298dcf22497d49d618cdc3a3e839ffaa2f00ca09d97d741516f4d&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "91908.2895",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/5-.codex/sessions/2026/06/20/session-011.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=9a4b72fefd7f88cab1ec17e7a719d73aae9246de86dad2e3ddf28eed86ebe45c&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "5FFBF68661BEF6BFA460CF371065C86A",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/4-.codex/sessions/2026/06/20/session-016.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=89714ae735f298dcf22497d49d618cdc3a3e839ffaa2f00ca09d97d741516f4d&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "164548B8AD0DFC374524E4A2EF2289B9",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/5-.codex/sessions/2026/06/20/session-011.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=9a4b72fefd7f88cab1ec17e7a719d73aae9246de86dad2e3ddf28eed86ebe45c&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2896",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/6-.codex/sessions/2026/06/20/session-008.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=96f3b7dcff51812fad7a4837a5eb629b2d56fbfbe45bd312f6f4900827b6f864&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "E28FA6F3AF1D541F812712F6DD66A8DF",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/6-.codex/sessions/2026/06/20/session-008.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=96f3b7dcff51812fad7a4837a5eb629b2d56fbfbe45bd312f6f4900827b6f864&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2897",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/7-.codex/sessions/2026/06/20/session-013.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=f1f1e88de25ab8841f4bd8217acf89958581c686409b47f510ce1e1ba6ff883b&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "245A9EE57C4E812D5AF22883B65D9AE2",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/7-.codex/sessions/2026/06/20/session-013.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=f1f1e88de25ab8841f4bd8217acf89958581c686409b47f510ce1e1ba6ff883b&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2898",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/8-.codex/sessions/2026/06/20/session-017.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=4ec968b6542868926fc0dc09e73fcbd37c0a1d3fee3da73d67136b02fd07076f&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "90AC81592206D942A0FB2ECA56DB0E66",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/8-.codex/sessions/2026/06/20/session-017.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=4ec968b6542868926fc0dc09e73fcbd37c0a1d3fee3da73d67136b02fd07076f&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2899",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/9-.codex/sessions/2026/06/20/session-015.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=5f3b8ec4e9c37be7fd710c867c9e6e738c88b353d198c0c4e8b7adc6c9d93ed8&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "95E93933B2FEB85D9A13E70F2F2C2DC1",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/9-.codex/sessions/2026/06/20/session-015.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=5f3b8ec4e9c37be7fd710c867c9e6e738c88b353d198c0c4e8b7adc6c9d93ed8&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2900",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/10-.codex/sessions/2026/06/20/session-019.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=785045b0db8836ef91d4043828e465ca4a0f6abde3601425026d55c8e3abf181&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "8FC2485193353DD44C2BDA9C7C713F02",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/10-.codex/sessions/2026/06/20/session-019.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=785045b0db8836ef91d4043828e465ca4a0f6abde3601425026d55c8e3abf181&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2901",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/11-.codex/sessions/2026/06/20/session-024.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=6ddcb8794e52cbcedbd82553fd93a431e6aee75a7a021660a6edcd4e44271df7&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "893163DAD8DC547DF579AD16104EBB56",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/11-.codex/sessions/2026/06/20/session-024.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=6ddcb8794e52cbcedbd82553fd93a431e6aee75a7a021660a6edcd4e44271df7&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2902",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/12-.codex/sessions/2026/06/20/session-002.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=2fbd359903b85840267b2665a636fbdc83e7e541b000f6248f2b9f7095942b38&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "9F11F3CB005EBD77B00DD242C58A68C7",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/12-.codex/sessions/2026/06/20/session-002.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=2fbd359903b85840267b2665a636fbdc83e7e541b000f6248f2b9f7095942b38&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2903",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/13-.codex/sessions/2026/06/20/session-022.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=dc2ee4757326fffa7f27322d6d5d5d107723d8bc9c27a8909cfa097f481a964c&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "503D3657A358F3DAAC12722A446CA1F7",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/13-.codex/sessions/2026/06/20/session-022.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=dc2ee4757326fffa7f27322d6d5d5d107723d8bc9c27a8909cfa097f481a964c&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2904",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/14-.codex/sessions/2026/06/20/session-006.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=262558720dacc41170729352b07083c9283e9bf1c82c5008cbe1d088ea9c0c29&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "9FDA911900FB0A0AD3F5E1A13B6033B1",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/14-.codex/sessions/2026/06/20/session-006.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=262558720dacc41170729352b07083c9283e9bf1c82c5008cbe1d088ea9c0c29&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2905",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/15-.codex/sessions/2026/06/20/session-004.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=f4e3cf213a81537bba71cf70d9ae5ad7d9e05303ec22d4018e24756c9c9d5c91&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "F35D7DA0E256F18C4EE8646017BBE5DC",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/15-.codex/sessions/2026/06/20/session-004.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=f4e3cf213a81537bba71cf70d9ae5ad7d9e05303ec22d4018e24756c9c9d5c91&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2906",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/16-.codex/sessions/2026/06/20/session-020.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=e9b93eea53f2c1dcd8876b37b9460eeaf3cdea14648f095ab66ad2493e14e058&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "A42499E0FE40B0388E802E0A294664EC",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/16-.codex/sessions/2026/06/20/session-020.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=e9b93eea53f2c1dcd8876b37b9460eeaf3cdea14648f095ab66ad2493e14e058&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2907",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/17-.codex/sessions/2026/06/20/session-003.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=e64118df63620a5f11da7ecf3d350ae68c5189bb79ee3c33491b43766d24cfc6&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "3C6348B0D9AC947668856A9289BD8957",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/17-.codex/sessions/2026/06/20/session-003.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=e64118df63620a5f11da7ecf3d350ae68c5189bb79ee3c33491b43766d24cfc6&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2908",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/18-.codex/sessions/2026/06/20/session-025.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=6f73e5daa1be359a0b6218fec36aa14f53dc9c9c55505abe5987ed0557ea7951&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "917EDFE5061D4FE39B63DBDAB86D0856",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/18-.codex/sessions/2026/06/20/session-025.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=6f73e5daa1be359a0b6218fec36aa14f53dc9c9c55505abe5987ed0557ea7951&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2909",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/19-.codex/sessions/2026/06/20/session-018.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=ab2b501906a4adca5bb7dee38ebeed10723da5ec4ccdb508a5f1fc9d9779f506&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "4BD1F3C1883030A434673F17CBAE38EF",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/19-.codex/sessions/2026/06/20/session-018.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=ab2b501906a4adca5bb7dee38ebeed10723da5ec4ccdb508a5f1fc9d9779f506&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2910",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/20-.codex/sessions/2026/06/20/session-001.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=edaa04ed806026867df0552ad9105293e96f8b976f77cc31688884588ed9496b&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "89F5674D6A35CFF0F9DEC65DE0A03896",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/20-.codex/sessions/2026/06/20/session-001.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=edaa04ed806026867df0552ad9105293e96f8b976f77cc31688884588ed9496b&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2911",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/21-.codex/sessions/2026/06/20/session-005.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=8d90d398613038b0fa4b66f5850bf406240d672d66187b3673c046b0b98e5220&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "B052D2BCB5BBAEDCF93498AD7ECAE1E7",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/21-.codex/sessions/2026/06/20/session-005.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=8d90d398613038b0fa4b66f5850bf406240d672d66187b3673c046b0b98e5220&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2912",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/22-.codex/sessions/2026/06/20/session-021.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=0d50c204e2426a0943fe35a2987795a53e77db0a709827edb1363fedcae293f3&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "7BDB0134C02B6035458B166546252D3B",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/22-.codex/sessions/2026/06/20/session-021.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=0d50c204e2426a0943fe35a2987795a53e77db0a709827edb1363fedcae293f3&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2913",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/23-.codex/sessions/2026/06/20/session-023.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=1b0ebf4b5f6e5a0c84cd91696db38c0b757f363632853533339c31b7b7e01bfe&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "F392924DE67388F0A42B63B04578D304",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/23-.codex/sessions/2026/06/20/session-023.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=1b0ebf4b5f6e5a0c84cd91696db38c0b757f363632853533339c31b7b7e01bfe&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2914",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFailed"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/24-.codex/sessions/2026/06/20/session-007.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=c7174a81990d18cc12f720f52e16ee6265c8dbdab7e829e42fedaf289b7db0df&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "PUT",
+    "type": "Fetch",
+    "status": 200,
+    "errorText": "net::ERR_ABORTED"
+  },
+  {
+    "requestId": "8F905503FA93BF7851AF39E5B9515BF2",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost:9000/agora-raw/raw/019edd55-028e-799a-b14a-f34e86658109/mql4y7ec-rv8zd7n3/24-.codex/sessions/2026/06/20/session-007.jsonl%230?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=c18a972fed11ed319db2%2F20260619%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260619T162054Z&X-Amz-Expires=900&X-Amz-Signature=c7174a81990d18cc12f720f52e16ee6265c8dbdab7e829e42fedaf289b7db0df&X-Amz-SignedHeaders=host&x-amz-checksum-crc32=AAAAAA%3D%3D&x-amz-sdk-checksum-algorithm=CRC32&x-id=PutObject",
+    "method": "OPTIONS",
+    "type": "Preflight",
+    "status": 204
+  },
+  {
+    "requestId": "91908.2915",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/import/jobs",
+    "method": "POST",
+    "type": "Fetch",
+    "status": 202
+  },
+  {
+    "requestId": "91908.2916",
+    "events": [
+      "Network.requestWillBeSent",
+      "Network.responseReceived",
+      "Network.loadingFinished"
+    ],
+    "url": "http://localhost/api/v1/jobs/019ee0af-73ce-7f1f-bae5-a1e837b180d4/events",
+    "method": "GET",
+    "type": "Fetch",
+    "status": 200
+  }
+]

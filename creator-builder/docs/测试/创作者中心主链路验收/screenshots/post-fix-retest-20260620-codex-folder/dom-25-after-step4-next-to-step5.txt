@@ -1,0 +1,128 @@
+- complementary "侧边导航":
+  - link "Agora 创作者中心 首页":
+    - /url: /creator
+    - generic: Agora
+  - button "收起侧栏":
+  - navigation "主导航":
+    - paragraph: 创作
+    - list:
+      - link "工作台":
+        - /url: /creator
+        - generic: 工作台
+      - link "我的能力":
+        - /url: /capabilities
+        - generic: 我的能力
+      - link "上传能力":
+        - /url: /create
+        - generic: 上传能力
+      - link "数据分析":
+        - /url: /analytics
+        - generic: 数据分析
+      - link "收益":
+        - /url: /earnings
+        - generic: 收益
+    - paragraph: 我的
+    - list:
+      - link "个人主页":
+        - /url: /profile
+        - generic: 个人主页
+  - img "f645ddpk87wi · 创作者": F
+  - generic: f645ddpk87wi
+  - generic: 创作者
+- banner:
+  - paragraph:
+    - generic: 上传能力
+    - generic: /
+    - generic: Creator Builder
+  - img "f645ddpk87wi · 创作者": F
+- main:
+  - button "保存草稿"
+  - list "上传五步进度":
+    - button "第 1 步：STEP① 导入（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP① 导入
+      - generic: 已完成
+    - button "第 2 步：STEP② 提取（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP② 提取
+      - generic: 已完成
+    - button "第 3 步：STEP③ 选择（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP③ 选择
+      - generic: 已完成
+    - button "第 4 步：STEP④ 结构化（已完成），点击回看":
+      - generic: ✓
+      - generic: STEP④ 结构化
+      - generic: 已完成
+    - generic "第 5 步：STEP⑤ 发布（进行中）":
+      - generic: "5"
+      - generic: STEP⑤ 发布
+      - generic: 进行中
+  - heading "发布到市集" [level=2]
+  - paragraph: 右边这张卡就是市集里看到的样子。左侧可切换能力。
+  - complementary:
+    - navigation "在这一批能力之间切换":
+      - list:
+        - button "当前能力":
+          - generic: 当前能力
+  - main:
+    - article "市集卡预览":
+      - generic: 创
+      - generic: 核查清单
+      - heading "创作者经验工作流沉淀" [level=3]
+      - paragraph: 把创作者访谈与运营经验，提炼成可直接发布的标准化工作流。
+      - paragraph: "**把创作者的访谈与运营经验，提炼并输出为可直接发布的标准化工作流文档。**"
+      - generic: "@f645ddpk87wi"
+      - generic: 源自一次真实会话
+      - generic: 装机量
+      - generic: 暂无数据 / 上线后填充
+      - generic: 评分
+      - generic: 暂无数据 / 上线后填充
+      - generic: 待定价
+      - button "试用" [disabled]
+    - group "封面来源":
+      - generic: 封面来源
+      - radiogroup "选择封面来源":
+        - radio "字形图标 按产物类型自动生成，无需额外操作。" [checked]:
+          - generic: ●
+          - generic: 字形图标
+          - generic: 按产物类型自动生成，无需额外操作。
+        - radio "AI 生成 / 上传图片 上传链路本期未开放，先用字形图标。" [disabled]:
+          - generic: ○
+          - generic: AI 生成 / 上传图片
+          - generic: 上传链路本期未开放，先用字形图标。
+          - generic: 本期未开放
+        - radio "HTML 产物快照 快照渲染本期未开放，先用字形图标。" [disabled]:
+          - generic: ○
+          - generic: HTML 产物快照
+          - generic: 快照渲染本期未开放，先用字形图标。
+          - generic: 本期未开放
+    - generic: 价格（元，留空=免费）
+    - spinbutton "价格（元，留空=免费） 待定价"
+    - generic: 待定价
+  - complementary "市集卡各位置的来源说明":
+    - heading "这张卡从哪来" [level=3]
+    - table:
+      - rowgroup:
+        - row "卡片上的位置 内容从哪来":
+          - columnheader "卡片上的位置"
+          - columnheader "内容从哪来"
+      - rowgroup:
+        - row "名称、一句话卖点 来自上一步 App Identity 的软字段，发布前可改":
+          - cell "名称、一句话卖点"
+          - cell "来自上一步 App Identity 的软字段，发布前可改"
+        - row "封面图标、价格 由创作者在发布前自己设定":
+          - cell "封面图标、价格"
+          - cell "由创作者在发布前自己设定"
+        - row "创作者署名 自动取创作者账号":
+          - cell "创作者署名"
+          - cell "自动取创作者账号"
+        - row "装机量、评分 上线后由真实使用数据填充":
+          - cell "装机量、评分"
+          - cell "上线后由真实使用数据填充"
+        - row "试用按钮 系统固定，所有能力卡都有":
+          - cell "试用按钮"
+          - cell "系统固定，所有能力卡都有"
+  - generic "向导导航":
+    - paragraph: 第 5 步，共 5 步
+    - button "发布到市集"

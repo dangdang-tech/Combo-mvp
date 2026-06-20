@@ -1,0 +1,855 @@
+{
+  "cursor": 1620,
+  "events": [
+    {
+      "sequence": 1584,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": true,
+        "initiator": {
+          "stack": {
+            "callFrames": [
+              {
+                "columnNumber": 180829,
+                "functionName": "Jf",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 181504,
+                "functionName": "or",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 14654,
+                "functionName": "UQ",
+                "lineNumber": 107,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 15363,
+                "functionName": "",
+                "lineNumber": 107,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 15751,
+                "functionName": "",
+                "lineNumber": 107,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 24492,
+                "functionName": "hd",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 42972,
+                "functionName": "fl",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 41720,
+                "functionName": "Tj",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 40746,
+                "functionName": "Do",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 37286,
+                "functionName": "gC",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 3273,
+                "functionName": "xa",
+                "lineNumber": 37,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 34638,
+                "functionName": "",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              }
+            ]
+          },
+          "type": "script"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "request": {
+          "headers": {
+            "Referer": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "High",
+          "isSameSite": true,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "http://localhost/api/v1/publications/c6f561cb-c869-4dac-947b-3e56ea2284ea"
+        },
+        "requestId": "91908.3503",
+        "timestamp": 3839868.756363,
+        "type": "Fetch",
+        "wallTime": 1781887322.013459
+      }
+    },
+    {
+      "sequence": 1585,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": true,
+        "initiator": {
+          "type": "other"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "request": {
+          "headers": {
+            "Referer": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "High",
+          "isSameSite": true,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "http://localhost/favicon.ico"
+        },
+        "requestId": "91908.3504",
+        "timestamp": 3839868.767342,
+        "type": "Other",
+        "wallTime": 1781887322.024383
+      }
+    },
+    {
+      "sequence": 1586,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": false,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3504",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "",
+          "connectionId": 0,
+          "connectionReused": false,
+          "encodedDataLength": 0,
+          "fromDiskCache": true,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "Accept-Ranges": "bytes",
+            "Content-Length": "403",
+            "Content-Type": "text/html",
+            "Date": "Fri, 19 Jun 2026 16:37:05 GMT",
+            "ETag": "\"6a34e85f-193\"",
+            "Last-Modified": "Fri, 19 Jun 2026 06:57:35 GMT",
+            "Server": "nginx/1.31.2"
+          },
+          "mimeType": "text/html",
+          "protocol": "http/1.1",
+          "remoteIPAddress": "[::1]",
+          "remotePort": 80,
+          "responseTime": 1781887025161.44,
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "OK",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 2.001,
+            "receiveHeadersStart": 1.956,
+            "requestTime": 3839868.76916,
+            "sendEnd": 0.731,
+            "sendStart": 0.731,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "http://localhost/favicon.ico"
+        },
+        "timestamp": 3839868.7741,
+        "type": "Other"
+      }
+    },
+    {
+      "sequence": 1588,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 0,
+        "requestId": "91908.3504",
+        "timestamp": 3839868.771962
+      }
+    },
+    {
+      "sequence": 1590,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": true,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3503",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "utf-8",
+          "connectionId": 36444,
+          "connectionReused": false,
+          "encodedDataLength": 666,
+          "fromDiskCache": false,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "Connection": "keep-alive",
+            "Content-Length": "164",
+            "Content-Type": "application/json; charset=utf-8",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Date": "Fri, 19 Jun 2026 16:42:02 GMT",
+            "Origin-Agent-Cluster": "?1",
+            "Referrer-Policy": "no-referrer",
+            "Server": "nginx/1.31.2",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Content-Type-Options": "nosniff",
+            "X-DNS-Prefetch-Control": "off",
+            "X-Download-Options": "noopen",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-XSS-Protection": "0",
+            "access-control-allow-credentials": "true",
+            "vary": "Origin",
+            "x-trace-id": "ee0f0994-2ed9-4913-bdc1-4aeb77a45130"
+          },
+          "mimeType": "application/json",
+          "protocol": "http/1.1",
+          "remoteIPAddress": "[::1]",
+          "remotePort": 80,
+          "responseTime": 1781887322792.056,
+          "securityState": "secure",
+          "status": 404,
+          "statusText": "Not Found",
+          "timing": {
+            "connectEnd": 1.659,
+            "connectStart": 1.488,
+            "dnsEnd": 1.488,
+            "dnsStart": 1.46,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 777.954,
+            "receiveHeadersStart": 777.404,
+            "requestTime": 3839868.757629,
+            "sendEnd": 2.753,
+            "sendStart": 1.892,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "http://localhost/api/v1/publications/c6f561cb-c869-4dac-947b-3e56ea2284ea"
+        },
+        "timestamp": 3839869.538147,
+        "type": "Fetch"
+      }
+    },
+    {
+      "sequence": 1592,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 830,
+        "requestId": "91908.3503",
+        "timestamp": 3839869.537148
+      }
+    },
+    {
+      "sequence": 1593,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": true,
+        "initiator": {
+          "stack": {
+            "callFrames": [
+              {
+                "columnNumber": 180829,
+                "functionName": "Jf",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 181649,
+                "functionName": "nD",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 14268,
+                "functionName": "BL",
+                "lineNumber": 107,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 16032,
+                "functionName": "",
+                "lineNumber": 107,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 16179,
+                "functionName": "",
+                "lineNumber": 107,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 24492,
+                "functionName": "hd",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 42972,
+                "functionName": "fl",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 41204,
+                "functionName": "",
+                "lineNumber": 39,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 1639,
+                "functionName": "E",
+                "lineNumber": 24,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 2012,
+                "functionName": "j",
+                "lineNumber": 24,
+                "scriptId": "1694",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              }
+            ],
+            "parentId": {
+              "debuggerId": "-1240953893639487045.-2411720402257925552",
+              "id": "597"
+            }
+          },
+          "type": "script"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "request": {
+          "hasPostData": true,
+          "headers": {
+            "Content-Type": "application/json",
+            "Referer": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "High",
+          "isSameSite": true,
+          "method": "POST",
+          "mixedContentType": "none",
+          "postData": "{\"cover\":{\"source\":\"glyph\"}}",
+          "postDataEntries": [
+            {
+              "bytes": "eyJjb3ZlciI6eyJzb3VyY2UiOiJnbHlwaCJ9fQ=="
+            }
+          ],
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "http://localhost/api/v1/versions/7f275646-7c83-4004-ad53-5dd6e4b449b8/market-card/preview"
+        },
+        "requestId": "91908.3505",
+        "timestamp": 3839869.54508,
+        "type": "Fetch",
+        "wallTime": 1781887322.802548
+      }
+    },
+    {
+      "sequence": 1596,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": true,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3505",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "utf-8",
+          "connectionId": 36444,
+          "connectionReused": true,
+          "encodedDataLength": 706,
+          "fromDiskCache": false,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "Connection": "keep-alive",
+            "Content-Length": "777",
+            "Content-Type": "application/json; charset=utf-8",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Date": "Fri, 19 Jun 2026 16:42:03 GMT",
+            "Origin-Agent-Cluster": "?1",
+            "Referrer-Policy": "no-referrer",
+            "Server": "nginx/1.31.2",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Content-Type-Options": "nosniff",
+            "X-DNS-Prefetch-Control": "off",
+            "X-Download-Options": "noopen",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-XSS-Protection": "0",
+            "access-control-allow-credentials": "true",
+            "access-control-allow-origin": "http://localhost",
+            "vary": "Origin",
+            "x-trace-id": "19404294-ff43-4815-a0c9-0f943c1949ac"
+          },
+          "mimeType": "application/json",
+          "protocol": "http/1.1",
+          "remoteIPAddress": "[::1]",
+          "remotePort": 80,
+          "responseTime": 1781887323166.872,
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "OK",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 363.286,
+            "receiveHeadersStart": 363.214,
+            "requestTime": 3839869.546633,
+            "sendEnd": 0.722,
+            "sendStart": 0.378,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "http://localhost/api/v1/versions/7f275646-7c83-4004-ad53-5dd6e4b449b8/market-card/preview"
+        },
+        "timestamp": 3839869.912172,
+        "type": "Fetch"
+      }
+    },
+    {
+      "sequence": 1598,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 1483,
+        "requestId": "91908.3505",
+        "timestamp": 3839869.910825
+      }
+    },
+    {
+      "sequence": 1599,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": false,
+        "initiator": {
+          "type": "parser",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "renderBlockingBehavior": "NonBlocking",
+        "request": {
+          "headers": {
+            "Origin": "http://localhost",
+            "Referer": "https://fonts.googleapis.com/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "VeryHigh",
+          "isSameSite": false,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "https://fonts.gstatic.com/s/notoserifsc/v35/H4chBXePl9DZ0Xe7gG9cyOj7oqOcaThrVMcaeccjhXXDsOyAEEmuIi6j7j64sLjgBtMI1z49XW4.112.woff2"
+        },
+        "requestId": "91908.3374",
+        "timestamp": 3839869.92346,
+        "type": "Font",
+        "wallTime": 1781887323.180527
+      }
+    },
+    {
+      "sequence": 1600,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/publish?draftId=019ee0af-67bc-7ad8-8031-9ee998981e29&version=7f275646-7c83-4004-ad53-5dd6e4b449b8&capability=c6f561cb-c869-4dac-947b-3e56ea2284ea",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": false,
+        "initiator": {
+          "type": "parser",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap"
+        },
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "redirectHasExtraInfo": false,
+        "renderBlockingBehavior": "NonBlocking",
+        "request": {
+          "headers": {
+            "Origin": "http://localhost",
+            "Referer": "https://fonts.googleapis.com/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "VeryHigh",
+          "isSameSite": false,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "https://fonts.gstatic.com/s/notoserifsc/v35/H4chBXePl9DZ0Xe7gG9cyOj7oqOcaThrVMcaeccjhXXDsOyAEEmuIi6j7j64sLjgBtMI1z49XW4.107.woff2"
+        },
+        "requestId": "91908.3369",
+        "timestamp": 3839869.923554,
+        "type": "Font",
+        "wallTime": 1781887323.180593
+      }
+    },
+    {
+      "sequence": 1601,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": false,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3374",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "",
+          "connectionId": 0,
+          "connectionReused": false,
+          "encodedDataLength": 0,
+          "fromDiskCache": true,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "*",
+            "age": "315693",
+            "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+            "cache-control": "public, max-age=31536000",
+            "content-length": "76032",
+            "content-security-policy-report-only": "require-trusted-types-for 'script'; report-uri https://csp.withgoogle.com/csp/apps-themes",
+            "content-type": "font/woff2",
+            "cross-origin-opener-policy": "same-origin; report-to=\"apps-themes\"",
+            "cross-origin-resource-policy": "cross-origin",
+            "date": "Fri, 12 Jun 2026 22:34:57 GMT",
+            "expires": "Sat, 12 Jun 2027 22:34:57 GMT",
+            "last-modified": "Tue, 06 Jan 2026 19:20:47 GMT",
+            "report-to": "{\"group\":\"apps-themes\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/apps-themes\"}]}",
+            "server": "sffe",
+            "timing-allow-origin": "*",
+            "x-content-type-options": "nosniff",
+            "x-xss-protection": "0"
+          },
+          "mimeType": "font/woff2",
+          "protocol": "h2",
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 59527,
+          "responseTime": 1781619390808.959,
+          "securityDetails": {
+            "certificateId": 0,
+            "certificateTransparencyCompliance": "unknown",
+            "cipher": "AES_128_GCM",
+            "encryptedClientHello": false,
+            "issuer": "WE2",
+            "keyExchange": "",
+            "keyExchangeGroup": "X25519MLKEM768",
+            "protocol": "TLS 1.3",
+            "sanList": [
+              "*.gstatic.com",
+              "gstatic.com",
+              "*.metric.gstatic.com"
+            ],
+            "serverSignatureAlgorithm": 1027,
+            "signedCertificateTimestampList": [],
+            "subjectName": "*.gstatic.com",
+            "validFrom": 1779698298,
+            "validTo": 1786955897
+          },
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 1.672,
+            "receiveHeadersStart": 1.613,
+            "requestTime": 3839869.924543,
+            "sendEnd": 0.441,
+            "sendStart": 0.441,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "https://fonts.gstatic.com/s/notoserifsc/v35/H4chBXePl9DZ0Xe7gG9cyOj7oqOcaThrVMcaeccjhXXDsOyAEEmuIi6j7j64sLjgBtMI1z49XW4.112.woff2"
+        },
+        "timestamp": 3839870.118902,
+        "type": "Font"
+      }
+    },
+    {
+      "sequence": 1603,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 0,
+        "requestId": "91908.3374",
+        "timestamp": 3839869.927257
+      }
+    },
+    {
+      "sequence": 1608,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": true,
+        "loaderId": "B2DB2FE982BDB7B052FFA907FB9210FE",
+        "requestId": "91908.3369",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "",
+          "connectionId": 36464,
+          "connectionReused": false,
+          "encodedDataLength": 12845,
+          "fromDiskCache": false,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "accept-ranges": "bytes",
+            "access-control-allow-origin": "*",
+            "age": "343026",
+            "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+            "cache-control": "public, max-age=31536000",
+            "content-length": "79780",
+            "content-security-policy-report-only": "require-trusted-types-for 'script'; report-uri https://csp.withgoogle.com/csp/apps-themes",
+            "content-type": "font/woff2",
+            "cross-origin-opener-policy": "same-origin; report-to=\"apps-themes\"",
+            "cross-origin-resource-policy": "cross-origin",
+            "date": "Mon, 15 Jun 2026 17:24:57 GMT",
+            "expires": "Tue, 15 Jun 2027 17:24:57 GMT",
+            "last-modified": "Tue, 06 Jan 2026 19:19:50 GMT",
+            "report-to": "{\"group\":\"apps-themes\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/apps-themes\"}]}",
+            "server": "sffe",
+            "timing-allow-origin": "*",
+            "x-content-type-options": "nosniff",
+            "x-xss-protection": "0"
+          },
+          "mimeType": "font/woff2",
+          "protocol": "h2",
+          "remoteIPAddress": "127.0.0.1",
+          "remotePort": 59527,
+          "responseTime": 1781887323596.58,
+          "securityDetails": {
+            "certificateId": 0,
+            "certificateTransparencyCompliance": "compliant",
+            "cipher": "AES_128_GCM",
+            "encryptedClientHello": false,
+            "issuer": "WE2",
+            "keyExchange": "",
+            "keyExchangeGroup": "X25519MLKEM768",
+            "protocol": "TLS 1.3",
+            "sanList": [
+              "*.gstatic.com",
+              "gstatic.com",
+              "*.metric.gstatic.com"
+            ],
+            "serverSignatureAlgorithm": 1027,
+            "signedCertificateTimestampList": [
+              {
+                "hashAlgorithm": "SHA-256",
+                "logDescription": "Google 'Argon2026h2' log",
+                "logId": "D76D7D10D1A7F577C2C7E95FD700BFF982C9335A65E1D0B3017317C0C8C56977",
+                "origin": "Embedded in certificate",
+                "signatureAlgorithm": "ECDSA",
+                "signatureData": "3045022100CF15A3B903CA92FD74BAC4A310E7D01D7B76F28402976F761468B95D7AA1EF1602205FB8519F5EF54E464734DA48CD67AD5530A64DD4A7B38566DC324759B640D9C3",
+                "status": "Verified",
+                "timestamp": 1779701899262
+              },
+              {
+                "hashAlgorithm": "SHA-256",
+                "logDescription": "Sectigo 'Tiger2026h2'",
+                "logId": "C8A3C47FC7B3ADB9356B013F6A7A126DE33A4E43A5C646F997AD3975991DCF9A",
+                "origin": "Embedded in certificate",
+                "signatureAlgorithm": "ECDSA",
+                "signatureData": "304502210099035000EB40E380108D17045B1E70E31D596C31F818BFAC3AD6467C6B60B0C502207C2CF43EC70FFBEC0D8AAD64D986DE6BCFF4E69B6B6761B90FA270ECE4E18CA8",
+                "status": "Verified",
+                "timestamp": 1779701899285
+              }
+            ],
+            "subjectName": "*.gstatic.com",
+            "validFrom": 1779698298,
+            "validTo": 1786955897
+          },
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "",
+          "timing": {
+            "connectEnd": 154.762,
+            "connectStart": 0.217,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 224.038,
+            "receiveHeadersStart": 220.86,
+            "requestTime": 3839870.118672,
+            "sendEnd": 155.56,
+            "sendStart": 155.209,
+            "sslEnd": 154.755,
+            "sslStart": 62.017,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "https://fonts.gstatic.com/s/notoserifsc/v35/H4chBXePl9DZ0Xe7gG9cyOj7oqOcaThrVMcaeccjhXXDsOyAEEmuIi6j7j64sLjgBtMI1z49XW4.107.woff2"
+        },
+        "timestamp": 3839870.404667,
+        "type": "Font"
+      }
+    },
+    {
+      "sequence": 1620,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 80349,
+        "requestId": "91908.3369",
+        "timestamp": 3839870.403031
+      }
+    }
+  ],
+  "hasMore": false,
+  "truncated": false
+}

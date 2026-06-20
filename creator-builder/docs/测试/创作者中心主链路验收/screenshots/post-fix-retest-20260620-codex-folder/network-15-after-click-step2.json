@@ -1,0 +1,342 @@
+{
+  "cursor": 810,
+  "events": [
+    {
+      "sequence": 797,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/extract?snapshotId=019ee0af-745a-7f46-b5ca-ca58db5f94af&draftId=019ee0af-67bc-7ad8-8031-9ee998981e29",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": true,
+        "initiator": {
+          "stack": {
+            "callFrames": [
+              {
+                "columnNumber": 180829,
+                "functionName": "Jf",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 181568,
+                "functionName": "In",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 140565,
+                "functionName": "nQ",
+                "lineNumber": 104,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 142558,
+                "functionName": "",
+                "lineNumber": 104,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 142726,
+                "functionName": "",
+                "lineNumber": 104,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 24492,
+                "functionName": "hd",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 42972,
+                "functionName": "fl",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 41720,
+                "functionName": "Tj",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 40746,
+                "functionName": "Do",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 37286,
+                "functionName": "gC",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 3273,
+                "functionName": "xa",
+                "lineNumber": 37,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              },
+              {
+                "columnNumber": 34638,
+                "functionName": "",
+                "lineNumber": 39,
+                "scriptId": "1257",
+                "url": "http://localhost/assets/index-DqgXPhYu.js"
+              }
+            ]
+          },
+          "type": "script"
+        },
+        "loaderId": "5BA17573906B1A00807B9E093D961E74",
+        "redirectHasExtraInfo": false,
+        "request": {
+          "hasPostData": true,
+          "headers": {
+            "Content-Type": "application/json",
+            "Idempotency-Key": "extract:019ee0af-67bc-7ad8-8031-9ee998981e29:019ee0af-745a-7f46-b5ca-ca58db5f94af",
+            "Referer": "http://localhost/create/extract?snapshotId=019ee0af-745a-7f46-b5ca-ca58db5f94af&draftId=019ee0af-67bc-7ad8-8031-9ee998981e29",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "X-Idempotency-Scope": "extract.create",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "High",
+          "isSameSite": true,
+          "method": "POST",
+          "mixedContentType": "none",
+          "postData": "{\"draftId\":\"019ee0af-67bc-7ad8-8031-9ee998981e29\"}",
+          "postDataEntries": [
+            {
+              "bytes": "eyJkcmFmdElkIjoiMDE5ZWUwYWYtNjdiYy03YWQ4LTgwMzEtOWVlOTk4OTgxZTI5In0="
+            }
+          ],
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "http://localhost/api/v1/snapshots/019ee0af-745a-7f46-b5ca-ca58db5f94af/extract"
+        },
+        "requestId": "91908.2920",
+        "timestamp": 3839571.812986,
+        "type": "Fetch",
+        "wallTime": 1781887025.070702
+      }
+    },
+    {
+      "sequence": 798,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.requestWillBeSent",
+      "params": {
+        "documentURL": "http://localhost/create/extract?snapshotId=019ee0af-745a-7f46-b5ca-ca58db5f94af&draftId=019ee0af-67bc-7ad8-8031-9ee998981e29",
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasUserGesture": true,
+        "initiator": {
+          "type": "other"
+        },
+        "loaderId": "5BA17573906B1A00807B9E093D961E74",
+        "redirectHasExtraInfo": false,
+        "request": {
+          "headers": {
+            "Referer": "http://localhost/create/extract?snapshotId=019ee0af-745a-7f46-b5ca-ca58db5f94af&draftId=019ee0af-67bc-7ad8-8031-9ee998981e29",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"149\", \"Chromium\";v=\"149\", \"Not)A;Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\""
+          },
+          "initialPriority": "High",
+          "isSameSite": true,
+          "method": "GET",
+          "mixedContentType": "none",
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "url": "http://localhost/favicon.ico"
+        },
+        "requestId": "91908.2921",
+        "timestamp": 3839571.881983,
+        "type": "Other",
+        "wallTime": 1781887025.137927
+      }
+    },
+    {
+      "sequence": 802,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": true,
+        "loaderId": "5BA17573906B1A00807B9E093D961E74",
+        "requestId": "91908.2921",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "",
+          "connectionId": 34962,
+          "connectionReused": false,
+          "encodedDataLength": 180,
+          "fromDiskCache": false,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "Accept-Ranges": "bytes",
+            "Content-Length": "403",
+            "Content-Type": "text/html",
+            "Date": "Fri, 19 Jun 2026 16:37:05 GMT",
+            "ETag": "\"6a34e85f-193\"",
+            "Last-Modified": "Fri, 19 Jun 2026 06:57:35 GMT",
+            "Server": "nginx/1.31.2"
+          },
+          "mimeType": "text/html",
+          "protocol": "http/1.1",
+          "remoteIPAddress": "[::1]",
+          "remotePort": 80,
+          "responseTime": 1781887025161.44,
+          "securityState": "secure",
+          "status": 200,
+          "statusText": "OK",
+          "timing": {
+            "connectEnd": 2.722,
+            "connectStart": 2.571,
+            "dnsEnd": 2.571,
+            "dnsStart": 2.564,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 6.743,
+            "receiveHeadersStart": 6.345,
+            "requestTime": 3839571.89917,
+            "sendEnd": 2.785,
+            "sendStart": 2.753,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "http://localhost/favicon.ico"
+        },
+        "timestamp": 3839571.910538,
+        "type": "Other"
+      }
+    },
+    {
+      "sequence": 804,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 180,
+        "requestId": "91908.2921",
+        "timestamp": 3839571.907351
+      }
+    },
+    {
+      "sequence": 806,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.responseReceived",
+      "params": {
+        "frameId": "815EB075B041A7255AB66012DC4AA008",
+        "hasExtraInfo": true,
+        "loaderId": "5BA17573906B1A00807B9E093D961E74",
+        "requestId": "91908.2920",
+        "response": {
+          "alternateProtocolUsage": "unspecifiedReason",
+          "charset": "utf-8",
+          "connectionId": 34671,
+          "connectionReused": true,
+          "encodedDataLength": 716,
+          "fromDiskCache": false,
+          "fromPrefetchCache": false,
+          "fromServiceWorker": false,
+          "headers": {
+            "Connection": "keep-alive",
+            "Content-Length": "154",
+            "Content-Type": "application/json; charset=utf-8",
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Date": "Fri, 19 Jun 2026 16:37:05 GMT",
+            "Origin-Agent-Cluster": "?1",
+            "Referrer-Policy": "no-referrer",
+            "Server": "nginx/1.31.2",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "X-Content-Type-Options": "nosniff",
+            "X-DNS-Prefetch-Control": "off",
+            "X-Download-Options": "noopen",
+            "X-Frame-Options": "SAMEORIGIN",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "X-XSS-Protection": "0",
+            "access-control-allow-credentials": "true",
+            "access-control-allow-origin": "http://localhost",
+            "vary": "Origin",
+            "x-trace-id": "014e9b97-db1e-419f-a2b0-02adaa9e88c5"
+          },
+          "mimeType": "application/json",
+          "protocol": "http/1.1",
+          "remoteIPAddress": "[::1]",
+          "remotePort": 80,
+          "responseTime": 1781887025791.287,
+          "securityState": "secure",
+          "status": 401,
+          "statusText": "Unauthorized",
+          "timing": {
+            "connectEnd": -1,
+            "connectStart": -1,
+            "dnsEnd": -1,
+            "dnsStart": -1,
+            "proxyEnd": -1,
+            "proxyStart": -1,
+            "pushEnd": 0,
+            "pushStart": 0,
+            "receiveHeadersEnd": 655.33,
+            "receiveHeadersStart": 655.106,
+            "requestTime": 3839571.880253,
+            "sendEnd": 11.308,
+            "sendStart": 10.429,
+            "sslEnd": -1,
+            "sslStart": -1,
+            "workerFetchStart": -1,
+            "workerReady": -1,
+            "workerRespondWithSettled": -1,
+            "workerStart": -1
+          },
+          "url": "http://localhost/api/v1/snapshots/019ee0af-745a-7f46-b5ca-ca58db5f94af/extract"
+        },
+        "timestamp": 3839572.536404,
+        "type": "Fetch"
+      }
+    },
+    {
+      "sequence": 808,
+      "source": {
+        "tabId": 1931779045
+      },
+      "method": "Network.loadingFinished",
+      "params": {
+        "encodedDataLength": 870,
+        "requestId": "91908.2920",
+        "timestamp": 3839572.535983
+      }
+    }
+  ],
+  "hasMore": false,
+  "truncated": false
+}

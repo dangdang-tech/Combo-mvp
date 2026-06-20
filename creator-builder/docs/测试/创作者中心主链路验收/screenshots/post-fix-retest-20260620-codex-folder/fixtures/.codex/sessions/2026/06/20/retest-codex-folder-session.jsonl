@@ -1,0 +1,5 @@
+{"type":"session_meta","timestamp":"2026-06-20T02:00:00.000Z","payload":{"cwd":"/Users/qa/projects/codex-folder-import","type":"session_meta"}}
+{"type":"event_msg","timestamp":"2026-06-20T02:01:00.000Z","payload":{"type":"user_message","message":"我想把自己长期整理的用户研究访谈方法做成能力体。用户给产品背景、目标用户和已有访谈记录后，它能输出访谈洞察、机会点和下一步实验计划。"}}
+{"type":"response_item","timestamp":"2026-06-20T02:02:00.000Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"这个能力体可以叫 Research Insight Synthesizer。核心输入包括产品背景、目标用户、访谈摘要和业务目标。输出包括洞察主题、证据片段、机会优先级、待验证假设和实验建议。"}]}}
+{"type":"event_msg","timestamp":"2026-06-20T02:03:00.000Z","payload":{"type":"user_message","message":"要强调它适合 PM 和创始人使用，输出格式最好能直接复制到 Notion。"}}
+{"type":"response_item","timestamp":"2026-06-20T02:04:00.000Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"可以固定输出为 markdown sections: Summary, Key Insights, Evidence, Opportunities, Risks, Next Experiments。每个机会点包含 impact、confidence、effort 和 suggested owner。"}]}}

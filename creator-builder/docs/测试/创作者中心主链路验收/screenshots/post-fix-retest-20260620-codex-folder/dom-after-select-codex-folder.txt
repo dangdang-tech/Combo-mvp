@@ -1,0 +1,78 @@
+- complementary "侧边导航":
+  - link "Agora 创作者中心 首页":
+    - /url: /creator
+    - generic: Agora
+  - button "收起侧栏":
+  - navigation "主导航":
+    - paragraph: 创作
+    - list:
+      - link "工作台":
+        - /url: /creator
+        - generic: 工作台
+      - link "我的能力":
+        - /url: /capabilities
+        - generic: 我的能力
+      - link "上传能力":
+        - /url: /create
+        - generic: 上传能力
+      - link "数据分析":
+        - /url: /analytics
+        - generic: 数据分析
+      - link "收益":
+        - /url: /earnings
+        - generic: 收益
+    - paragraph: 我的
+    - list:
+      - link "个人主页":
+        - /url: /profile
+        - generic: 个人主页
+  - img "f645ddpk87wi · 创作者": F
+  - generic: f645ddpk87wi
+  - generic: 创作者
+- banner:
+  - paragraph:
+    - generic: 上传能力
+    - generic: /
+    - generic: Creator Builder
+  - img "f645ddpk87wi · 创作者": F
+- main:
+  - button "保存草稿"
+  - list "上传五步进度":
+    - generic "第 1 步：STEP① 导入（进行中）":
+      - generic: "1"
+      - generic: STEP① 导入
+      - generic: 进行中
+    - generic "第 2 步：STEP② 提取（待办）":
+      - generic: "2"
+      - generic: STEP② 提取
+      - generic: 待办
+    - generic "第 3 步：STEP③ 选择（待办）":
+      - generic: "3"
+      - generic: STEP③ 选择
+      - generic: 待办
+    - generic "第 4 步：STEP④ 结构化（待办）":
+      - generic: "4"
+      - generic: STEP④ 结构化
+      - generic: 待办
+    - generic "第 5 步：STEP⑤ 发布（待办）":
+      - generic: "5"
+      - generic: STEP⑤ 发布
+      - generic: 待办
+  - region "导入你的对话历史":
+    - heading "把对话历史，变成可发布的能力" [level=2]
+    - article "从浏览器导入":
+      - generic: 推荐 · 最省事
+      - heading "从浏览器导入" [level=3]
+      - paragraph: 直接选中或拖入你的对话历史文件/文件夹，浏览器会把原文完整上传到云端，由云端解析、去敏后用于后续步骤。
+      - group "拖拽文件或文件夹到这里导入":
+        - paragraph: 把文件或文件夹拖到这里，或
+        - button "选择文件导入"
+        - button "选择文件夹导入"
+        - button "选择文件"
+        - button "选择文件夹" [active]
+    - button "试试其它导入方式（命令行 / CURL）"
+    - paragraph: 导入说明
+    - paragraph: 导入会把你选择的对话历史完整上传到云端，由云端解析、去敏后再用于后续步骤。
+  - generic "向导导航":
+    - paragraph: 第 1 步，共 5 步
+    - button "下一步：提取能力项 →" [disabled]
