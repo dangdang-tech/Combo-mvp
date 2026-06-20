@@ -87,6 +87,42 @@ describe('clusterSegments — 聚类相似工作流', () => {
     const b = clusterSegments([...segs].reverse()).map((d) => d.slug);
     expect(a).toEqual(b);
   });
+
+  it('BUG-021：跨项目 / 跨标题但内容高度相似的 25 段聚成极少候选（不再一段一候选）', () => {
+    // 模拟测试员现场：25 个主题高度相似的 .codex 会话（都围绕「把访谈/运营/增长经验整理成可发布工作流」），
+    //   各自来自不同 cwd（project 各异）、标题近重复。旧版「先按 project 硬分桶」→ 25 桶 25 候选；
+    //   新版全局词袋 Jaccard 合并 → 应聚成极少簇、segmentCount 表达支撑段数。
+    const segs = Array.from({ length: 25 }, (_, i) =>
+      mkSeg({
+        segmentId: `sim-${String(i).padStart(2, '0')}`,
+        project: `proj-${i}`, // 各异 project（不同 cwd）——旧版会因此切碎成 25 桶
+        title: i % 2 === 0 ? '创作者经验工作流沉淀' : '创作者经验沉淀工作流', // 近重复标题
+        content: `创作者 经验 访谈 运营 增长 整理 发布 工作流 沉淀 复用 m${i}`, // 高度重叠正文 + 唯一标记
+      }),
+    );
+    const drafts = clusterSegments(segs);
+    // 25 段相似会话不再一段一候选：聚成极少簇（远小于 25）。
+    expect(drafts.length).toBeLessThanOrEqual(3);
+    // 最大簇承接绝大多数段（segmentCount 表达支撑段数，契约 30「按频次表达」）。
+    const maxSize = Math.max(...drafts.map((d) => d.segments.length));
+    expect(maxSize).toBeGreaterThanOrEqual(20);
+    // 全部 25 段都被纳入（无丢段，血缘不漏）。
+    const total = drafts.reduce((acc, d) => acc + d.segments.length, 0);
+    expect(total).toBe(25);
+  });
+
+  it('BUG-021 反向：内容不相交、project 各异的两组不被误合（防过度合并）', () => {
+    const groupA = Array.from({ length: 3 }, (_, i) =>
+      mkSeg({ segmentId: `a-${i}`, project: null, title: '水果', content: '苹果 香蕉 橙子 葡萄 西瓜' }),
+    );
+    const groupB = Array.from({ length: 3 }, (_, i) =>
+      mkSeg({ segmentId: `b-${i}`, project: null, title: '交通', content: '汽车 火车 飞机 轮船 自行' }),
+    );
+    const drafts = clusterSegments([...groupA, ...groupB]);
+    // 词袋零交集 + project 均空（不触发同项目合并）→ 恰好两簇，不被全局合并误并成一簇。
+    expect(drafts.length).toBe(2);
+    expect(drafts.map((d) => d.segments.length).sort()).toEqual([3, 3]);
+  });
 });
 
 describe('scoreCandidates — 评估 + 排序', () => {

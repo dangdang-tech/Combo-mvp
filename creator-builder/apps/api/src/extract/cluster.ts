@@ -115,16 +115,6 @@ export function tokenize(text: string): string[] {
   return out;
 }
 
-/** 段签名（簇 key 的种子）：项目优先；无项目用标题主导词；都没有归 'misc'。 */
-function segmentClusterKey(seg: ExtractSegment): string {
-  if (seg.project && seg.project.trim()) return `proj:${seg.project.trim()}`;
-  const toks = tokenize(seg.title ?? '');
-  if (toks.length > 0) return `topic:${toks[0]}`;
-  const ctoks = tokenize(seg.content);
-  if (ctoks.length > 0) return `topic:${ctoks[0]}`;
-  return 'misc';
-}
-
 /** Jaccard 相似度（两词袋集合）。 */
 function jaccard(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 && b.size === 0) return 0;
@@ -150,11 +140,25 @@ export function slugify(label: string, fallbackSeed: string): string {
 
 /**
  * analyze + cluster + form（前三子任务的纯计算）：
- *   - 按 segmentClusterKey 初步分桶（项目/主导词）；
- *   - 桶内再按词袋 Jaccard 合并近似段（阈值 0.5）——把「同一工作流的不同会话」聚到一簇；
- *   - 每簇达 minSegments 段 → 一个 DraftCandidate（带稳定 slug + 支撑段集）。
- *   稳定性（提取-30 不跳变）：簇内段按 segmentId 升序；簇间按「首段 segmentId」升序，确保多次运行同序。
+ *   - 【全局】贪心合并：把全部段按 segmentId 升序遍历，每段并入第一个「同一非空 project 或 词袋 Jaccard ≥ 阈值」
+ *     的已有簇，否则开新簇——把「同一工作流的不同会话」聚到一簇（BUG-021）。
+ *     不再先按 project / 标题硬分桶：跨项目 / 跨标题但内容高度相似的会话此前被分桶切碎、永不互相比较 → 一段一候选；
+ *     契约 30 §2.1「worker 携 snapshot_id 只在该快照段集内聚类」的范围是「同一快照」，不是「同一项目」。
+ *   - 合并信号叠加（任一成立即并簇）：
+ *       a) 同一非空 project（同项目的同类工作流，即便长正文稀释词袋也聚合；与 scoreCandidates 的 crossProject
+ *          信号自洽——一个簇本就允许跨/同项目）；
+ *       b) 标题词袋 Jaccard ≥ TITLE_MERGE_THRESHOLD 且双方标题词数 ≥ TITLE_MIN_TOKENS（近重复标题——这是
+ *          BUG-021 现场的核心症状：标题如「创作者经验工作流沉淀」「创作者经验沉淀工作流」反复出现。标题对工作流
+ *          意图的指示性强、且不被长正文稀释，最小词数守门避开「工作流」这类 2-token 泛标题误触）；
+ *       c) 全词袋（标题+正文）Jaccard ≥ mergeThreshold（内容相似）。
+ *   - 每簇达 minSegments 段 → 一个 DraftCandidate（带稳定 slug + 支撑段集，segmentCount = 簇内段数）。
+ *   稳定性（提取-30 不跳变）：按 segmentId 升序遍历、每段并入首个达标簇（首段为簇代表，稳定）；
+ *     簇内段天然按 segmentId 升序、簇间按「首段 segmentId」升序，确保多次运行同序。
  */
+// 标题近重复判定（BUG-021）：标题词袋相似度阈值 + 最小标题词数守门（泛标题如「工作流」=2 token 不触发）。
+const TITLE_MERGE_THRESHOLD = 0.5;
+const TITLE_MIN_TOKENS = 3;
+
 export function clusterSegments(
   segments: ExtractSegment[],
   opts: { minSegments?: number; mergeThreshold?: number } = {},
@@ -162,46 +166,51 @@ export function clusterSegments(
   const minSegments = opts.minSegments ?? 1;
   const mergeThreshold = opts.mergeThreshold ?? 0.5;
 
-  // 段词袋（content + title）。
+  // 段词袋（content + title 合并，全相似判定用）+ 标题词袋（近重复标题判定用，不被长正文稀释）。
   const bags = new Map<string, Set<string>>();
+  const titleBags = new Map<string, Set<string>>();
   for (const s of segments) {
     bags.set(s.segmentId, new Set(tokenize(`${s.title ?? ''} ${s.content}`)));
+    titleBags.set(s.segmentId, new Set(tokenize(s.title ?? '')));
   }
 
-  // ① 初步分桶。
-  const buckets = new Map<string, ExtractSegment[]>();
-  for (const s of segments) {
-    const key = segmentClusterKey(s);
-    const arr = buckets.get(key) ?? [];
-    arr.push(s);
-    buckets.set(key, arr);
-  }
-
-  // ② 桶内按 Jaccard 合并成簇（贪心：每段并入第一个相似度 ≥ 阈值的已有簇，否则开新簇）。
-  const drafts: DraftCandidate[] = [];
-  for (const [, bucketSegs] of buckets) {
-    const sorted = [...bucketSegs].sort((a, b) => (a.segmentId < b.segmentId ? -1 : 1));
-    const clusters: ExtractSegment[][] = [];
-    for (const seg of sorted) {
-      const segBag = bags.get(seg.segmentId)!;
-      let placed = false;
-      for (const cl of clusters) {
-        // 与簇内首段比相似度（首段是簇代表，稳定）。
-        const repBag = bags.get(cl[0]!.segmentId)!;
-        if (jaccard(segBag, repBag) >= mergeThreshold) {
-          cl.push(seg);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) clusters.push([seg]);
-    }
+  // 全局贪心合并成簇：每段并入首个「同 project / 近重复标题 / 全词袋相似」的已有簇，否则开新簇。
+  //   按 segmentId 升序遍历 + 与簇内首段（簇代表）比较 → 同输入恒同序、同结果（提取-30 不跳变）。
+  const sorted = [...segments].sort((a, b) => (a.segmentId < b.segmentId ? -1 : 1));
+  const clusters: ExtractSegment[][] = [];
+  for (const seg of sorted) {
+    const segBag = bags.get(seg.segmentId)!;
+    const segTitleBag = titleBags.get(seg.segmentId)!;
+    const segProj = seg.project?.trim() ? seg.project.trim() : null;
+    let placed = false;
     for (const cl of clusters) {
-      if (cl.length < minSegments) continue;
-      const label = clusterLabelOf(cl);
-      const seed = cl.map((s) => s.segmentId).join('|');
-      drafts.push({ slug: slugify(label, seed), clusterLabel: label, segments: cl });
+      const rep = cl[0]!;
+      const repProj = rep.project?.trim() ? rep.project.trim() : null;
+      const sameProject = segProj !== null && segProj === repProj;
+      const repTitleBag = titleBags.get(rep.segmentId)!;
+      const titleSimilar =
+        segTitleBag.size >= TITLE_MIN_TOKENS &&
+        repTitleBag.size >= TITLE_MIN_TOKENS &&
+        jaccard(segTitleBag, repTitleBag) >= TITLE_MERGE_THRESHOLD;
+      if (
+        sameProject ||
+        titleSimilar ||
+        jaccard(segBag, bags.get(rep.segmentId)!) >= mergeThreshold
+      ) {
+        cl.push(seg);
+        placed = true;
+        break;
+      }
     }
+    if (!placed) clusters.push([seg]);
+  }
+
+  const drafts: DraftCandidate[] = [];
+  for (const cl of clusters) {
+    if (cl.length < minSegments) continue;
+    const label = clusterLabelOf(cl);
+    const seed = cl.map((s) => s.segmentId).join('|');
+    drafts.push({ slug: slugify(label, seed), clusterLabel: label, segments: cl });
   }
 
   // 簇间稳定排序（按首段 segmentId）。slug 唯一化（同 slug 撞了加序号后缀，叠加 (job,slug) 去重键）。
