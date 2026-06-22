@@ -1,7 +1,0 @@
-P1: [upload-manifest-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/import/upload-manifest-repo.ts:185) 直传 r5 原子 CTE 仍对 `import_uploads` 同一行做两次 data-modifying CTE `UPDATE`（先 `consumed` 置 `consumed_at`，再 `linked` 回写 `job_id`）。真实 PG 下同语句二次改同行不可靠，可能留下 `consumed_at IS NOT NULL AND job_id IS NULL`，破坏 r5 不变式并导致重试无法恢复。修法：改成 `active AS SELECT ... FOR UPDATE` 守门，`new_job INSERT ... SELECT FROM active`，最后单次 `UPDATE import_uploads SET consumed_at=now(), job_id=new_job.id`，最终 `SELECT` 从 redeemed 返回。
-
-P1: [import-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/import-handlers.ts:157) 直传重试先做对象桶 manifest gate，`manifest.consumedAt` 且原文已清弃/桶对象不可列时直接 404，绕过 `job_id` 恢复，违反“同 uploadId 恢复同一 job、非 404”。修法：读到 `consumed_at && job_id` 时应在 list/gate 前直接按 `job_id` 恢复 JobView；只有未 consumed 才校验桶对象完整性。
-
-P1: [import.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/import.ts:56) + [pair-auth.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/middleware/pair-auth.ts:93) 助手路径完成后 `used_at`/`phase=job_created` 会被 PairAuth 在 idempotency 之前拦成 401，`connectUploadHandler` 也把终态重传测成 409，无法做到“同配对恢复同一 job”。修法：终态 `job_created + job_id` 的同 pairId/code 重试要走恢复分支返回既有 `jobView`，或调整鉴权/幂等顺序并把 Authorization 纳入 request_hash，避免绕过码校验。
-
-VERDICT: FAIL

@@ -1,9 +1,0 @@
-r3 四项未闭合。P1 `deadLetterAndSkip` 与 `completeJob/currentProgress()` 已落地；P0/P1 仍有阻塞，3A 不能作为 3B-3F runtime baseline。
-
-- P0 [plugins/sse.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/plugins/sse.ts:186) + [routes/_sse.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/_sse.ts:141): replay 窗口内但没 replay 到 `done` 时，即使 DB snapshot 已是终态，也会跳过 `terminalFrames()` 并启动 live subscribe。Redis `done` 是尽力而为，丢帧或 `Last-Event-ID` 等于 done id 时会变成终态 job 悬挂心跳。修法：replay 后、subscribe 前统一检查终态；非 running 禁止 subscribe，补一次 terminal frame 后 stop。
-
-- P1 [infra/queue.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/infra/queue.ts:111): `remove(jobId)` 只扫进程内已实例化的 `queues.values()`，冷启动/重启后的取消不会清掉已有 BullMQ attempt triggers，不满足“按业务 id 清所有触发”。修法：`remove` 遍历 `ACTIVE_JOB_TYPES` 并 `queueFor(env,type)` 后按 `data.jobId` 扫全队列；补冷 map 回归测。
-
-验证：目标 Vitest 因只读沙箱无法写 Vite 临时 config，启动即 EPERM；以上为代码审阅结论。
-
-VERDICT: FAIL

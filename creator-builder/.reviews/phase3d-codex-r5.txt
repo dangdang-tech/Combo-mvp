@@ -1,7 +1,0 @@
-P1 `creator-builder/apps/api/src/jobs/handlers/structure.ts:448` — `mergeStructureState()` 只保留 `failed/stuck`，不保留 `generating + value` 的数组 partial。`writeArrayItemIfGenerating()` 的 partial 只落 `structure_state`，不落 manifest；worker crash / sweeper 接管后新 attempt 会从 manifest 重建空数组，并在 `structure.ts:240-241` 首次 persist 时覆盖掉已落 partial。修法：merge 保留数组字段的 `generating` partial value/attempts，并让 resume 跳过已落 item index，避免重复 append；补“旧 fence out 后新 attempt 起步不丢 partial”的反向测试。
-
-P1 `creator-builder/apps/api/src/structure/structure-edit-repo.ts:189` — `projectStateAfterPatch()` 同样只保留 `failed/stuck`。结构化运行中若 PATCH 其它软字段，会从 manifest 投影并擦掉未被 patch 字段里的数组 partial。修法：未 patch 字段也保留 `generating` 数组 partial，或在 active structure job 存在时强制 423/If-Match 保护；补并发 PATCH 不丢 partial 的测试。
-
-r4 当前“逐项写成功才 emit、rowCount=0 不 emit、field_done 落完整数组+done”局部成立，但“中断/接管后已生成不丢”不闭合，不能作为 STEP③④ 基线。
-
-VERDICT: FAIL

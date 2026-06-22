@@ -1,8 +1,0 @@
-无 P0/P1 阻塞。r2 已落地自洽：401/403 建流前 HTTP ErrorEnvelope 进错误态、白名单重建且不重连；2xx `text/event-stream` 正常订阅；网络瞬断路径仍保留 `Last-Event-ID` 续传语义。
-
-非阻塞建议：
-- [useSSE.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/api/useSSE.ts:409)：`content-type.includes()` 可改为小写后精确解析 media type。
-- [mockFetchEventSource.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/test/mockFetchEventSource.ts:77)：可补网络 `errorDrop` 后库内自动重连的 mock 驱动，直接断言新请求头。
-- Vitest 未跑通：只读沙箱阻止 Vite 写临时 config 文件，非代码失败。
-
-VERDICT: PASS

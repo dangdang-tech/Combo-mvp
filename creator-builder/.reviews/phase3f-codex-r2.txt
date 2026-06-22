@@ -1,5 +1,0 @@
-[P1] [dashboard-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/dashboard/dashboard-repo.ts:108) / [dashboard-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/dashboard/dashboard-repo.ts:223)：dashboard 能力表、草稿条只校验 cursor 编码格式，未校验锚点 id 是否仍属于当前 owner 和当前过滤集合。合法编码但不存在、越界、他人 id、被 status 筛掉的 cursor 会静默错页或空页，未按 60 §1.6 / r1 P1 返回 400 `VALIDATION_FAILED`。修法：decode 后用同一 owner/status 条件校验 anchor 存在，不存在即 throw `InvalidCursorError`；补 missing / other-owner / status-filtered cursor 的 400 用例。
-
-已核验：r1 P0 主页密度/网络 owner 隔离已落地；profile density/works cursor 已闭环；social follow/like 目标校验、自赞禁止、计数 RETURNING 不静默已闭环。当前仅上述 dashboard cursor 失效语义阻塞基线。
-
-VERDICT: FAIL

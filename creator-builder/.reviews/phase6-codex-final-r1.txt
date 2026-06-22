@@ -1,5 +1,0 @@
-VERDICT: FAIL
-
-[P0] [creator-builder/apps/api/src/routes/auth.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/auth.ts:11) — Auth 四端点只声明 method/url/preHandler，没有 handler；[registerEndpoints](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/_helpers.ts:48) 会落到 501。契约要求 login 302、callback 换会话并种 `cb_session`、logout 200、`/me` 返回 `MeView`。修法：补真实 Logto login/callback/logout/me handlers，并把 [app.test.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/__tests__/app.test.ts:41) 中“/auth/login 期望 501”的测试改为契约行为。
-
-[P1] [creator-builder/.github/workflows/ci.yml](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/.github/workflows/ci.yml:1) — CI workflow 放在 `creator-builder/.github/`，但仓库根是 `/Users/danielxing/repos/agora-mvp-creator-builder`，根目录没有 `.github/`，GitHub Actions 不会识别。修法：移动到仓库根 `.github/workflows/ci.yml`，保留 `working-directory: creator-builder`。

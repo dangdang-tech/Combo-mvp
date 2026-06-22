@@ -1,7 +1,0 @@
-阻塞项：无。
-
-核验结论：`50-step5-publish.md` 已与 `70-events-infra.md` / `packages/shared/src/domains/events.ts` 对齐。§1.2 单发布事务明确写 `capability.published` + `notify.publish_completed` 两条同事务 outbox；§5.1 和摘要列出本域 4 个 active topic；MarketplaceProjection 只消费 `capability.published/unpublished`；NotifyConsumer 只消费 `notify.publish_completed/review_decided`。未串入 `notify.import_completed` / `notify.extract_completed`，也未列入冻结 `usage.metering` / `runtime.session_event`。
-
-非阻塞建议：`_consistency-report.md` 历史段落仍有一处旧“3 active topic”叙述，但后续 P2R7 收口段已更正，且不在 50 本文内。后续 Phase 3 真 consumer 实现时，建议把 shared `OutboxEvent` 镜像补上 `xid`，避免实现者漏掉 70 要求的提交序水位字段。
-
-VERDICT: PASS

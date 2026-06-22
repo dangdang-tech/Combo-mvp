@@ -1,9 +1,0 @@
-r4 P0 已解除：STEP② `draftId` 前端 POST body、schema、后端同 CTE 同事务回填、owner 守卫、GET draft 恢复 `extractJobId`、续传到 STEP③ 均自洽，且有反向测试覆盖。
-
-阻塞项：
-
-- P1 `creator-builder/apps/web/src/pages/wizard/SelectStepPage.tsx:122`：STEP③ 保存选择失败后，footer 主按钮被设置为 `busy:true/enabled:false/处理中…`，`finally setAdvancing(false)` 后没有恢复 primary action；`ErrorState` 的 retry 只清错误，不会重试保存或恢复按钮，导致续传候选选择在一次 PATCH 失败后卡死。修法：把 `advancing` 纳入 `SelectStep` 注册 primary action 的状态，或在 advancing 结束时显式恢复当前选择对应的按钮；补失败回归测试断言 PATCH 失败后按钮可再次触发/不保持忙态。
-
-文档端点计数滞后仍按 P2，不阻塞。未跑 Docker/PG；本轮按只读静态审查+现有 mock/反向测试核验。
-
-VERDICT: FAIL

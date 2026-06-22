@@ -1,5 +1,0 @@
-阻塞项：
-
-[P1] [creator-builder/docs/contracts/50-step5-publish.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/50-step5-publish.md:915) 仍写“复用 outbox_events（capability.published / capability.unpublished / notify.review_decided 三 topic）”，漏掉已补入 §5.1 且 70/shared 权威存在的 `notify.publish_completed`。修法：改为四 topic，加入 `notify.publish_completed`，并与 §5.1/70 §1/§2.3/shared `events.ts` 保持一致。
-
-VERDICT: FAIL

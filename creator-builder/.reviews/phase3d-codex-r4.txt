@@ -1,8 +1,0 @@
-A) r3 `field_stuck` 持久化：通过。`writeFieldStuckIfGenerating` 只 `jsonb_set` patch `structure_state.fields[*].status/stuckMs`，不写 `manifest`，并带 `jobs.id + fence_token + status='running' + 字段仍 generating` 守卫；done/failed 后迟到写命中 0 行 no-op。测试也覆盖 done 后、failed 后、正常 generating、慢字段后转 done、旧无条件写反向破坏。
-
-B) STEP③④ 不能作为无 P1 基线。
-
-[P1] [structure.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/structure.ts:303) + [generate.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/structure/generate.ts:94) — 数组字段逐项 `item-appended` 只推 SSE，不逐项落 `structure_state`；真正持久化要等整个数组字段完成后才发生在 [structure.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/structure.ts:359)。这违反 40 契约“每字段 / 每数组项生成完即落 `capability_versions.structure_state`”，崩溃/取消/断线窗口会丢已经浮现给用户的数组项。  
-修法：`onArrayItem` 内先用受保护 CTE 按 fence/running 且字段仍 generating 写入该数组字段的 partial `value` 到 `structure_state`，写成功后再 emit `item-appended`；最终 `field_done` 再落完整数组 + `status=done`。补反向测试：item 已 emit/落 partial 后模拟中断，重连 snapshot 仍含 partial items；rowCount=0 时不得 emit。
-
-VERDICT: FAIL

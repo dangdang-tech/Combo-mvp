@@ -1,7 +1,0 @@
-r2：manifest 闸、direct enqueue 失败处理、stale queued 补投通过；CTE 形态已改对，但 active pairing 判定不完整。
-
-P1 阻塞： [pairings-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/import/pairings-repo.ts:348) `createImportJobForPairing` 的 `linked` CTE 只判 `phase IN ('waiting','uploading')`，未在最终兑换点判 `used_at IS NULL`、`expires_at > now()`，也未守住 attempts 耗尽态。修法：`linked` WHERE 补完整 active predicate，并加 `phase='uploading' + expires_at < now` 不建 job 的 PG CTE 回归测。
-
-P1 阻塞： [import.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/import.ts:364) 在最终完成事务前、且无 fence 保护调用 `supersedePriorSnapshots`；[snapshot-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/import/snapshot-repo.ts:106) 该更新本身也不校验 job fence/status。取消或 fence-out 后可能把旧快照标记为被一个未完成/部分导入的新快照 supersede，违反“取消不丢”和血缘 fence。修法：将 supersede 放入 complete+outbox 同事务，且通过 job 当前 fence/status guarded；取消/fence-out 不更新血缘，补取消后旧快照 `superseded_by` 不变的回归测。
-
-VERDICT: FAIL

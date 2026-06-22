@@ -1,9 +1,0 @@
-阻塞项：
-
-- `creator-builder/infra/docker-compose.yml:140,144,157,213-215`: Logto 自身 healthcheck 断言 issuer=`http://localhost:3001/oidc`，但 API 配置验签/ready 使用 `http://logto:3001/oidc`；契约 `10-auth-logto.md:220,445-447` 要求 issuer 严格相等。结果是 compose 可判 Logto healthy，但 API `/ready` 必 down，JWT `iss`/JWKS 也会错配。修法：统一 Logto `ENDPOINT`、healthcheck `LOGTO_ISSUER`、API `LOGTO_ISSUER/LOGTO_JWKS_URI` 的 canonical issuer；若必须 public/internal 分离，新增 internal discovery/JWKS URL，不要让 token `iss` 与 ready/验签 issuer 分裂。
-
-- `creator-builder/docs/contracts/50-step5-publish.md:730,889,914` vs `creator-builder/docs/contracts/70-events-infra.md:44,94` / `creator-builder/packages/shared/src/domains/events.ts:7-30`: B-30 评审事件 topic 在权威契约内分裂为 `capability.review_resolved` 与 `notify.review_decided`，shared 只实现后者。Phase 3 按 50 实现会发不出 typed/active topic，按 shared 实现又违背 50/一致性报告。修法：全契约和 shared 统一为一个 topic，并同步 `OutboxTopicSchema`、`ACTIVE_OUTBOX_TOPICS`、`TOPIC_CLASS`、payload schema、event_id 模板和 consumer 路由。
-
-已核验：r3 两项通过；D1、四进程分离、`/health`/`/ready` 依赖模型、JWKS 503/userId provision、幂等 fence、SSE Cookie-only+具名 heartbeat、36 表/复合 FK/后置 ALTER、reviewer 禁自审均未见其他阻塞。
-
-VERDICT: FAIL

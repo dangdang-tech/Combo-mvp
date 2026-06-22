@@ -1,8 +1,0 @@
-阻塞项：
-
-1. [00-约定与状态机.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/00-约定与状态机.md:189)、[_index.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/_index.md:157)：`auth/callback` 豁免清单写成 `POST /auth/callback`，但真实端点在 [10-auth-logto.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/10-auth-logto.md:97) 与 [_index.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/_index.md:41) 均为 `GET /api/v1/auth/callback`。这破坏端点方法与幂等豁免口径自洽。  
-修法：两处改为 `GET /api/v1/auth/callback`，并说明它是 OIDC browser redirect，code/state 一次性，不属于 POST/PATCH/DELETE 写命令 key 体系；或从 §2.10 的 POST 豁免清单移出，单列为 GET 回调例外。
-
-R6 两项本身已闭合：selection 普通 HTTP 鉴权为 `requireAuth + requireRole('creator') + owner`，connect/pair 必带 `Idempotency-Key` 且 scope=`import.connect.pair`。§2.10 的 22 个写命令 scope 未见冲突，presign/preview 的“不写库只读 POST”理由成立。
-
-VERDICT: FAIL

@@ -1,7 +1,0 @@
-阻塞项：
-
-- `creator-builder/.env.example:47-49` + `creator-builder/README.md:136-139`: quickstart 会把 compose 的 Logto URL 覆盖成 `localhost`，API 容器内 `/ready` 和 JWKS 会打到自己。修法：拆 `.env.local.example` / `.env.compose.example`，compose 用 `http://logto:3001/oidc`。
-- `creator-builder/.env.example:18,30-31`: 示例密钥会满足 compose 的 `${VAR:?}`，等于绕过“无默认密钥”。修法：密钥留空或启动脚本拒绝 `agora/minioadmin`。
-- `creator-builder/docs/contracts/50-step5-publish.md:729` vs `70-events-infra.md:384-386` / `packages/shared/src/domains/events.ts:134-140`: `capability.unpublished` payload 仍不一致。修法：50 统一引用 `CapabilityUnpublishedPayload`，reason 改为 `review_rejected_no_prev`，字段与 70/shared 对齐。
-
-VERDICT: FAIL

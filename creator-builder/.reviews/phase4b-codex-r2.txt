@@ -1,8 +1,0 @@
-阻塞项：
-
-- P1 [App.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/App.tsx:31): 实际路由树没有 `/a/:slug`，但工作台“查看公开页”会跳 `/a/${slug}`，作品墙卡片也指向 `/a/${slug}`，当前落到 NotFound。修法：显式增加 `/a/:slug` 公开能力页或只读占位页。
-- P1 [hooks.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/pages/dashboard/hooks.ts:88): 工作台能力表分页仍直接 `pages.flatMap`，未按 `capabilityId` 去重；只有 `/capabilities` 独立页做了 dedupe。修法：在 `useCapabilities` flatten 后按 `capabilityId` 去重。
-
-其余复核：`/profile` self alias、sectionErrors、usage 占位键、密度下钻反馈、profile works cursor 追加、独立能力页分页、更多菜单占位反馈均已读代码确认落地。
-
-VERDICT: FAIL

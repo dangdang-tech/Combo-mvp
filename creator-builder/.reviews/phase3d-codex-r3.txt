@@ -1,3 +1,0 @@
-VERDICT: FAIL
-
-P1 `creator-builder/apps/api/src/jobs/handlers/structure.ts:250-258,349-355`: `field_stuck` 持久化是未等待的异步 `setTimeout`，会与成功/失败终态 `persist` 并发；慢 stuck 写可能在 done 写之后落库，用旧 `manifest` + `stuckState` 覆盖已生成内容，破坏 `stuck 清` / `已生成不丢`。修法：串行化 stuck 写与终态写，确保终态最后落库；或将 stuck 改成只更新 `structure_state` 且带当前字段仍为 `generating` 的条件写，绝不写旧 `manifest`，并加反向破坏测试。

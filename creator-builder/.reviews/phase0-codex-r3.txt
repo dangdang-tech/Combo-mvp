@@ -1,5 +1,0 @@
-A) 4 条残留：全部已修复。
-
-B) 未发现新的阻塞性不一致或缺陷。非阻塞建议：Logto `alteration` compose job 落实时补明 `CI=true`/目标版本，避免非交互环境卡住（参考 Logto 官方部署与 CLI 文档：https://docs.logto.io/logto-oss/deployment-and-configuration ，https://docs.logto.io/logto-oss/using-cli/database-alteration）。
-
-VERDICT: PASS

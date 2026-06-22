@@ -1,1 +1,0 @@
-VERDICT: PASS — 上线前非阻塞建议：清理残留“501 占位”注释；用户侧跑 Docker live + acceptance-smoke；把 authenticated smoke B 段扩到完整五步主链路。

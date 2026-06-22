@@ -1,9 +1,0 @@
-VERDICT: PASS
-
-核心项通过。`fetchMe()` 现在用 `envelopeSchema(MeViewSchema)` 解析 200 body 并读取 `.data`，对齐后端 [auth-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/auth-handlers.ts:348) 的 `{ data: me, meta }` 返回形状；非法包络/裸 `MeView` 会降级为 `error`，不冒充 authed。401→`anon`、非 2xx/网络→`error`、常规 fetch `AbortError` 透传也成立。
-
-测试侧也补上了 r2 的漏洞：[auth.test.tsx](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/shell/auth.test.tsx:33) 使用真实 `ME_ENVELOPE`，并在 [line 166](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/shell/auth.test.tsx:166) 断言 authed 后渲染 `<Outlet/>`；[line 48](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/web/src/shell/auth.test.tsx:48) 有“裸 MeView 200 → error”回归守卫。
-
-`loginUrl(returnTo)` 已只接受单 `/` 开头且非 `//` 的站内相对路径；`http(s)://` 因非 `/` 开头被拒，`//host` 被显式拒。路由分组、公开裸壳、受保护壳、BUG-001..007 和三铁律在本轮 diff 内未见新的阻断回归。
-
-非阻塞 nit：`fetchMe()` 的 `res.json()`/schema catch 会吞掉“响应已到但读 body 时 abort”的极窄边界；常规 fetch abort 已透传。未复跑 559 个测试，本结论基于只读源码/diff/后端 handler 对照。

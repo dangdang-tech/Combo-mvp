@@ -1,9 +1,0 @@
-A) r5 不通过。两项都有局部落地，但端到端不自洽。
-
-P1 [structure.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/structure.ts:311) — resume 只按 `resumeOffset` 跳过已落 index，但成功收口时又用 `gen.result.value` 整数组覆盖 [structure.ts:384](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/structure.ts:384)。新 attempt 若重生出不同前缀，会把 `structure_state` 已落 partial 替换掉。修法：数组 finalize 必须以 DB/current state 已落 prefix 为权威，写 `persistedPrefix + generated.slice(resumeOffset)`，或在受保护 SQL 内按当前行合并。
-
-P1 [structure-edit-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/structure/structure-edit-repo.ts:193) + [structure.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/structure.ts:404) — PATCH 时确实保留了未 patch 字段的 generating partial，但 worker 后续仍用启动时旧 `manifest/state` 做整列 `writeManifestAndStateProtected`，会覆盖并发 PATCH 的软字段/状态。修法：worker 落字段完成时改成基于当前 DB 行的 surgical merge/CTE，只覆盖本字段及派生硬字段，保留其他当前字段；或 PATCH active structure job 返回 423。
-
-B) 因以上两个 P1，不能作为 STEP③④ 基线。
-
-VERDICT: FAIL

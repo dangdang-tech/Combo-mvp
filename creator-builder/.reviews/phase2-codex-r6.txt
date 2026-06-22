@@ -1,9 +1,0 @@
-阻塞项：
-
-[P1] [50-step5-publish.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/50-step5-publish.md:728) 把 `capability.published` / `capability.unpublished` 标给 `NotifyConsumer`，但 [70-events-infra.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/70-events-infra.md:39) 和 [events.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/packages/shared/src/domains/events.ts:121) 定义 `capability.*` 为 lifecycle topic，仅 `MarketplaceProjection` 消费；payload 也没有 `recipientId/link`，不能被 NotifyConsumer 解析。修法：删除这两行的 `NotifyConsumer`；创作者通知走 `notify.*`。
-
-[P1] [50-step5-publish.md](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/docs/contracts/50-step5-publish.md:724) “本域三类事件”缺 active topic `notify.publish_completed`，而 70/shared 已定义 `notify.publish_completed`、`event_id=publish_done:{versionId}`、`NotifyPublishCompletedPayload`、consumer=`NotifyConsumer`。修法：在 50 §5.1 增加该事件；若批量发布要 batch-wide 通知，则同步修改 70 + shared，不要复用单 version payload。
-
-其余核验未见阻塞：env 拆分、compose issuer、空/弱密钥守卫、D1 无 code、四进程、`/health` `/ready`、JWT/JWKS/aud/roles/self-review、幂等 fence、SSE Cookie-only+具名 heartbeat、36 表+复合 FK+后置 ALTER、outbox/consumer/dead_events 均通过静态核验。Docker/PG/真 Logto 未跑，按授权不计。
-
-VERDICT: FAIL

@@ -1,7 +1,0 @@
-VERDICT: PASS
-
-我复核了四个函数，`tgt AS MATERIALIZED (... FOR UPDATE)` 都在，`idx/next_state` 都从锁后的 `tgt.structure_state` 算，最终 `UPDATE FROM` 都有 `v.id = tgt.id AND v.id = $3`。`writeFieldDoneSurgical` 的整列 `structure_state = next_state.next` 现在也是从锁后最新行重建，不再用 stale state 擦并发字段。
-
-锁序上也过关：结构化四写只锁 version 行，`jobs` 仍只做最终 fence 守门；`patchManifestSoftFields` 和 `acquireRegenerateFieldJob` 都是 version-first。没看到 job→version 的反向链。wrong-fence / 已取消在语句快照内仍会 0 行；这里不加 `job_guard` 是合理的，避免引入额外 job 行锁。
-
-测试我没能实跑：read-only 沙箱挡住了 Vitest 写临时 config 文件，报 `EPERM ... vitest.config.ts.timestamp-...mjs`。但源码静态核验和测试内容复核通过；新增真实 PG 交错测试覆盖了 T1 done 持锁、T2 stuck 阻塞、commit 后 T2=false 且字段保持 done 的回归场景。

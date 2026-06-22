@@ -1,8 +1,0 @@
-未发现 P0/P1 阻塞。静态复审结论：A、B 均通过，可作为 Phase4 前端收官基线；证据基于只读代码审查与现有忠实 mock/反向破坏用例，未执行测试。
-
-非阻塞建议：
-- P2: `BatchPublish.tsx` / `PublishStepPage.tsx` 补组件级集成测试，覆盖 resumeBatchId、draftId 入参、逐项 retry、candidate-only 批量 body。
-- P2: `DashboardPage.tsx` 续传 URL 建议补 `capability` 参数，避免 SinglePublish 首帧依赖 hydrate 后才拿到 capabilityId。
-- P2: `MarketCardPreview.tsx` 试用按钮建议使用真实 `disabled`，而不是仅 `aria-disabled` + no-op。
-
-VERDICT: PASS

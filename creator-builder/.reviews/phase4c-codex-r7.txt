@@ -1,5 +1,0 @@
-r6 两个显式修复中，子集选择链路和 STEP④ 前端稳定 `Idempotency-Key` 已落地；但全量回归仍有 P1 阻塞。
-
-- P1 [batch-structure.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/publish/batch-structure.ts:88) + [publish-batch.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/jobs/handlers/publish-batch.ts:280)：批量 candidate `createCapability` 先提交新 capability/version，再用 fence 受保护回填 item。若 create commit 后、回填前 job 被接管/lease 过期，回填 0 行，item 仍无 `version_id`；下一 attempt 会再次按 candidate create，重复建版。现有测试只覆盖“早回填成功后再 fencedOut”，没覆盖这个更早窗口。修法：把 create + item version 回填合成同一受保护事务/CTE，或为 batch candidate create 引入持久稳定幂等键并服务端回放同一 version；补反向测试覆盖“create 成功但 backfill 返回 false 后重试不重复建版”。
-
-VERDICT: FAIL

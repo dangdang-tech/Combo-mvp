@@ -1,8 +1,0 @@
-无 P0/P1 阻塞。r3 三项已落地自洽：封面/visibility 均版本级冻结，rollback/projection 读被展示版自身值，拒绝态 displayState 已从 `publications.review_status/reject_reason` 单源派生且 3E 读路径使用。
-
-非阻塞建议：
-- `review-repo.ts:316` / `:325`：建议检查两个 `UPDATE capability_versions` 的 `rowCount`，异常数据时直接回滚，避免 silent no-op。
-- `publication-repo.ts:104`：建议只在 rejected 可见态返回 `rejectedVersionId/rejectedAt`，避免正常 published 视图暴露历史 rejected 版定位。
-- 测试未实际跑通：只读沙箱阻止 Vitest 写临时 config 文件；静态审查已核对应 mock 反向测试。
-
-VERDICT: PASS

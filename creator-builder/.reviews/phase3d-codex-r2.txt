@@ -1,7 +1,0 @@
-已核其余项未见 P0/P1 阻塞；但以下 2 个 P1 未闭环：
-
-- P1 [structure-handlers.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/routes/structure-handlers.ts:420) / [structure-edit-repo.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/structure/structure-edit-repo.ts:259) / [create-structure-job.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/apps/api/src/structure/create-structure-job.ts:186)：F 重生成先把字段写成 `generating`，再插入 job；若 version 级唯一锁冲突返回 423，已拒绝请求仍污染 `structure_state`。修法：job 锁获取与字段置 `generating` 必须同事务原子完成，锁冲突整体回滚；补“423 后 state 不变”测试。
-
-- P1 [structure-state.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/packages/shared/src/core/structure-state.ts:34) / [errors.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/packages/shared/src/core/errors.ts:30) / [structure.ts](/Users/danielxing/repos/agora-mvp-creator-builder/creator-builder/packages/shared/src/domains/structure.ts:205)：`FieldStateSchema.error` 仍用通用 `ErrorBodySchema`，`details.field` 未强约束为 `SoftFieldKey`；注释/领域 schema 存在但未接入。修法：为结构化 failed field error 接入专用 schema/refine，拒绝硬字段/未知字段，并补负例测试。
-
-VERDICT: FAIL
