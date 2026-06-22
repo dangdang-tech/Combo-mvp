@@ -34,6 +34,7 @@ import type { JobContext, JobHandler, JobResult, LeasedJob, Queryable } from '..
 import {
   parseSessions,
   computeContentHash,
+  detectSessionSource,
   type RawSessionInput,
   type ParsedSegment,
 } from '../../import/session-parse.js';
@@ -146,11 +147,15 @@ export interface ImportHandlerDeps {
   objectStore: Pick<ObjectStorePort, 'getObjectText'>;
 }
 
-/** 从 S3 key 猜来源（key 形如 `.../{source}/...`；猜不到回退 mixed→按内容兜，段级来源由 parser 定）。 */
-function sourceFromKey(key: string, fallback: ImportSource): Exclude<ImportSource, 'mixed'> {
-  if (/claude/i.test(key)) return 'claude';
+/**
+ * 从 S3 key 取来源提示（仅当路径明确含 codex/claude 子串时可信；否则 undefined）。
+ *   浏览器选 `.codex/sessions/2026/06/01` 子目录（webkitRelativePath 丢了 `.codex` 前缀）、
+ *   助手路径 key（`raw/{owner}/{pairId}/part-N`）都不含标记 → 返回 undefined，交内容嗅探定夺。
+ */
+function sourceHintFromKey(key: string): Exclude<ImportSource, 'mixed'> | undefined {
   if (/codex/i.test(key)) return 'codex';
-  return fallback === 'codex' ? 'codex' : 'claude';
+  if (/claude/i.test(key)) return 'claude';
+  return undefined;
 }
 
 /** 去敏后的段（content/title 已抹敏，contentHash 按去敏后内容重算——契约去重键，§6.2）。 */
@@ -274,7 +279,11 @@ export function createImportHandler(deps: ImportHandlerDeps): JobHandler {
           await ctx.reportSubtask('fetch_index', 'failed');
           throw codedError(ErrorCode.DEPENDENCY_UNAVAILABLE, 'failed to fetch raw object from S3');
         }
-        inputs.push({ source: sourceFromKey(key, source), raw: text, sessionRef: key });
+        // 来源识别：路径标记优先（可信时），否则退批级非 mixed 来源作提示，最终按内容嗅探定夺。
+        //   浏览器选 .codex 子目录 / 助手路径 key 常不含标记 → 必须按内容定，否则 Codex 误判 claude → 零段（BUG）。
+        const batchHint = source === 'claude' || source === 'codex' ? source : undefined;
+        const detected = detectSessionSource(text, sourceHintFromKey(key) ?? batchHint);
+        inputs.push({ source: detected, raw: text, sessionRef: key });
         await ctx.reportProgress({
           percent: 5 + Math.round((15 * (i + 1)) / rawKeys.length),
           phrase: `正在拉取原文… 已拉取 ${i + 1} / ${rawKeys.length} 个文件`,

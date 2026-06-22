@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseSessions,
   computeContentHash,
+  detectSessionSource,
   type RawSessionInput,
 } from '../import/session-parse.js';
 
@@ -414,6 +415,32 @@ describe('content_hash 与去重', () => {
     ]);
     expect(r.segments).toHaveLength(2);
     expect(r.stats.duplicateSegmentCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 来源按内容嗅探（S3 key 不含来源标记时的可靠定夺，回归 Codex 子目录误判 bug）
+// ---------------------------------------------------------------------------
+describe('detectSessionSource 内容嗅探', () => {
+  it('Codex 原文（顶层 payload）→ 嗅探为 codex，无视无标记 key / hint', () => {
+    expect(detectSessionSource(codexJsonl())).toBe('codex');
+    // 给个错误 hint='claude' 也应被内容否决（内容明确时 hint 只在打平时兜底）。
+    expect(detectSessionSource(codexJsonl(), 'claude')).toBe('codex');
+  });
+
+  it('Claude 原文（顶层 message）→ 嗅探为 claude', () => {
+    expect(detectSessionSource(claudeJsonl())).toBe('claude');
+    expect(detectSessionSource(claudeJsonl(), 'codex')).toBe('claude');
+  });
+
+  it('空 / 全坏 / 未知结构（内容无判据）→ 回退 hint，hint 缺省 claude', () => {
+    expect(detectSessionSource('', 'codex')).toBe('codex');
+    expect(detectSessionSource('garbage\n{bad', 'codex')).toBe('codex');
+    expect(detectSessionSource(JSON.stringify({ foo: 'bar' }))).toBe('claude'); // 无 hint → 缺省 claude
+  });
+
+  it('支持 string[] 行数组输入', () => {
+    expect(detectSessionSource(codexJsonl().split('\n'))).toBe('codex');
   });
 });
 

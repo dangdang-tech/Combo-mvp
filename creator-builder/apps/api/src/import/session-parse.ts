@@ -339,6 +339,41 @@ function parseCodexLines(lines: string[]): SessionAccum {
 }
 
 // ---------------------------------------------------------------------------
+// 来源嗅探（按内容判 claude|codex）—— S3 key 常不含来源标记时的可靠定夺
+//   浏览器选 `.codex/sessions/2026/06/01` 这类子目录时，webkitRelativePath 根是 `01/`，
+//   丢了 `.codex` 前缀；助手路径 key 形如 `raw/{owner}/{pairId}/part-N` 本就无标记。
+//   此时按路径子串猜来源会误判（默认落到 claude），把 Codex 原文（顶层 payload）喂给
+//   Claude 解析器（认顶层 message）→ 全行跳过 → 零段 → 误报 IMPORT_NO_CONTENT。
+//   故按真实结构嗅探，与下面两个解析器的结构判定同源、绝不分歧。
+// ---------------------------------------------------------------------------
+
+/**
+ * 按内容嗅探单会话来源（claude|codex）。判据与 parseClaudeLines/parseCodexLines 完全一致：
+ *   - Codex 行：顶层带对象型 `payload`（{type, payload, timestamp}）。
+ *   - Claude 行：顶层带对象型 `message`（{type, message:{role,content}, ...}）。
+ *   两家结构互斥（Claude 无顶层 payload、Codex 无顶层 message），故嗅探与解析器不会打架。
+ *   扫可解析行投票，多者胜；都不命中（空 / 坏 / 未知结构）回退 hint，hint 缺省 'claude'。
+ */
+export function detectSessionSource(
+  raw: string | string[],
+  hint?: Exclude<ImportSource, 'mixed'>,
+): Exclude<ImportSource, 'mixed'> {
+  const lines = toLines(raw);
+  let claudeHits = 0;
+  let codexHits = 0;
+  for (const line of lines) {
+    const obj = tryParseLine(line);
+    if (!isRecord(obj)) continue;
+    if (isRecord(obj['payload'])) codexHits++;
+    else if (isRecord(obj['message'])) claudeHits++;
+    if (claudeHits + codexHits >= 64) break; // 早停：足够区分即可，不必全扫大文件。
+  }
+  if (codexHits > claudeHits) return 'codex';
+  if (claudeHits > codexHits) return 'claude';
+  return hint ?? 'claude';
+}
+
+// ---------------------------------------------------------------------------
 // 单会话 → 段（或跳过原因）
 // ---------------------------------------------------------------------------
 

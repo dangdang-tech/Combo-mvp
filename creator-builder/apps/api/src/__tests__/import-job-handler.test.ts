@@ -22,6 +22,17 @@ function claudeSession(
     .join('\n');
 }
 
+/** Codex 会话 fixture（对齐 B-18：{type, payload, timestamp}，顶层 payload 而非 message）。 */
+function codexSession(userText: string, assistantText: string, ts = '2026-06-01T12:00:00.000Z'): string {
+  return [
+    { type: 'session_meta', timestamp: ts, payload: { cwd: '/Users/dev/repos/codex-proj' } },
+    { type: 'event_msg', timestamp: ts, payload: { type: 'user_message', message: userText } },
+    { type: 'event_msg', timestamp: ts, payload: { type: 'agent_message', message: assistantText } },
+  ]
+    .map((o) => JSON.stringify(o))
+    .join('\n');
+}
+
 interface CapturedCtx {
   ctx: JobContext;
   subtasks: Array<{ key: string; status: SubtaskStatus }>;
@@ -346,6 +357,57 @@ describe('import handler — 正常链路', () => {
     const newSnap = [...db.snapshots.values()].find((s) => s.id !== prevSnap)!;
     expect(db.snapshots.get(prevSnap)!.superseded_by).toBe(newSnap.id);
     expect(newSnap.superseded_by).toBeNull();
+  });
+});
+
+describe('import handler — 来源按内容识别（回归：Codex 子目录 / 助手路径 key 不含来源标记）', () => {
+  it('选 .codex/sessions/2026/06/01 子目录导入：S3 key 丢了 .codex 前缀 + source=mixed → 仍解析出 Codex 段（绝不 IMPORT_NO_CONTENT）', async () => {
+    // 复现用户场景：浏览器选 `.codex/sessions/2026/06/01` 子目录时，webkitRelativePath 根是 `01/`，
+    //   clientPartId/S3 key 丢掉了 `.codex` 前缀 → key 既无 codex 也无 claude 标记；前端 source 恒为 'mixed'。
+    //   旧实现 sourceFromKey 在此回退默认 'claude' → Codex 原文（顶层 payload）被 parseClaudeLines（认 message）
+    //   全部跳过 → 零段 → IMPORT_NO_CONTENT「没读到可用内容」。修复后按内容嗅探为 codex，正常解析。
+    const key = 'raw/u1/up1/0-01/rollout-2026-06-01T12-00-00.jsonl#0';
+    const { db, handler } = setup({ [key]: codexSession('修一下这个 bug', '我来定位根因') });
+    const job = leased(db, {
+      subjectRef: { uploadId: 'up1', source: 'mixed', rawS3Keys: [key] },
+    });
+    const cap = makeCtx(job, db);
+    const res = await handler.run(job, cap.ctx);
+
+    expect(db.segments.size).toBe(1); // 解析出 Codex 段（修复前为 0 → 抛 IMPORT_NO_CONTENT）
+    const snap = [...db.snapshots.values()][0]!;
+    expect(snap.source).toBe('codex'); // 段级来源按内容定为 codex
+    expect(snap.sources).toContain('codex');
+    expect((res.result as { snapshotId: string }).snapshotId).toBeTruthy();
+  });
+
+  it('助手路径 key（raw/{owner}/{pairId}/part-N，无来源标记）+ source=mixed 的 Codex 原文 → 正常解析', async () => {
+    // 助手路径（curl 一键导入）落桶 key 形如 raw/{owner}/{pairId}/part-0，同样不含来源标记 → 同根因。
+    const key = 'raw/u1/pair-xyz/part-0';
+    const { db, handler } = setup({ [key]: codexSession('帮我跑测试', '在跑了') });
+    const job = leased(db, { subjectRef: { uploadId: 'up1', source: 'mixed', rawS3Keys: [key] } });
+    const cap = makeCtx(job, db);
+    await handler.run(job, cap.ctx);
+    expect(db.segments.size).toBe(1);
+    expect([...db.snapshots.values()][0]!.source).toBe('codex');
+  });
+
+  it('Claude + Codex 同批（混合，两路径 key 均无标记）→ 各自按内容识别、两段两来源', async () => {
+    const ck = 'raw/u1/up1/0-01/a.jsonl#0'; // 中性文件名：key 无来源标记，全靠内容嗅探
+    const xk = 'raw/u1/up1/1-01/b.jsonl#0';
+    const { db, handler } = setup({
+      [ck]: claudeSession([{ role: 'user', text: 'Claude 这边的问题' }]),
+      [xk]: codexSession('Codex 这边的问题', '收到'),
+    });
+    const job = leased(db, {
+      subjectRef: { uploadId: 'up1', source: 'mixed', rawS3Keys: [ck, xk] },
+    });
+    const cap = makeCtx(job, db);
+    await handler.run(job, cap.ctx);
+    expect(db.segments.size).toBe(2);
+    const snap = [...db.snapshots.values()][0]!;
+    expect(snap.source).toBe('mixed'); // 命中两来源 → 快照级 mixed
+    expect([...snap.sources].sort()).toEqual(['claude', 'codex']);
   });
 });
 
