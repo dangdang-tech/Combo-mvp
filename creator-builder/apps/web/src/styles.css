@@ -2093,16 +2093,26 @@ body {
 .cb-cmdbox__command {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   background: #1f2329;
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 14px 16px;
 }
+/* 命令整行折行显示（原 overflow-x:auto + nowrap 会让长命令横向滚动、底部冒出滚动条、尾部被截成「| s…」）。
+   命令是复制目标不是阅读对象，折行让整条可见、无截断无滚动条。 */
 .cb-cmdbox__command-text {
   flex: 1;
+  min-width: 0;
   color: #e3e6ea;
+  font-family: var(--cb-font-mono);
   font-size: 13px;
-  overflow-x: auto;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* 复制按钮不被命令文字挤扁 / 不换行。 */
+.cb-cmdbox__copy {
+  flex-shrink: 0;
   white-space: nowrap;
 }
 .cb-cmdbox__phase {
