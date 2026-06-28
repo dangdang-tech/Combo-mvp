@@ -6,3 +6,9 @@ apps-db.json
 
 # GStack 浏览审计 / QA 报告与截图(工具产物,不入库)
 .gstack/
+
+# Playwright MCP 浏览产物（页面快照 / 截图，工具产物，不入库）
+.playwright-mcp/
+
+# 临时验收产物（登录 QR 等截图）
+cb_auth_qr.png

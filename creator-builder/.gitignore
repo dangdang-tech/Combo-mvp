@@ -20,6 +20,9 @@ coverage/
 # 验收测试证据(截图 / 报告，体量大，不入库；本地保留作复测参考）
 docs/测试/
 
+# 本机专用 compose 覆盖（端口/卷映射等，机器相关，不入库；本地保留供本机起栈）
+infra/docker-compose.override.local.yml
+
 # 编辑器
 .DS_Store
 *.log
