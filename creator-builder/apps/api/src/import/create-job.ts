@@ -30,6 +30,13 @@ export interface ImportSubjectRef {
   rawS3Keys: string[];
   /** 续传草稿挂接（脊柱 §8，可空）。 */
   draftId?: string;
+  /**
+   * 打包模式（命令行助手路径恒为 'gzip'；直传路径不设）。
+   *   'gzip'：每个 rawS3Key 是一个【gzip 压缩】的「打包分片」——解压后含多个整文件、以 BUNDLE_SENTINEL 行分隔；
+   *   worker 用 getObject(字节) → gunzip → splitBundlePart 拆回每个文件再逐个当一会话解析（session-parse.ts）。
+   *   不设：每个 rawS3Key 就是一个会话文件原文（直传路径口径，getObjectText 直读）。
+   */
+  bundle?: 'gzip';
 }
 
 /** 初始 progress：五项子任务全 pending + 0%（永不裸转圈，导入-08）。 */

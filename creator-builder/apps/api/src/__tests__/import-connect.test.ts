@@ -454,14 +454,23 @@ describe('B-21 纯逻辑', () => {
     expect(script).toContain("'654321'");
     expect(script).toContain('/api/v1/import/connect/upload');
     expect(script).toContain('Bearer');
-    // 用 curl multipart 直传（一个文件一个分块）；变量一律 ${VAR} 大括号包裹（避免 set -u 下中文标点并进变量名）。
+    // 打包 + gzip：整文件拼进分片、gzip 压缩再传（用户实测 7370 文件「一文件一请求」太慢）；上传分片文件 ${pf}。
     expect(script).toContain('curl');
-    expect(script).toContain('-F "file=@${f}"');
+    expect(script).toContain('-F "file=@${pf}"');
+    expect(script).toContain('SENTINEL=');
+    expect(script).toContain('__AGORA_FILE_BOUNDARY__');
+    expect(script).toContain('打包');
+    expect(script).toContain('gzip -c');
+    expect(script).toContain('part-${PART}.gz');
+    // 打包阶段也报进度（大量文件不静默）。
+    expect(script).toContain('正在打包… 已处理');
+    // 上传直连、不走代理（需求 3）。
+    expect(script).toContain("--noproxy '*'");
     // 跟随 80→443 跳转并在同源重定向重发鉴权（BASE 万一是 http 也能传，用户实测修复）。
     expect(script).toContain('--location-trusted');
     // 裸变量紧跟中文标点会在 macOS bash 崩；必须大括号包裹，绝不出现 $http）。
     expect(script).not.toContain('$http）');
-    // 并发上传池（用户实测 7370 文件串行太慢）：默认路数可 AGORA_JOBS 覆盖。
+    // 并发上传池（用户实测串行太慢）：默认路数可 AGORA_JOBS 覆盖。
     expect(script).toContain('AGORA_JOBS');
     expect(script).toContain('upload_one');
     expect(script).toContain('wait');
@@ -471,7 +480,7 @@ describe('B-21 纯逻辑', () => {
     expect(script).toContain('contentSha256=${sha}');
     // per-part 幂等键含 partIndex + 内容 hash（Codex P1-5）。
     expect(script).toContain('pair-${PAIR_ID}-${idx}-${sha}');
-    // 一个 .jsonl 文件 = 一个分块（扫两个子目录）。
+    // 扫两个子目录的 .jsonl。
     expect(script).toContain('.claude/projects');
     expect(script).toContain('.codex/sessions');
     expect(script).toContain("-name '*.jsonl'");

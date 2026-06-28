@@ -121,6 +121,49 @@ export async function readStreamToString(
   return decoder.decode(toChunk(body));
 }
 
+/**
+ * 把对象 Body 读成原始字节（gzip 分片用）。形态分派同 readStreamToString，但不解码、保留字节。
+ */
+export async function readStreamToBytes(body: unknown): Promise<Uint8Array> {
+  if (body == null) return new Uint8Array();
+  if (body instanceof Uint8Array) return body;
+  // SdkStream：AWS SDK 自带 transformToByteArray（最稳，优先）。
+  if (typeof (body as { transformToByteArray?: unknown }).transformToByteArray === 'function') {
+    return (body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray();
+  }
+  const toChunk = (v: unknown): Uint8Array =>
+    v instanceof Uint8Array
+      ? v
+      : typeof v === 'string'
+        ? new TextEncoder().encode(v)
+        : new Uint8Array(v as ArrayBuffer);
+  const chunks: Uint8Array[] = [];
+  if (
+    body instanceof Readable ||
+    typeof (body as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function'
+  ) {
+    for await (const chunk of body as AsyncIterable<unknown>) chunks.push(toChunk(chunk));
+  } else if (typeof (body as { getReader?: unknown }).getReader === 'function') {
+    const reader = (body as ReadableStream<unknown>).getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value !== undefined) chunks.push(toChunk(value));
+    }
+  } else {
+    chunks.push(toChunk(body));
+  }
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
+  return out;
+}
+
 /** S3/MinIO 实现的 ObjectStorePort。 */
 export function createS3ObjectStore(env: Env): ObjectStorePort {
   const s3 = getClient(env);
@@ -144,6 +187,10 @@ export function createS3ObjectStore(env: Env): ObjectStorePort {
         expiresIn: opts?.expiresSec ?? DEFAULT_EXPIRES_SEC,
       });
       return { url };
+    },
+    async getObject(bucket, key) {
+      const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      return readStreamToBytes(res.Body);
     },
     async getObjectText(bucket, key) {
       const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));

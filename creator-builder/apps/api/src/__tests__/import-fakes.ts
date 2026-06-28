@@ -567,6 +567,8 @@ export class FakeObjectStore {
   failPut = false;
   /** 记录所有 putObject 落桶（断言「真实落桶」，Codex P0-2）。 */
   readonly puts: Array<{ key: string; bytes: number }> = [];
+  /** 二进制对象（gzip 打包分片用）：getObject 优先返回这里的字节。 */
+  readonly rawBytes = new Map<string, Uint8Array>();
   async getObjectText(_bucket: string, key: string): Promise<string> {
     if (this.failKeys.has(key)) throw new Error('s3 failure');
     const text = this.objects.get(key);
@@ -574,6 +576,15 @@ export class FakeObjectStore {
     // 用真实 Node Readable（生产真值：S3 Body 在 Node 下是 Node Readable）喂统一读法——
     //   测试链路与生产同一条读路径，绝不让 mock 盖住流读法 bug。
     return readStreamToString(Readable.from([Buffer.from(text, 'utf-8')]));
+  }
+  /** 拉字节（gzip 分片）：优先 rawBytes，否则把文本对象按 utf-8 编码返回。 */
+  async getObject(_bucket: string, key: string): Promise<Uint8Array> {
+    if (this.failKeys.has(key)) throw new Error('s3 failure');
+    const bin = this.rawBytes.get(key);
+    if (bin !== undefined) return bin;
+    const text = this.objects.get(key);
+    if (text === undefined) throw new Error(`no object: ${key}`);
+    return new TextEncoder().encode(text);
   }
   async putObject(_bucket: string, key: string, body: Uint8Array): Promise<{ key: string }> {
     if (this.failPut) throw new Error('s3 put failure');

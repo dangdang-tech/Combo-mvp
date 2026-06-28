@@ -30,11 +30,13 @@ import {
   type ObjectStorePort,
   type NotifyImportCompletedPayload,
 } from '@cb/shared';
+import { gunzipSync } from 'node:zlib';
 import type { JobContext, JobHandler, JobResult, LeasedJob, Queryable } from '../types.js';
 import {
   parseSessions,
   computeContentHash,
   detectSessionSource,
+  splitBundlePart,
   type RawSessionInput,
   type ParsedSegment,
 } from '../../import/session-parse.js';
@@ -143,8 +145,8 @@ export interface ImportHandlerDeps {
   db: Queryable;
   /** 同事务 outbox（建快照完成 + 发通知同一 PG 事务，70 §2.1）。 */
   txPool: TxPool;
-  /** S3 原文拉取（agora-raw 桶；处理完即弃，导入-33）。getObjectText 直接给 utf-8 文本（读法统一在 object-store 层）。 */
-  objectStore: Pick<ObjectStorePort, 'getObjectText'>;
+  /** S3 原文拉取（agora-raw 桶；处理完即弃，导入-33）。getObjectText 给 utf-8 文本；getObject 给字节（gzip 打包分片用）。 */
+  objectStore: Pick<ObjectStorePort, 'getObjectText' | 'getObject'>;
 }
 
 /**
@@ -265,31 +267,43 @@ export function createImportHandler(deps: ImportHandlerDeps): JobHandler {
       await ctx.reportSubtask('credential', 'done');
       await ctx.reportProgress({ percent: 5, phrase: '已连接，开始拉取原文…' });
 
-      // ② 拉取会话索引：逐个 getObject 拉回原文（量化文案：已拉 X/Y 个文件，导入-07/10）。
+      // ② 拉取会话索引：逐个 getObject 拉回原文（量化文案：已拉 X/Y，导入-07/10）。
+      //   打包模式（命令行助手路径，subject.bundle==='sentinel'）：每个 key 是含多个整文件的分片，
+      //   getObjectText 后用 splitBundlePart 拆回每个文件原文；非打包（直传路径）：每个 key 就是一个文件。
       await ctx.reportSubtask('fetch_index', 'running');
+      const bundled = subject.bundle === 'gzip';
+      const unit = bundled ? '个分片' : '个文件';
+      const batchHint = source === 'claude' || source === 'codex' ? source : undefined;
       const inputs: RawSessionInput[] = [];
       for (let i = 0; i < rawKeys.length; i++) {
         if (ctx.isCancelled()) return { result: null }; // 安全点：取消即停（已落段保留）。
         const key = rawKeys[i]!;
-        let text: string;
+        // 一个 key 产出一个或多个文件原文：打包分片(gzip)解压后按 sentinel 拆回多文件，非打包就是单文件文本。
+        let rawFiles: string[];
         try {
-          text = await objectStore.getObjectText('agora-raw', key);
+          if (bundled) {
+            const bytes = await objectStore.getObject('agora-raw', key);
+            rawFiles = splitBundlePart(gunzipSync(Buffer.from(bytes)).toString('utf8'));
+          } else {
+            rawFiles = [await objectStore.getObjectText('agora-raw', key)];
+          }
         } catch {
-          // S3 拉取失败：依赖不可用（人话「系统正在恢复」，绝不裸 ECONNRESET）。
+          // S3 拉取失败 / gz 解压失败：依赖不可用（人话「系统正在恢复」，可重试，绝不裸 ECONNRESET）。
           await ctx.reportSubtask('fetch_index', 'failed');
           throw codedError(ErrorCode.DEPENDENCY_UNAVAILABLE, 'failed to fetch raw object from S3');
         }
-        // 来源识别：路径标记优先（可信时），否则退批级非 mixed 来源作提示，最终按内容嗅探定夺。
-        //   浏览器选 .codex 子目录 / 助手路径 key 常不含标记 → 必须按内容定，否则 Codex 误判 claude → 零段（BUG）。
-        const batchHint = source === 'claude' || source === 'codex' ? source : undefined;
-        const detected = detectSessionSource(text, sourceHintFromKey(key) ?? batchHint);
-        inputs.push({ source: detected, raw: text, sessionRef: key });
+        for (const raw of rawFiles) {
+          // 来源识别：路径标记优先（可信时），否则退批级非 mixed 来源作提示，最终按内容嗅探定夺。
+          //   浏览器选 .codex 子目录 / 助手路径 key 常不含标记 → 必须按内容定，否则 Codex 误判 claude → 零段（BUG）。
+          const detected = detectSessionSource(raw, sourceHintFromKey(key) ?? batchHint);
+          inputs.push({ source: detected, raw, sessionRef: key });
+        }
         await ctx.reportProgress({
           percent: 5 + Math.round((15 * (i + 1)) / rawKeys.length),
-          phrase: `正在拉取原文… 已拉取 ${i + 1} / ${rawKeys.length} 个文件`,
+          phrase: `正在拉取原文… 已拉取 ${i + 1} / ${rawKeys.length} ${unit}`,
           done: i + 1,
           total: rawKeys.length,
-          unit: '个文件',
+          unit,
         });
       }
       await ctx.reportSubtask('fetch_index', 'done');

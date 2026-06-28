@@ -1,8 +1,10 @@
 // B-19 导入 Job handler 自检：子任务进度流、解析+去敏落库、快照内去重、重导新快照、去敏报告落库、
 //   空结果 IMPORT_NO_CONTENT、S3 失败归一、取消保留已生成段、同事务发 import 完成通知。
+import { gzipSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
 import type { SubtaskStatus } from '@cb/shared';
 import { createImportHandler } from '../jobs/handlers/import.js';
+import { BUNDLE_SENTINEL } from '../import/session-parse.js';
 import type { JobContext, LeasedJob } from '../jobs/types.js';
 import { ImportFakeDb, FakeObjectStore, FakeTxPool, type JobRowF } from './import-fakes.js';
 
@@ -165,6 +167,34 @@ describe('import handler — 正常链路', () => {
     expect(db.segments.size).toBe(1); // 去重后一段
     const snap = [...db.snapshots.values()][0]!;
     expect(snap.segment_count).toBe(1); // 统计不算重
+  });
+
+  it('打包分片（bundle=gzip）：一个 gzip 分片含多个整文件 → 解压拆回逐个解析（命令行助手路径）', async () => {
+    // 模拟脚本端：把 2 个会话（claude + codex）按 sentinel 拼成一个分片，gzip 压缩落桶。
+    const fileA = claudeSession([{ role: 'user', text: '打包会话 A 内容' }]);
+    const fileB = codexSession('打包会话 B 提问', '打包会话 B 回复');
+    const bundleText = `${BUNDLE_SENTINEL}\n${fileA}\n${BUNDLE_SENTINEL}\n${fileB}\n`;
+    const db = new ImportFakeDb();
+    const store = new FakeObjectStore(new Map());
+    store.rawBytes.set('raw/u1/pair1/part-0', gzipSync(Buffer.from(bundleText, 'utf-8')));
+    const txPool = new FakeTxPool(db.jobs, db.snapshots);
+    const handler = createImportHandler({ db, txPool, objectStore: store });
+    const job = leased(db, {
+      subjectRef: {
+        uploadId: 'pair1',
+        source: 'mixed',
+        rawS3Keys: ['raw/u1/pair1/part-0'],
+        bundle: 'gzip',
+      },
+    });
+    const cap = makeCtx(job, db);
+    await handler.run(job, cap.ctx);
+    // 一个分片拆出 2 个文件 → 2 段；来源按内容嗅探得 claude + codex。
+    expect(db.segments.size).toBe(2);
+    const snap = [...db.snapshots.values()][0]!;
+    expect(snap.segment_count).toBe(2);
+    const sources = [...db.segments.values()].map((s) => s.source).sort();
+    expect(sources).toEqual(['claude', 'codex']);
   });
 
   it('同事务落 completed + 发 import 完成通知（Codex P0-3：业务状态+job结果+outbox 同一 PG 事务）', async () => {

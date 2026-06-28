@@ -343,6 +343,8 @@ export async function createImportJobForPairing(
     uploadId: input.uploadId ?? input.pairId,
     source: input.source,
     rawS3Keys: input.rawS3Keys,
+    // 命令行助手路径恒为打包模式：每个 rawS3Key 是 gzip 压缩、解压后含多个整文件以 sentinel 分隔的分片，worker 解压拆包后逐个解析。
+    bundle: 'gzip',
     // 续传草稿挂接（P0-2）：铸码时绑定的 draft_id 随 subject_ref 流到 worker → 完成回填该草稿 snapshot_id。
     ...(cur?.draft_id ? { draftId: cur.draft_id } : {}),
   });

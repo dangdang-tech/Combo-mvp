@@ -27,6 +27,11 @@ export interface ObjectStorePort {
    */
   getObjectText(bucket: Bucket, key: string): Promise<string>;
   /**
+   * worker 拉原文【字节】（打包 gzip 分片用，B-21）。返回原始字节，调用方自行 gunzip/解码。
+   *   gzip 后的分片是二进制，不能走 getObjectText（utf-8 解码会损坏）；故单列字节读法。
+   */
+  getObject(bucket: Bucket, key: string): Promise<Uint8Array>;
+  /**
    * 直写对象（本机助手 multipart 直传落加密临时桶，B-21 §3.3）。
    * 助手把原文经 api 转存到 agora-raw 桶（前端直传走 presignPut；助手没有预签名 URL，经 api 中转写桶）。
    */

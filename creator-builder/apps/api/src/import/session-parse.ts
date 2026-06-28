@@ -517,6 +517,25 @@ export function parseSessions(inputs: RawSessionInput[]): ParseResult {
 }
 
 // ---------------------------------------------------------------------------
+// 打包上传（B-21 命令行助手）：本机把成百上千个会话文件按「整文件」拼进少数几个分片再传，
+//   避免「一文件一请求」在大历史下请求数爆炸。每个分片是「sentinel 行 + 文件原文 + 换行」反复拼接，
+//   只含【整文件】（不跨分片切单个文件），故分片本身永远是合法 UTF-8 文本，worker 用 getObjectText 读即可。
+//   worker 拿到一个分片文本后用 splitBundlePart 按 sentinel 拆回每个文件原文，再逐个当一会话解析。
+// ---------------------------------------------------------------------------
+
+/** 打包分隔行（助手脚本写、worker 拆共用真源）。真实 JSONL 不会有这一行（非合法 JSON 对象行）。 */
+export const BUNDLE_SENTINEL = '__AGORA_FILE_BOUNDARY__';
+
+/**
+ * 把一个「打包分片」文本拆回各文件原文。分片形如：
+ *   __AGORA_FILE_BOUNDARY__\n<文件0原文>\n__AGORA_FILE_BOUNDARY__\n<文件1原文>\n …
+ * 返回非空文件原文数组（每段含末尾换行无妨，parseSessions 的 toLines 会 trim）。
+ */
+export function splitBundlePart(text: string): string[] {
+  return text.split(`${BUNDLE_SENTINEL}\n`).filter((s) => s.trim().length > 0);
+}
+
+// ---------------------------------------------------------------------------
 // 给导入 Job（B-19）的接口签名（人读镜像；Job 把 ParsedSegment 喂受保护 INSERT，§6.5）
 // ---------------------------------------------------------------------------
 
