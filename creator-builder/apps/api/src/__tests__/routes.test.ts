@@ -5,11 +5,12 @@ import { ALL_ENDPOINTS } from '../routes/index.js';
 import { requireIdempotency } from '../middleware/idempotency.js';
 
 describe('route registry self-check', () => {
-  it('registers the full contract endpoint set (54 in-scope callable endpoints)', () => {
+  it('registers the full contract endpoint set (55 in-scope callable endpoints)', () => {
     // contracts/_index.md §2.1–§2.8 全端点一览：52 + 草稿生命周期 2（POST /drafts bootstrap、
-    //   GET /drafts/:draftId 续传 hydrate，脊柱 §8 / Codex phase4c P0-2）= 54 个本期可调用端点
+    //   GET /drafts/:draftId 续传 hydrate，脊柱 §8 / Codex phase4c P0-2）+ B-21 引导二进制下发 1
+    //   （GET /import/connect/bin/:asset，公开匿名引导产物、与 /connect/script 同级）= 55 个本期可调用端点
     // （§2.9 的 3 个消费链路读端点本期范围外、仅冻结、不计入）。
-    expect(ALL_ENDPOINTS).toHaveLength(54);
+    expect(ALL_ENDPOINTS).toHaveLength(55);
   });
 
   it('every endpoint has a method and an absolute url path', () => {

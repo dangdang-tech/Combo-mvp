@@ -4,7 +4,7 @@
 //   - 路由 handler：connectPair 201、connectScript active/expired、connectUpload uploading/job_created/空/已用、
 //     connectPairStatus owner 校验 + 过期折算 expired；判别联合形态（uploading 无 jobId、job_created 必含 jobId+eventsUrl）。
 //   - 文案合规：所有对外 userMessage 过 lintUserMessage（脊柱 §3.1/§11.B，无 code/堆栈/状态码）。
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { lintUserMessage, SSE_ROUTES } from '@cb/shared';
 import { hashPairingCode } from '../middleware/pair-auth.js';
 import {
@@ -19,12 +19,17 @@ import {
 import { renderConnectScript, renderExpiredScript } from '../import/connect-script.js';
 import { readPairingManifest } from '../import/pairings-repo.js';
 import {
+  connectBinHandler,
   connectPairHandler,
   connectPairStatusHandler,
   connectScriptHandler,
   connectUploadHandler,
 } from '../routes/import-connect.js';
 import type { QueryResultLike } from '../jobs/types.js';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, writeFileSync, type ReadStream } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // ───────────────────────── 内存 import_pairings + jobs 假库 ─────────────────────────
 
@@ -441,7 +446,7 @@ describe('B-21 纯逻辑', () => {
     expect(CURL_ONE_LINER).toBe('curl -fsSL agora.app/import | sh');
   });
 
-  it('助手脚本口径合规：sh+curl、注入 pairId/code、query 协议、per-part 幂等键、完整上传，绝不含禁词（导入-04/05/29）', () => {
+  it('助手引导脚本：sh+curl、平台检测、下载二进制、校验 sha256、exec 二进制并经 env 下发 pairId/code/source，绝不含禁词（导入-04/05/29）', () => {
     const script = renderConnectScript({
       base: 'https://agora.app',
       pairId: 'pair-1',
@@ -449,43 +454,50 @@ describe('B-21 纯逻辑', () => {
     });
     // 执行器为 sh（命令行优先方案·第一步）。
     expect(script).toContain('#!/bin/sh');
+    expect(script).toContain('set -u');
     // 注入正确（单引号安全注入）。
     expect(script).toContain("'pair-1'");
     expect(script).toContain("'654321'");
-    expect(script).toContain('/api/v1/import/connect/upload');
-    expect(script).toContain('Bearer');
-    // 打包 + gzip：整文件拼进分片、gzip 压缩再传（用户实测 7370 文件「一文件一请求」太慢）；上传分片文件 ${pf}。
-    expect(script).toContain('curl');
-    expect(script).toContain('-F "file=@${pf}"');
-    expect(script).toContain('SENTINEL=');
-    expect(script).toContain('__AGORA_FILE_BOUNDARY__');
-    expect(script).toContain('打包');
-    expect(script).toContain('gzip -c');
-    expect(script).toContain('part-${PART}.gz');
-    // 打包阶段也报进度（大量文件不静默）。
-    expect(script).toContain('正在打包… 已处理');
-    // 上传直连、不走代理（需求 3）。
+    // 平台检测：uname -s/-m，os/arch 映射。
+    expect(script).toContain('uname -s');
+    expect(script).toContain('uname -m');
+    expect(script).toContain('Darwin');
+    expect(script).toContain('Linux');
+    expect(script).toContain('arm64|aarch64');
+    expect(script).toContain('x86_64|amd64');
+    // 拼出二进制名 + 走 bin 路由下载（与服务端白名单同一套命名）。
+    expect(script).toContain('agora-import-${OS}-${ARCH}');
+    expect(script).toContain('/api/v1/import/connect/bin/');
+    // 下载二进制与它的 .sha256。
+    expect(script).toContain('正在下载本机助手程序');
+    expect(script).toContain('.sha256');
+    // sha256 校验（shasum / sha256sum），不一致即报错退出。
+    expect(script).toContain('shasum -a 256');
+    expect(script).toContain('sha256sum');
+    expect(script).toContain('校验不通过');
+    // 校验通过后 chmod +x 并 exec 二进制，参数走 env 下发。
+    expect(script).toContain('chmod +x');
+    expect(script).toContain('exec "${BIN_PATH}"');
+    expect(script).toContain('AGORA_BASE=');
+    expect(script).toContain('AGORA_PAIR_ID=');
+    expect(script).toContain('AGORA_CODE=');
+    expect(script).toContain('AGORA_SOURCE=');
+    // 下载直连、不走代理 + 跟随 80→443 跳转（BASE 万一是 http）。
     expect(script).toContain("--noproxy '*'");
-    // 跟随 80→443 跳转并在同源重定向重发鉴权（BASE 万一是 http 也能传，用户实测修复）。
     expect(script).toContain('--location-trusted');
+    expect(script).toContain('-fsSL');
+    // 无 curl / 不支持平台 → 人话引导回网页。
+    expect(script).toContain('command -v curl');
+    expect(script).toContain('浏览器上传');
+    // 瘦引导脚本：不再在 shell 里做扫描 / 打包 / 并发上传（重活全在 Go 二进制）。
+    expect(script).not.toContain('upload_one');
+    expect(script).not.toContain('gzip -c');
+    expect(script).not.toContain('part-${PART}.gz');
+    expect(script).not.toContain("-name '*.jsonl'");
+    expect(script).not.toContain('正在打包… 已处理');
+    expect(script).not.toContain('-F "file=@${pf}"');
     // 裸变量紧跟中文标点会在 macOS bash 崩；必须大括号包裹，绝不出现 $http）。
     expect(script).not.toContain('$http）');
-    // 并发上传池（用户实测串行太慢）：默认路数可 AGORA_JOBS 覆盖。
-    expect(script).toContain('AGORA_JOBS');
-    expect(script).toContain('upload_one');
-    expect(script).toContain('wait');
-    // pairId/partIndex/totalParts/contentSha256 走 query（Codex P0-1）。
-    expect(script).toContain('pairId=${PAIR_ID}');
-    expect(script).toContain('partIndex=${idx}');
-    expect(script).toContain('contentSha256=${sha}');
-    // per-part 幂等键含 partIndex + 内容 hash（Codex P1-5）。
-    expect(script).toContain('pair-${PAIR_ID}-${idx}-${sha}');
-    // 扫两个子目录的 .jsonl。
-    expect(script).toContain('.claude/projects');
-    expect(script).toContain('.codex/sessions');
-    expect(script).toContain("-name '*.jsonl'");
-    // 正向口径（完整上传 + 云端去敏）。
-    expect(script).toContain('完整上传');
     // 负向禁词（导入-05/29 P0）。
     const forbidden = [
       '数据不出本机',
@@ -883,6 +895,86 @@ describe('connectScriptHandler', () => {
     await connectScriptHandler().call(undefined as never, req as never, reply as never);
     expect(sent.code).toBe(404);
     expect(String(sent.body)).toContain('配对码已失效');
+  });
+});
+
+// ───────────────────────── 引导二进制下发（connectBinHandler，公开白名单只读） ─────────────────────────
+
+/** 把 reply.send 收到的 fs.ReadStream 收成 Buffer（验证流式返回的真实字节）。 */
+async function drain(body: unknown): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const c of body as ReadStream) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+  return Buffer.concat(chunks);
+}
+
+describe('connectBinHandler（公开引导二进制下发：白名单 + 防穿越 + sha256）', () => {
+  // 在隔离临时目录铺一套二进制 + 其 .sha256，并把 IMPORT_BIN_DIR 指过去。
+  const dir = mkdtempSync(join(tmpdir(), 'agora-bins-'));
+  const binBytes = Buffer.from('\x7fELF-fake-agora-import-binary-bytes');
+  const binSha = createHash('sha256').update(binBytes).digest('hex');
+  writeFileSync(join(dir, 'agora-import-linux-amd64'), binBytes);
+  writeFileSync(join(dir, 'agora-import-linux-amd64.sha256'), binSha + '\n');
+  const prevEnv = process.env.IMPORT_BIN_DIR;
+  beforeAll(() => {
+    process.env.IMPORT_BIN_DIR = dir;
+  });
+  afterAll(() => {
+    if (prevEnv === undefined) delete process.env.IMPORT_BIN_DIR;
+    else process.env.IMPORT_BIN_DIR = prevEnv;
+  });
+
+  function binReq(asset: string): Record<string, unknown> {
+    return { id: 'trace-bin', log: { error: vi.fn(), warn: vi.fn() }, params: { asset } };
+  }
+
+  it('命中白名单二进制 → 200 octet-stream，流式回真实字节', async () => {
+    const { reply, sent } = makeReply();
+    await connectBinHandler().call(
+      undefined as never,
+      binReq('agora-import-linux-amd64') as never,
+      reply as never,
+    );
+    expect(sent.code).toBe(200);
+    expect(sent.headers['content-type']).toBe('application/octet-stream');
+    expect(await drain(sent.body)).toEqual(binBytes);
+  });
+
+  it('命中 .sha256 → 200 text/plain，回该二进制的 sha256 十六进制', async () => {
+    const { reply, sent } = makeReply();
+    await connectBinHandler().call(
+      undefined as never,
+      binReq('agora-import-linux-amd64.sha256') as never,
+      reply as never,
+    );
+    expect(sent.code).toBe(200);
+    expect(sent.headers['content-type']).toContain('text/plain');
+    expect((await drain(sent.body)).toString('utf8').trim()).toBe(binSha);
+  });
+
+  it('白名单不存在的合法平台名（文件未铺）→ 404', async () => {
+    const { reply, sent } = makeReply();
+    await connectBinHandler().call(
+      undefined as never,
+      binReq('agora-import-darwin-arm64') as never,
+      reply as never,
+    );
+    expect(sent.code).toBe(404);
+  });
+
+  it('路径穿越 / 非白名单 → 404（绝不读固定目录外的文件）', async () => {
+    for (const bad of [
+      '../../../etc/passwd',
+      'agora-import-linux-amd64/../../etc/passwd',
+      'agora-import-windows-amd64',
+      'agora-import-linux-riscv',
+      'agora-import-linux-amd64.sha256.bak',
+      '',
+      'agora-import-linux-amd64 ',
+    ]) {
+      const { reply, sent } = makeReply();
+      await connectBinHandler().call(undefined as never, binReq(bad) as never, reply as never);
+      expect(sent.code, `asset=${JSON.stringify(bad)}`).toBe(404);
+    }
   });
 });
 

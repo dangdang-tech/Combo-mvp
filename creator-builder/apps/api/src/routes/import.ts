@@ -10,6 +10,7 @@ import { requirePairAuth } from '../middleware/pair-auth.js';
 import { optionalIdempotency, requireIdempotency } from '../middleware/idempotency.js';
 import { registerEndpoints, type EndpointDecl } from './_helpers.js';
 import {
+  connectBinHandler,
   connectPairHandler,
   connectPairStatusHandler,
   connectScriptHandler,
@@ -47,8 +48,10 @@ export const IMPORT_ENDPOINTS: EndpointDecl[] = [
     preHandlers: [requireRole('creator'), requireIdempotency(IdempotencyScope.IMPORT_CONNECT_PAIR)],
     handler: connectPairHandler(),
   },
-  // 助手脚本下发（配对码 query 鉴权、无登录态；text/x-shellscript 可执行 sh+curl 脚本，码无效返人话 stderr 脚本）。
+  // 助手脚本下发（配对码 query 鉴权、无登录态；text/x-shellscript 可执行 sh+curl 引导脚本，码无效返人话 stderr 脚本）。
   { method: 'GET', url: '/import/connect/script', handler: connectScriptHandler() },
+  // 引导二进制下发（公开、无鉴权，与 /connect/script 同为匿名引导产物）：白名单文件名读固定目录、防路径穿越。
+  { method: 'GET', url: '/import/connect/bin/:asset', handler: connectBinHandler() },
   // 助手直传：独立 PairAuth + Idempotency（按 pairId 幂等）；最后一片自动建 import Job。
   {
     method: 'POST',

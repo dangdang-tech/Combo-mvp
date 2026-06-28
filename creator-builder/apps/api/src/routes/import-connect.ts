@@ -6,6 +6,9 @@
 // 隐私口径（文首硬约束）：助手把原文【全量上传】到云端，去敏在云端 worker；文案绝不出现「数据不出本机/仅传精简」。
 // 失败一律出 ErrorEnvelope（人话 + action，绝不裸露 code/堆栈/DB 报错，脊柱 §3/§11.B）。
 import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { basename, join, resolve, sep } from 'node:path';
 import type { FastifyReply, FastifyRequest, RouteHandlerMethod } from 'fastify';
 import {
   buildError,
@@ -142,6 +145,66 @@ export function connectScriptHandler(): RouteHandlerMethod {
       .code(200)
       .header('content-type', 'text/x-shellscript; charset=utf-8')
       .send(renderConnectScript({ base, pairId, pairingCode: code }));
+    return reply;
+  };
+}
+
+// ───────────────────────────── 2b) 引导二进制下发 ─────────────────────────────
+
+/** 二进制白名单：agora-import-{os}-{arch}，可选 .sha256 后缀（防路径穿越，只读固定目录下这几个文件）。 */
+const BIN_ASSET_RE = /^agora-import-(darwin|linux)-(amd64|arm64)(\.sha256)?$/;
+
+/** 二进制所在目录（容器内由 Dockerfile 注入 IMPORT_BIN_DIR=/app/import-bins）。 */
+function importBinDir(): string {
+  return process.env.IMPORT_BIN_DIR ?? '/app/import-bins';
+}
+
+/**
+ * GET /import/connect/bin/:asset（20-step1-import §3.2b）。【公开】无鉴权——与 /connect/script 同为匿名可取的引导产物。
+ *   引导脚本据平台拼出 asset 名（agora-import-{os}-{arch} 或其 .sha256）来此下载预编译 Go 二进制。
+ *   - :asset 必须匹配白名单正则（^agora-import-(darwin|linux)-(amd64|arm64)(\.sha256)?$），否则 404（防路径穿越）。
+ *   - 命中二进制 → 200 application/octet-stream，流式回文件字节。
+ *   - 命中 .sha256 → 200 text/plain，回该二进制的 sha256 十六进制（Dockerfile 预生成）。
+ *   - 文件不存在 / 路径逸出固定目录 / 非常规文件 → 404（绝不返 50x 或裸错误）。
+ */
+export function connectBinHandler(): RouteHandlerMethod {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    const asset = (req.params as { asset?: string } | undefined)?.asset ?? '';
+    // 白名单校验（同时杜绝 '../'、绝对路径、子目录等穿越形态：只接受纯文件名形态的白名单）。
+    if (!BIN_ASSET_RE.test(asset) || basename(asset) !== asset) {
+      reply.code(404).send();
+      return reply;
+    }
+
+    const dir = resolve(importBinDir());
+    const filePath = resolve(join(dir, asset));
+    // 防路径穿越纵深：解析后的绝对路径必须仍在固定目录内（asset 已是纯白名单文件名，这里再兜底）。
+    if (filePath !== join(dir, asset) && !filePath.startsWith(dir + sep)) {
+      reply.code(404).send();
+      return reply;
+    }
+
+    // 文件须存在且是常规文件（不存在/是目录 → 404，不暴露内部错误）。
+    try {
+      const st = await stat(filePath);
+      if (!st.isFile()) {
+        reply.code(404).send();
+        return reply;
+      }
+    } catch {
+      reply.code(404).send();
+      return reply;
+    }
+
+    if (asset.endsWith('.sha256')) {
+      reply.code(200).header('content-type', 'text/plain; charset=utf-8').send(createReadStream(filePath));
+      return reply;
+    }
+    reply
+      .code(200)
+      .header('content-type', 'application/octet-stream')
+      .header('content-disposition', `attachment; filename="${asset}"`)
+      .send(createReadStream(filePath));
     return reply;
   };
 }
