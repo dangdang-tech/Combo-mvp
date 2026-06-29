@@ -1,14 +1,34 @@
+# Codex 对抗评审产物（日志 / 结论 / 证据）整目录不入库，不对外分享（本地保留作审计轨迹）
+.reviews/
+
+# 依赖/构建产物(脚手架阶段补充)
 node_modules/
+dist/
+build/
 .env
-apps-db.json
-*.log
+.env.local
+
+# TypeScript 增量编译产物
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# 测试 / 工具缓存
+coverage/
+.vitest/
+.eslintcache
+
+# 验收测试证据(截图 / 报告，体量大，不入库；本地保留作复测参考）
+docs/测试/
+
+# 本机专用 compose 覆盖（端口/卷映射等，机器相关，不入库；本地保留供本机起栈）
+infra/docker-compose.override.local.yml
+
+# 编辑器
 .DS_Store
+*.log
 
-# GStack 浏览审计 / QA 报告与截图(工具产物,不入库)
+# 仓库根工具/临时产物（由原外层 .gitignore 合并而来）
 .gstack/
-
-# Playwright MCP 浏览产物（页面快照 / 截图，工具产物，不入库）
 .playwright-mcp/
-
-# 临时验收产物（登录 QR 等截图）
 cb_auth_qr.png
+apps-db.json
