@@ -33,19 +33,75 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
-  // 分层依赖规则（O-07 / 技术方案 §B-01：违反即 CI 失败）：
-  // worker/consumer/sweeper 后台进程不得 import api 的 HTTP app / 路由（进程间只经 PG/Redis 间接通信，不得拉起 Fastify app）。
+  // —— 分层依赖规则（后端仓库结构规范：违反即 CI 失败）——
+  // ① platform 是领域无关机制，永不依赖业务域 / 组合根 / 进程入口（保证未来 runtime 零改复用）。
   {
-    files: ['apps/api/src/processes/{worker,consumer,sweeper}.ts'],
+    files: ['apps/authoring/src/platform/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              group: ['**/app', '**/app.js', '**/routes/*', '**/routes/*.js'],
+              group: ['**/modules/**', '**/bootstrap/**', '**/processes/**'],
               message:
-                '后台进程（worker/consumer/sweeper）不得 import api 的 HTTP app/路由；进程间只经 PG/Redis 间接通信（技术方案 §B-01 分层规则）。',
+                'platform 是领域无关机制，不得 import 业务域(modules)/组合根(bootstrap)/进程入口(processes)；platform 内不得出现业务表名/业务类型（后端仓库结构规范）。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // ② 业务域之间只能经对方 index 出口互引，禁止深入模块内部文件（单向无环）。
+  {
+    files: ['apps/authoring/src/modules/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../*/repo',
+                '../*/repo.js',
+                '../*/handlers',
+                '../*/handlers.js',
+                '../*/routes',
+                '../*/routes.js',
+                '../*/job',
+                '../*/job.js',
+                '../*/service',
+                '../*/service.js',
+                '../*/consumer',
+                '../*/consumer.js',
+                '../*/projection',
+                '../*/projection.js',
+              ],
+              message:
+                '业务域之间只能 import 对方的 index.js 出口，不得深入其内部文件（后端仓库结构规范）。',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // ③ worker/consumer/sweeper 后台进程不得 import Fastify app / 路由聚合（进程间只经 PG/Redis 间接通信，不拉起 Fastify app）。
+  {
+    files: ['apps/authoring/src/processes/{worker,consumer,sweeper}.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/bootstrap/app',
+                '**/bootstrap/app.js',
+                '**/bootstrap/routes',
+                '**/bootstrap/routes.js',
+              ],
+              message:
+                '后台进程（worker/consumer/sweeper）不得 import HTTP app / 路由聚合（bootstrap）；进程间只经 PG/Redis 间接通信。',
             },
           ],
         },

@@ -33,7 +33,7 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.21)(jsdom@25.0.1)
 
-  apps/api:
+  apps/authoring:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.33.1

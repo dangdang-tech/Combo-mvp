@@ -8,16 +8,16 @@ PROCESS="${PROCESS:-api}"
 
 case "$PROCESS" in
   api)
-    exec node apps/api/dist/processes/api.js
+    exec node apps/authoring/dist/processes/api.js
     ;;
   worker)
-    exec node apps/api/dist/processes/worker.js
+    exec node apps/authoring/dist/processes/worker.js
     ;;
   consumer)
-    exec node apps/api/dist/processes/consumer.js
+    exec node apps/authoring/dist/processes/consumer.js
     ;;
   sweeper)
-    exec node apps/api/dist/processes/sweeper.js
+    exec node apps/authoring/dist/processes/sweeper.js
     ;;
   *)
     echo "[entrypoint] unknown PROCESS='$PROCESS' (expected api|worker|consumer|sweeper)" >&2

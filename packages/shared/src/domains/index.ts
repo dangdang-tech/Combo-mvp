@@ -7,3 +7,4 @@ export * from './structure.js';
 export * from './publish.js';
 export * from './dashboard.js';
 export * from './events.js';
+export * from './skill-package.js'; // authoring↔runtime 契约缝（未来升格 packages/skill-package）
