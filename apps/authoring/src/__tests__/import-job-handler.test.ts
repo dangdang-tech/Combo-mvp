@@ -4,7 +4,7 @@ import { gzipSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
 import type { SubtaskStatus } from '@cb/shared';
 import { createImportHandler } from '../modules/import/job.js';
-import { BUNDLE_SENTINEL } from '../modules/import/session-parse.js';
+import { BUNDLE_SENTINEL, computeContentHash } from '../modules/import/session-parse.js';
 import type { JobContext, LeasedJob } from '../platform/jobs/types.js';
 import { ImportFakeDb, FakeObjectStore, FakeTxPool, type JobRowF } from './import-fakes.js';
 
@@ -155,6 +155,21 @@ describe('import handler — 正常链路', () => {
     expect(report.totalRedactions).toBeGreaterThanOrEqual(1);
     expect(report.rulesetVersion).toBe('redaction-v1');
     expect(snap.redaction_ruleset_ver).toBe('redaction-v1');
+  });
+
+  it('JSON 转义 NUL：raw 层无真实 0x00，JSON.parse 后字段级清洗再落库（PG text 22021 回归）', async () => {
+    const raw = claudeSession([{ role: 'user', text: `前缀${'\u0000'}后缀` }]);
+    expect(raw).toContain('\\u0000');
+    expect(raw).not.toContain('\u0000');
+    const { db, handler } = setup({ 'raw/claude/f1.jsonl': raw });
+    const job = leased(db);
+    const cap = makeCtx(job, db);
+    await handler.run(job, cap.ctx);
+    const seg = [...db.segments.values()][0]!;
+    expect(seg.content).not.toContain('\u0000');
+    expect(seg.title).not.toContain('\u0000');
+    expect(seg.content).toContain('前缀后缀');
+    expect(seg.content_hash).toBe(computeContentHash(seg.content));
   });
 
   it('快照内去重：两个完全相同会话 → 只写一段（导入-22）', async () => {

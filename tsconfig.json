@@ -4,6 +4,8 @@
   "references": [
     { "path": "./packages/shared" },
     { "path": "./apps/authoring" },
-    { "path": "./apps/web" }
+    { "path": "./apps/web" },
+    { "path": "./apps/runtime" },
+    { "path": "./apps/runtime-web" }
   ]
 }

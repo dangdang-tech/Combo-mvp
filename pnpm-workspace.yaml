@@ -5,5 +5,7 @@ packages:
   - 'infra'
   - 'scripts'
 allowBuilds:
+  '@google/genai': false
   esbuild: true
   msgpackr-extract: true
+  protobufjs: false

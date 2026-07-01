@@ -222,17 +222,27 @@ function parseRedactDedup(inputs: RawSessionInput[]): {
   let maxTime: string | null = null;
 
   parsed.segments.forEach((s, i) => {
-    const content = texts[i * 2] ?? s.content;
-    const redactedTitle = texts[i * 2 + 1] ?? s.title;
+    // raw 层 stripNul 只能处理真实 0x00；JSON 字符串里的 "\\u0000" 会在 JSON.parse 后
+    // 才变成 JS NUL。落库字段在这里再清一次，并按清洗后正文算 hash，避免 PG text 22021。
+    const content = stripNul(texts[i * 2] ?? s.content);
+    const redactedTitle = stripNul(texts[i * 2 + 1] ?? s.title);
     // 标题为空（去敏后偶发）回退原解析标题；标题本身已是去敏后文本，绝不含明文 PII。
-    const title = redactedTitle.length > 0 ? redactedTitle : s.title;
+    const title = redactedTitle.length > 0 ? redactedTitle : stripNul(s.title);
+    const project = s.project ? stripNul(s.project) : undefined;
     const contentHash = computeContentHash(content); // 去敏后内容重算（§6.2 去重键）
     if (seen.has(contentHash)) return; // 去敏后撞重 → 跳过（统计不算重，导入-22）
     seen.add(contentHash);
-    out.push({ ...s, content, title, contentHash });
+    const { project: _unsafeProject, ...segmentBase } = s;
+    out.push({
+      ...segmentBase,
+      content,
+      title,
+      contentHash,
+      ...(project && project.length > 0 ? { project } : {}),
+    });
     messageCount += s.messageCount;
     sources.add(s.source);
-    if (s.project) projects.add(s.project);
+    if (project && project.length > 0) projects.add(project);
     if (s.happenedAt) {
       if (minTime === null || s.happenedAt < minTime) minTime = s.happenedAt;
       if (maxTime === null || s.happenedAt > maxTime) maxTime = s.happenedAt;

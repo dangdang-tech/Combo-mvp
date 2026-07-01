@@ -8,3 +8,4 @@ export * from './publish.js';
 export * from './dashboard.js';
 export * from './events.js';
 export * from './skill-package.js'; // authoring↔runtime 契约缝（未来升格 packages/skill-package）
+export * from './runtime-api.js'; // 试用端 runtime ↔ 试用前端 的 API 契约（消费链路）

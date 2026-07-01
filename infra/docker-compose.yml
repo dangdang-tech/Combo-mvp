@@ -322,12 +322,50 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:?}
       S3_REGION: ${S3_REGION:-us-east-1}
 
+  # 试用端 runtime（消费链路）：消费已发布契约，pi 执行层，AG-UI 流式对话 + 类 Claude Artifacts 产物。
+  #   只依赖 postgres（只读已发布投影 + 读写自有 rt_chat_* 表）；不需 redis/minio/logto。
+  #   不发布宿主端口：仅 web 那台 nginx 经 docker 网络 runtime:3100 反代 /api/v1/runtime/*。
+  #   LLM key 缺失只降级不阻塞启动；provider 留空按 key 自动判定（有 OPENROUTER 无 ANTHROPIC → openrouter）。
+  runtime:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: '3100'
+      HOST: 0.0.0.0
+      DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      RUNTIME_LLM_PROVIDER: ${RUNTIME_LLM_PROVIDER:-}
+      RUNTIME_LLM_MODEL: ${RUNTIME_LLM_MODEL:-anthropic/claude-sonnet-4.6}
+    expose:
+      - '3100'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
   web:
     build:
       context: ..
       dockerfile: infra/Dockerfile.web
     depends_on:
       api:
+        condition: service_healthy
+      runtime:
         condition: service_healthy
     ports:
       - '80:80'

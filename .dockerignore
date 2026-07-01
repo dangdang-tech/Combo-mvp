@@ -1,0 +1,13 @@
+# docker build 上下文排除：node_modules / 构建产物 / git / 大体积非源文件。
+#   镜像里靠 pnpm install 重装依赖、tsc/vite 重新构建 dist，故源外的这些都不进上下文（大幅加速）。
+**/node_modules
+**/dist
+**/.turbo
+**/tsconfig.tsbuildinfo
+**/.git
+**/coverage
+**/*.log
+.playwright-mcp
+rt-*.png
+wb-*.png
+**/.DS_Store

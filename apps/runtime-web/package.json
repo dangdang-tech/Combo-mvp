@@ -1,0 +1,33 @@
+{
+  "name": "@cb/runtime-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "试用端前端（类 Claude Artifacts）：对话流 + 产物面板，消费 @cb/shared runtime-api 契约。",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --noEmit false",
+    "preview": "vite preview",
+    "lint": "eslint src --max-warnings 0",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@ag-ui/client": "0.0.57",
+    "@ag-ui/core": "0.0.57",
+    "@cb/shared": "workspace:*",
+    "@tanstack/react-query": "^5.62.11",
+    "dompurify": "^3.2.3",
+    "marked": "^14.1.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}
