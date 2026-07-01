@@ -339,24 +339,6 @@ body {
   pointer-events: none;
 }
 
-.cb-shell__breadcrumb {
-  font-size: 14px;
-  color: var(--cb-muted);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cb-shell__breadcrumb a {
-  color: var(--cb-muted);
-  text-decoration: none;
-}
-
-.cb-shell__breadcrumb a:hover {
-  color: var(--cb-accent);
-}
-
 .cb-shell__crumb-sep {
   color: var(--cb-border);
 }
@@ -1002,23 +984,6 @@ body {
   cursor: default;
 }
 
-/* 草稿条 */
-.cb-draft-strip__title {
-  font-family: var(--cb-font-serif);
-  margin: 0 0 12px;
-  font-size: 16px;
-  color: var(--cb-fg);
-}
-
-.cb-draft-strip__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 /* 试用占位浮层 */
 .cb-trial-notice {
   position: fixed;
@@ -1180,8 +1145,7 @@ body {
 }
 
 /* cursor 分页器（加载更多 / 没有更多了）。 */
-.cb-capabilities__pager,
-.cb-pager {
+.cb-capabilities__pager {
   margin-top: 16px;
   text-align: center;
 }
@@ -1205,13 +1169,6 @@ body {
   color: var(--cb-muted);
   font-size: 13px;
   margin: 0;
-}
-
-/* 试用占位行内提示（我的能力页特有的轻提示，与 TrialNotice 浮层并存）。 */
-.cb-action__hint {
-  color: var(--cb-muted);
-  font-size: 12px;
-  margin: 4px 0 0;
 }
 
 /* ---------- 数据分析 ---------- */
@@ -1706,18 +1663,6 @@ body {
   flex-direction: column;
   gap: 10px;
 }
-.cb-import-empty__card--primary {
-  border-color: var(--cb-accent);
-  background: var(--cb-accent-soft);
-}
-.cb-import-empty__badge {
-  align-self: flex-start;
-  font-size: 12px;
-  color: var(--cb-accent);
-  background: var(--cb-accent-soft);
-  border-radius: 6px;
-  padding: 2px 8px;
-}
 .cb-import-empty__card-title {
   margin: 0;
   font-size: 16px;
@@ -1731,15 +1676,6 @@ body {
 }
 .cb-import-empty__start {
   align-self: flex-start;
-}
-.cb-import-empty__curl-preview {
-  margin: 0;
-  background: #1f2329;
-  color: #e3e6ea;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
-  overflow-x: auto;
 }
 .cb-import-empty__notes {
   border-top: 1px solid var(--cb-border);
@@ -2286,225 +2222,6 @@ body {
    软/硬 / 高低置信徽章；market-card；cover-picker 彩点；batch 进度条。
    卡片无投影（box-shadow:none，靠 seam 描边分层）。复用暖米 token，绝不写死颜色。
    ============================================================ */
-
-/* ---------- 共用：能力切换器（CapabilitySwitcher，§5.4/§5.5 左列） ----------
-   左列 ~190px：mono caps 列首「切换能力」+ 能力行（选中=accent-soft 底 + accent 边 + accent 字；
-   未选=paper 底 + seam 边）。single 即一项，批量列整批；失败项标红（无连坐）。 */
-.cb-cap-switcher {
-  width: 190px;
-  flex: 0 0 190px;
-}
-.cb-cap-switcher__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.cb-cap-switcher__item {
-  margin: 0;
-}
-.cb-cap-switcher__btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: 1px solid var(--cb-border);
-  background: var(--cb-surface);
-  color: var(--cb-fg);
-  border-radius: var(--cb-radius-card);
-  padding: 10px 12px;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  box-shadow: var(--cb-shadow-card);
-}
-.cb-cap-switcher__btn::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: var(--cb-radius-pill);
-  background: var(--cb-border);
-}
-.cb-cap-switcher__btn:hover {
-  border-color: var(--cb-accent);
-}
-.cb-cap-switcher__btn[data-active='true'] {
-  background: var(--cb-accent-soft);
-  border-color: var(--cb-accent);
-  color: var(--cb-accent);
-  font-weight: 500;
-  font-size: 15px;
-}
-.cb-cap-switcher__btn[data-active='true']::before {
-  background: var(--cb-accent);
-}
-.cb-cap-switcher__item[data-failed='true'] .cb-cap-switcher__btn {
-  border-color: var(--cb-danger);
-  color: var(--cb-danger);
-}
-.cb-cap-switcher__item[data-failed='true'] .cb-cap-switcher__btn::before {
-  background: var(--cb-danger);
-}
-.cb-cap-switcher__name {
-  flex: 1;
-  min-width: 0;
-}
-.cb-cap-switcher__badge {
-  font-family: var(--cb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--cb-muted);
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-.cb-cap-switcher__badge[data-failed='true'] {
-  color: var(--cb-danger);
-}
-.cb-cap-switcher__empty {
-  font-size: 13px;
-  color: var(--cb-muted);
-  padding: 12px;
-  border: 1px dashed var(--cb-border);
-  border-radius: var(--cb-radius-card);
-}
-
-/* 批量结果列表（逐项浮现 + 量化进度条 + 失败项重试/去补齐）。 */
-.cb-batch-results {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.cb-batch-results__head {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.cb-batch-results__title {
-  margin: 0;
-  font-family: var(--cb-font-serif);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--cb-fg);
-}
-/* 量化进度短语（永不裸转圈；有失败也满进度）。 */
-.cb-batch-results__progress {
-  margin: 0;
-  font-size: 13px;
-  color: var(--cb-muted);
-}
-.cb-batch-results__price-hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--cb-muted);
-}
-/* 进度条（track + accent fill）。 */
-.cb-batch-results__bar {
-  height: 6px;
-  background: var(--cb-rail);
-  border: 1px solid var(--cb-border);
-  border-radius: var(--cb-radius-pill);
-  overflow: hidden;
-}
-.cb-batch-results__bar-fill {
-  height: 100%;
-  background: var(--cb-accent);
-  transition: width 0.3s ease;
-}
-.cb-batch-results__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-/* 单项行：name + 状态徽章；失败项展开错误 + 操作。 */
-.cb-batch-results__item {
-  border: 1px solid var(--cb-border);
-  border-radius: var(--cb-radius-card);
-  background: var(--cb-surface);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.cb-batch-results__item[data-failed='true'] {
-  border-color: var(--cb-danger);
-  background: rgba(179, 38, 30, 0.04);
-}
-.cb-batch-results__item-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.cb-batch-results__item-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--cb-fg);
-}
-/* 状态徽章：published=ok 绿、failed=danger、整理/发布中=accent、排队=muted。 */
-.cb-batch-results__item-state {
-  font-size: 12px;
-  border-radius: var(--cb-radius-pill);
-  padding: 2px 10px;
-  white-space: nowrap;
-  background: var(--cb-rail);
-  color: var(--cb-muted);
-}
-.cb-batch-results__item-state[data-state='published'] {
-  background: rgba(14, 109, 82, 0.12);
-  color: var(--cb-badge-ok);
-}
-.cb-batch-results__item-state[data-state='failed'] {
-  background: rgba(179, 38, 30, 0.1);
-  color: var(--cb-danger);
-}
-.cb-batch-results__item-state[data-state='structuring'],
-.cb-batch-results__item-state[data-state='publishing'] {
-  background: var(--cb-accent-soft);
-  color: var(--cb-accent);
-}
-.cb-batch-results__item-fail {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.cb-batch-results__missing {
-  margin: 0;
-  font-size: 13px;
-  color: var(--cb-warn);
-}
-.cb-batch-results__item-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.cb-batch-results__item-actions .cb-btn {
-  padding: 5px 12px;
-  font-size: 13px;
-  border-radius: var(--cb-radius-control);
-}
-
-/* ---- 窄屏：两列堆叠为单列（结构不变，D14） ---- */
-@media (max-width: 900px) {
-  .cb-cap-switcher {
-    width: 100%;
-    flex-basis: auto;
-  }
-  .cb-cap-switcher__list {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .cb-cap-switcher__item {
-    flex: 1 1 160px;
-  }
-}
 
 /* ---------- 能力页（PRD 2 步之第 2 步：候选卡网格 + 一键发布，复用提取/批量发布视觉语言） ---------- */
 .cb-capabilities {

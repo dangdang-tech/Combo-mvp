@@ -3,9 +3,3 @@
 //   step5-publish 的展示件与 SSE 接线（结构坍缩：不再有 提取/选择/结构化/发布 四个独立路由步）。
 export { ImportStepPage } from './step1-import/index.js';
 export { CapabilitiesStepPage } from './step2-capabilities/index.js';
-export {
-  CapabilitySwitcher,
-  type CapabilitySwitcherProps,
-  type SwitcherItem,
-} from './CapabilitySwitcher.js';
-export { toApiError, isAbort } from './localError.js';

@@ -41,7 +41,7 @@ import {
 
 type Phase = { kind: 'triggering' } | { kind: 'extracting'; jobId: string } | { kind: 'ready' };
 
-/** 逐项发布状态槽人话（决策⑤ 无连坐；与 BatchResults 同口径的收敛版）。 */
+/** 逐项发布状态槽人话（决策⑤ 无连坐）。 */
 const ITEM_STATUS_LABEL: Record<PublishBatchItemView['state'], string> = {
   pending: '发布中…',
   structuring: '发布中…',
