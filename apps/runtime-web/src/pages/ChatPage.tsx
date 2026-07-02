@@ -17,14 +17,85 @@ import { SessionSidebar } from '../components/SessionSidebar.js';
 type PreviewMode = 'creator' | 'consumer';
 
 function latestVersion(artifact: RuntimeArtifact | null) {
-  return artifact?.versions.find((v) => v.version === artifact.latestVersion) ?? artifact?.versions.at(-1);
+  return (
+    artifact?.versions.find((v) => v.version === artifact.latestVersion) ??
+    artifact?.versions.at(-1)
+  );
 }
 
 function fieldValue(values: Record<string, string>, field: InputField): string {
   return values[field.key]?.trim() ?? '';
 }
 
-function buildTrialPrompt(fields: InputField[], values: Record<string, string>, extra: string): string {
+function includesAny(value: string, needles: string[]): boolean {
+  return needles.some((needle) => value.includes(needle));
+}
+
+function defaultFieldValue(
+  capability: PublicCapabilityView,
+  field: InputField,
+  index: number,
+): string {
+  const name = `${field.key} ${field.label}`.toLowerCase();
+
+  if (field.type === 'enum') return field.options?.[0] ?? '';
+  if (field.type === 'number') return includesAny(name, ['day', '天', 'week', '周']) ? '7' : '3';
+
+  if (
+    includesAny(name, ['audience', 'user', 'customer', 'persona', '受众', '用户', '客户', '人群'])
+  ) {
+    return '准备购买 AI 工具的独立开发者，熟悉基础自动化，但希望减少试错成本。';
+  }
+  if (includesAny(name, ['tone', 'style', 'voice', '语气', '风格', '口吻'])) {
+    return '清晰、专业、具体，带一点鼓励感。';
+  }
+  if (includesAny(name, ['reference', 'case', 'example', '素材', '案例', '参考'])) {
+    return '参考案例：用户之前试过两款工具，但因为配置复杂和结果不可控而放弃。希望看到更直接的行动建议。';
+  }
+  if (includesAny(name, ['topic', 'theme', '主题'])) {
+    return capability.name;
+  }
+  if (includesAny(name, ['point', 'outline', '要点', '大纲'])) {
+    return `目标：${capability.description}\n受众：独立开发者和小团队\n形式：可直接执行的一页方案`;
+  }
+  if (includesAny(name, ['competitor', 'company', 'product', '竞品', '产品', '公司'])) {
+    return 'Cursor';
+  }
+  if (includesAny(name, ['dimension', 'criteria', '维度', '标准'])) {
+    return '产品力\n上手成本\n生态与扩展\n商业化风险';
+  }
+  if (includesAny(name, ['ingredient', '食材'])) {
+    return '鸡胸肉、鸡蛋、西兰花、番茄、燕麦、酸奶';
+  }
+
+  if (field.type === 'text') {
+    return `我想用「${capability.name}」快速得到一版可直接使用的结果。请优先给出结构清晰、能马上行动的版本。`;
+  }
+
+  return index === 0 ? capability.description : capability.tagline;
+}
+
+function buildDefaultValues(capability: PublicCapabilityView): Record<string, string> {
+  return Object.fromEntries(
+    capability.inputs.fields.map((field, index) => [
+      field.key,
+      defaultFieldValue(capability, field, index),
+    ]),
+  );
+}
+
+function defaultExtra(capability: PublicCapabilityView): string {
+  return (
+    capability.starterPrompts[0] ??
+    `请基于这些输入生成一版完整、可直接使用的${capability.output.type === 'score' ? '评分卡' : '产物'}。`
+  );
+}
+
+function buildTrialPrompt(
+  fields: InputField[],
+  values: Record<string, string>,
+  extra: string,
+): string {
   const lines = fields
     .map((f) => {
       const value = fieldValue(values, f);
@@ -32,7 +103,7 @@ function buildTrialPrompt(fields: InputField[], values: Record<string, string>, 
     })
     .filter(Boolean);
   if (extra.trim()) lines.push(`补充要求：${extra.trim()}`);
-  return `请基于本次试用输入生成第一版 Persona Generator 画像卡。\n\n${lines.join('\n')}`;
+  return `请基于本次试用输入生成第一版产物。\n\n${lines.join('\n')}`;
 }
 
 function TrialIntakeForm({
@@ -44,9 +115,18 @@ function TrialIntakeForm({
   disabled: boolean;
   onSubmit: (prompt: string) => void;
 }) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [extra, setExtra] = useState('');
-  const requiredMissing = capability.inputs.fields.some((f) => f.required && !fieldValue(values, f));
+  const defaultValues = useMemo(() => buildDefaultValues(capability), [capability]);
+  const defaultPrompt = useMemo(() => defaultExtra(capability), [capability]);
+  const [values, setValues] = useState<Record<string, string>>(defaultValues);
+  const [extra, setExtra] = useState(defaultPrompt);
+  const requiredMissing = capability.inputs.fields.some(
+    (f) => f.required && !fieldValue(values, f),
+  );
+
+  useEffect(() => {
+    setValues(defaultValues);
+    setExtra(defaultPrompt);
+  }, [defaultPrompt, defaultValues]);
 
   return (
     <section className="rt-intake" aria-label="本次试用输入">
@@ -56,7 +136,10 @@ function TrialIntakeForm({
       </div>
       <div className="rt-intake__fields">
         {capability.inputs.fields.map((field) => (
-          <label key={field.key} className={`rt-field${field.type === 'text' ? ' rt-field--wide' : ''}`}>
+          <label
+            key={field.key}
+            className={`rt-field${field.type === 'text' ? ' rt-field--wide' : ''}`}
+          >
             <span className="rt-field__label">
               {field.label}
               {field.required && <span className="rt-field__req">*</span>}
@@ -125,14 +208,12 @@ function TrialProcessPanel({
   process: TrialProcessState | null;
   isRunning: boolean;
 }) {
-  const steps =
-    process?.steps ??
-    [
-      { key: 'read_experience', label: '读取经验体', status: isRunning ? 'running' : 'pending' },
-      { key: 'cluster_persona', label: '聚类受众特征', status: 'pending' },
-      { key: 'verify_quotes', label: '校验引用真实性', status: 'pending' },
-      { key: 'layout_cards', label: '排版产物卡', status: 'pending' },
-    ];
+  const steps = process?.steps ?? [
+    { key: 'read_experience', label: '读取经验体', status: isRunning ? 'running' : 'pending' },
+    { key: 'cluster_persona', label: '聚类受众特征', status: 'pending' },
+    { key: 'verify_quotes', label: '校验引用真实性', status: 'pending' },
+    { key: 'layout_cards', label: '排版产物卡', status: 'pending' },
+  ];
   return (
     <div className="rt-process" aria-label="生成过程">
       {steps.map((step) => (
@@ -222,7 +303,12 @@ function FloatingChat({
           placeholder="继续微调画像卡…"
           onChange={(event) => setText(event.target.value)}
         />
-        <button type="button" className="rt-btn rt-btn--accent" disabled={isRunning || !text.trim()} onClick={submit}>
+        <button
+          type="button"
+          className="rt-btn rt-btn--accent"
+          disabled={isRunning || !text.trim()}
+          onClick={submit}
+        >
           发送
         </button>
       </div>
@@ -306,14 +392,24 @@ export function ChatPage() {
         <header className="rt-trial__head">
           <div>
             <div className="rt-trial__cap">{capability.name}</div>
-            <div className="rt-trial__meta">v{capability.version} · @{capability.slug}</div>
+            <div className="rt-trial__meta">
+              v{capability.version} · @{capability.slug}
+            </div>
           </div>
           <div className="rt-trial__actions">
             <div className="rt-segment" role="group" aria-label="预览身份">
-              <button type="button" className={mode === 'creator' ? 'is-active' : ''} onClick={() => setMode('creator')}>
+              <button
+                type="button"
+                className={mode === 'creator' ? 'is-active' : ''}
+                onClick={() => setMode('creator')}
+              >
                 创作者
               </button>
-              <button type="button" className={mode === 'consumer' ? 'is-active' : ''} onClick={() => setMode('consumer')}>
+              <button
+                type="button"
+                className={mode === 'consumer' ? 'is-active' : ''}
+                onClick={() => setMode('consumer')}
+              >
                 消费者
               </button>
             </div>
@@ -329,7 +425,9 @@ export function ChatPage() {
           <main className="rt-genui">
             <div className="rt-genui__bar">
               <span>{activeArtifact?.title ?? '试用画布'}</span>
-              {activeArtifact && activeArtifact.versions.length > 1 && <span>v{activeArtifact.latestVersion}</span>}
+              {activeArtifact && activeArtifact.versions.length > 1 && (
+                <span>v{activeArtifact.latestVersion}</span>
+              )}
             </div>
             <div className="rt-genui__canvas">
               {activeVersion ? (
@@ -339,7 +437,11 @@ export function ChatPage() {
               )}
               {!hasStarted && (
                 <div className="rt-genui__overlay">
-                  <TrialIntakeForm capability={capability} disabled={agui.isRunning} onSubmit={(prompt) => agui.send(prompt)} />
+                  <TrialIntakeForm
+                    capability={capability}
+                    disabled={agui.isRunning}
+                    onSubmit={(prompt) => agui.send(prompt)}
+                  />
                 </div>
               )}
             </div>
