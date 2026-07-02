@@ -3,7 +3,12 @@
 //   - 连续安全前缀水位（§11.D）+ cursor 与处理同事务（§3.3）+ 按 topic 毒丸（§4）由 events 模块实现。
 //   - 轮询循环：周期对每个活跃 (consumer, topic) 配置跑 runOnce；无 Docker 也能起进程（连不上即空转/退出）。
 import { loadEnv } from '../platform/config/env.js';
-import type { AdvisoryLock, ConsumerTopicConfig } from '../platform/events/index.js';
+import type {
+  AdvisoryLock,
+  ConsumerTopicConfig,
+  asTxPool as asTxPoolType,
+  runOnce as runOnceType,
+} from '../platform/events/index.js';
 import { startNodeObservability } from '../platform/observability/node.js';
 
 const POLL_INTERVAL_MS = 1_000;
@@ -89,9 +94,9 @@ async function main(): Promise<void> {
 
 /** 跑一个 topic 的多轮 runOnce 直到本批耗尽（processed=0 且未卡住 → 本轮无新事件，停）。 */
 async function pollConsumer(
-  txPool: ReturnType<typeof import('../platform/events/index.js').asTxPool>,
+  txPool: ReturnType<typeof asTxPoolType>,
   cfg: ConsumerTopicConfig,
-  runOnce: typeof import('../platform/events/index.js').runOnce,
+  runOnce: typeof runOnceType,
 ): Promise<void> {
   // 连续推进：一直跑到本轮没有新可处理事件（避免 1s 间隔下大批积压消费过慢）。
   // stuck（lifecycle 卡住）或 processed=0 且 deadLettered=0 → 本轮无进展，退出等下次 poll。

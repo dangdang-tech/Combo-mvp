@@ -6,7 +6,12 @@
 import { hostname } from 'node:os';
 import { loadEnv } from '../platform/config/env.js';
 import type { ReEnqueue } from '../platform/jobs/sweeper-reconcile.js';
-import type { RedrivableDeadEvent } from '../platform/events/index.js';
+import type {
+  RedrivableDeadEvent,
+  asTxPool as asTxPoolType,
+  withTransaction as withTransactionType,
+} from '../platform/events/index.js';
+import type { routeForTopic as routeForTopicType } from './event-routes.js';
 import { startNodeObservability } from '../platform/observability/node.js';
 
 /** outbox 滞留告警阈值（写入超过此时长仍未被任一活跃 consumer 越过即告警，§6.3）。 */
@@ -132,10 +137,10 @@ async function main(): Promise<void> {
 
 /** 补投一条死信（§6.3）：按 topic 找回 processor，同事务内重放副作用（event_id 幂等，重放安全）。 */
 async function redriveOne(
-  txPool: ReturnType<typeof import('../platform/events/index.js').asTxPool>,
+  txPool: ReturnType<typeof asTxPoolType>,
   de: RedrivableDeadEvent,
-  routeForTopic: typeof import('./event-routes.js').routeForTopic,
-  withTransaction: typeof import('../platform/events/index.js').withTransaction,
+  routeForTopic: typeof routeForTopicType,
+  withTransaction: typeof withTransactionType,
 ): Promise<boolean> {
   const route = routeForTopic(de.topic);
   if (!route) return false; // 无 processor（冻结 topic）→ 不补投
