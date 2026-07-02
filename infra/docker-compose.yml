@@ -323,7 +323,7 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
 
   # 试用端 runtime（消费链路）：消费已发布契约，pi 执行层，AG-UI 流式对话 + 类 Claude Artifacts 产物。
-  #   只依赖 postgres（只读已发布投影 + 读写自有 rt_chat_* 表）；不需 redis/minio/logto。
+  #   只依赖 postgres（只读已发布投影 + 读写自有 rt_chat_* 表）与 Logto JWT 公钥校验；不需 redis/minio。
   #   不发布宿主端口：仅 web 那台 nginx 经 docker 网络 runtime:3100 反代 /api/v1/runtime/*。
   #   LLM key 缺失只降级不阻塞启动；provider 留空按 key 自动判定（有 OPENROUTER 无 ANTHROPIC → openrouter）。
   runtime:
@@ -340,6 +340,10 @@ services:
       PORT: '3100'
       HOST: 0.0.0.0
       DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      LOGTO_ISSUER: ${LOGTO_ISSUER:?}
+      LOGTO_JWKS_URI: ${LOGTO_JWKS_URI:?}
+      LOGTO_AUDIENCE: ${LOGTO_AUDIENCE:?}
+      DEV_LOGIN_ENABLED: 'false'
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       RUNTIME_LLM_PROVIDER: ${RUNTIME_LLM_PROVIDER:-}

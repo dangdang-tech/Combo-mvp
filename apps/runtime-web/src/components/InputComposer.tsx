@@ -7,9 +7,16 @@ export interface InputComposerProps {
   isFirst: boolean;
   disabled: boolean;
   onSend: (text: string, inputs?: Record<string, string>) => void;
+  onInterrupt?: () => void;
 }
 
-export function InputComposer({ capability, isFirst, disabled, onSend }: InputComposerProps) {
+export function InputComposer({
+  capability,
+  isFirst,
+  disabled,
+  onSend,
+  onInterrupt,
+}: InputComposerProps) {
   const [text, setText] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});
 
@@ -77,6 +84,15 @@ export function InputComposer({ capability, isFirst, disabled, onSend }: InputCo
         >
           {disabled ? '生成中…' : '发送'}
         </button>
+        {disabled && onInterrupt && (
+          <button
+            type="button"
+            className="rt-btn rt-composer__send"
+            onClick={onInterrupt}
+          >
+            打断
+          </button>
+        )}
       </div>
     </div>
   );

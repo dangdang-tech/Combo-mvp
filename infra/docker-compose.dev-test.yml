@@ -9,6 +9,11 @@ services:
       NODE_ENV: development
       DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
       DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
+  runtime:
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
   worker:
     environment:
       NODE_ENV: development

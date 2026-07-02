@@ -3,8 +3,10 @@
 //   契约文档「第一版先把 inputs/output/boundaries 一并写进提示词让模型遵守」即此。
 import type { ArtifactKind, OutputType, SkillPackageRuntimeView } from '@cb/shared';
 
-/** output.type → 推荐 artifact 形态。 */
-function recommendedKind(outputType: OutputType): ArtifactKind {
+/** output.type + instructions → 推荐 artifact 形态。 */
+function recommendedKind(view: SkillPackageRuntimeView): ArtifactKind {
+  if (/kind\s*=\s*html|完整\s*HTML|Full\s*HTML|GenUI/i.test(view.instructions)) return 'html';
+  const outputType = view.output.type;
   switch (outputType) {
     case 'text':
       return 'markdown';
@@ -49,7 +51,7 @@ function boundariesBlock(view: SkillPackageRuntimeView): string {
 
 /** 产物协议：约束模型「成品进 artifact、正文只放说明」，并按 output.type 选 kind。 */
 function artifactProtocol(view: SkillPackageRuntimeView): string {
-  const kind = recommendedKind(view.output.type);
+  const kind = recommendedKind(view);
   return [
     '# 产物（Artifact）协议 —— 必须遵守',
     '当你要产出「可独立留存、用户会保存/复用/反复查看」的成品（一篇文档、一个网页、一段代码、一份结构化报告/清单/评分）时，',

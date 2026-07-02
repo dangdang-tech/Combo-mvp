@@ -15,6 +15,57 @@ export type ArtifactKind = z.infer<typeof ArtifactKindSchema>;
 export const ChatRoleSchema = z.enum(['user', 'assistant']);
 export type ChatRole = z.infer<typeof ChatRoleSchema>;
 
+export const RuntimeSessionModeSchema = z.enum(['consume', 'trial']);
+export type RuntimeSessionMode = z.infer<typeof RuntimeSessionModeSchema>;
+
+export const RunStatusSchema = z.enum([
+  'queued',
+  'running',
+  'interrupted',
+  'failed',
+  'completed',
+]);
+export type RunStatus = z.infer<typeof RunStatusSchema>;
+
+export const RunStageStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+export type RunStageStatus = z.infer<typeof RunStageStatusSchema>;
+
+export const RunStageSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  status: RunStageStatusSchema,
+});
+export type RunStage = z.infer<typeof RunStageSchema>;
+
+export const TrialProcessStateSchema = z.object({
+  steps: z.array(RunStageSchema),
+  currentKey: z.string().nullable(),
+});
+export type TrialProcessState = z.infer<typeof TrialProcessStateSchema>;
+
+export const LockedElementSchema = z.object({
+  artifactKey: z.string(),
+  cardId: z.string().optional(),
+  elementKey: z.string(),
+  value: z.union([z.string(), z.number(), z.array(z.string())]),
+});
+export type LockedElement = z.infer<typeof LockedElementSchema>;
+
+export const RunContentPartSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('text'),
+    text: z.string(),
+  }),
+  z.object({
+    type: z.literal('image'),
+    url: z.string().url().optional(),
+    mimeType: z.string().optional(),
+    data: z.string().optional(),
+    alt: z.string().optional(),
+  }),
+]);
+export type RunContentPart = z.infer<typeof RunContentPartSchema>;
+
 // 助手消息引用的 artifact（指向 runtime_artifacts 的某个版本，渲染成对话气泡里的卡片）。
 export const ArtifactRefSchema = z.object({
   artifactKey: z.string(),
@@ -27,6 +78,7 @@ export type ArtifactRef = z.infer<typeof ArtifactRefSchema>;
 // 对话消息（UI 形态，从 pi 转录派生 + 落 runtime_messages）。
 export const RuntimeMessageSchema = z.object({
   id: z.string(),
+  runId: z.string().nullable(),
   seq: z.number().int(),
   role: ChatRoleSchema,
   text: z.string(),
@@ -63,6 +115,7 @@ export const RuntimeSessionMetaSchema = z.object({
   capabilityId: z.string(),
   slug: z.string(),
   version: z.string(),
+  mode: RuntimeSessionModeSchema,
   title: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -90,15 +143,29 @@ export type RuntimeCapabilityList = z.infer<typeof RuntimeCapabilityListSchema>;
 
 // POST /runtime/sessions
 export const CreateSessionBodySchema = z.object({
-  slugOrId: z.string().min(1),
+  slugOrId: z.string().min(1).optional(),
   title: z.string().optional(),
+  mode: RuntimeSessionModeSchema.optional(),
+  runGrant: z.string().optional(),
+  intake: z.record(z.string()).optional(),
 });
 export type CreateSessionBody = z.infer<typeof CreateSessionBodySchema>;
+
+export const CreateTrialChainSessionBodySchema = z.object({
+  slugOrId: z.string().min(1).optional(),
+  title: z.string().optional(),
+  runGrant: z.string().optional(),
+  intake: z.record(z.string()).optional(),
+});
+export type CreateTrialChainSessionBody = z.infer<
+  typeof CreateTrialChainSessionBodySchema
+>;
 
 // GET /runtime/sessions → 会话列表（续话侧栏）
 export const RuntimeSessionListItemSchema = z.object({
   id: z.string(),
   slug: z.string(),
+  mode: RuntimeSessionModeSchema,
   title: z.string(),
   capabilityName: z.string(),
   updatedAt: z.string(),
@@ -118,6 +185,50 @@ export const SessionDetailSchema = z.object({
   artifacts: z.array(RuntimeArtifactSchema),
 });
 export type SessionDetail = z.infer<typeof SessionDetailSchema>;
+
+export const SessionMessagesPageSchema = z.object({
+  items: z.array(RuntimeMessageSchema),
+  nextCursor: z.string().nullable(),
+});
+export type SessionMessagesPage = z.infer<typeof SessionMessagesPageSchema>;
+
+export const UpdateSessionBodySchema = z.object({
+  title: z.string().min(1).max(80).optional(),
+});
+export type UpdateSessionBody = z.infer<typeof UpdateSessionBodySchema>;
+
+export const TrialChainSchema = z.object({
+  capabilityId: z.string(),
+  sessions: z.array(RuntimeSessionListItemSchema),
+});
+export type TrialChain = z.infer<typeof TrialChainSchema>;
+
+export const RunInputSchema = z.object({
+  contentParts: z.array(RunContentPartSchema).min(1),
+  lockedElements: z.array(LockedElementSchema).optional(),
+});
+export type RunInput = z.infer<typeof RunInputSchema>;
+
+export const RuntimeRunSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  status: RunStatusSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  completedAt: z.string().nullable(),
+});
+export type RuntimeRun = z.infer<typeof RuntimeRunSchema>;
+
+export const CreateRunResultSchema = z.object({
+  run: RuntimeRunSchema,
+  eventsUrl: z.string(),
+});
+export type CreateRunResult = z.infer<typeof CreateRunResultSchema>;
+
+export const InterruptRunResultSchema = z.object({
+  run: RuntimeRunSchema,
+});
+export type InterruptRunResult = z.infer<typeof InterruptRunResultSchema>;
 
 // 发消息走 AG-UI 标准协议（POST /runtime/agui，body=RunAgentInput，回 AG-UI 事件流）：
 //   text 走 TEXT_MESSAGE_*，产物走 STATE_DELTA（agent.state.artifacts）。线协议类型由 @ag-ui/core 提供，

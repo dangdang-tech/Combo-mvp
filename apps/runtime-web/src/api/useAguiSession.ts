@@ -1,154 +1,253 @@
-// AG-UI 会话 hook：用官方 @ag-ui/client 的 HttpAgent 消费 /runtime/agui。
-//   HttpAgent 自管 messages + state（含流式拼接、STATE_DELTA JSON Patch 应用、顺序校验），
-//   我们只把 agent.messages（对话）+ agent.state.artifacts（产物）镜像进 React state 驱动现有组件。
-//   pi 仍是后端执行层；前端不再维护任何自定义协议解析。
+// 显式 Run 版会话 hook：POST /sessions/:id/runs 触发，EventSource 订阅 /runs/:id/events。
+// 断开页面只关闭订阅，不打断后端执行；打断必须显式调用 interrupt。
 import { useEffect, useRef, useState } from 'react';
-import { HttpAgent } from '@ag-ui/client';
-import type { Message } from '@ag-ui/core';
-import type { RuntimeArtifact, SessionDetail } from '@cb/shared';
+import { EventType } from '@ag-ui/core';
+import type {
+  ArtifactRef,
+  CreateRunResult,
+  LockedElement,
+  RuntimeArtifact,
+  SessionDetail,
+  TrialProcessState,
+} from '@cb/shared';
+import { apiPost } from './client.js';
 
 export interface AguiUiMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  artifacts: ArtifactRef[];
 }
 
-/** 共享状态里产物的形态（与后端 agui-run 发的 STATE_DELTA 对齐）。 */
 interface ArtifactState {
   artifacts?: Record<string, RuntimeArtifact>;
   activeArtifactKey?: string | null;
+  trialProcess?: TrialProcessState;
 }
 
 export interface AguiSession {
   messages: AguiUiMessage[];
   artifacts: RuntimeArtifact[];
   activeKey: string | null;
+  trialProcess: TrialProcessState | null;
   isRunning: boolean;
   error: string | null;
   setActiveKey: (key: string | null) => void;
-  send: (text: string) => void;
+  send: (text: string, lockedElements?: LockedElement[]) => void;
+  interrupt: () => void;
 }
 
-function textOf(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((p) => (p && typeof p === 'object' && 'text' in p ? String((p as { text: unknown }).text) : ''))
-      .join('');
-  }
-  return '';
-}
-
-function toUi(messages: ReadonlyArray<{ id: string; role: string; content?: unknown }>): AguiUiMessage[] {
-  const out: AguiUiMessage[] = [];
-  for (const m of messages) {
-    if (m.role !== 'user' && m.role !== 'assistant') continue;
-    out.push({ id: m.id, role: m.role, text: textOf(m.content) });
-  }
-  return out;
-}
-
-function readArtifacts(state: ArtifactState | undefined): {
+function readArtifacts(state: ArtifactState): {
   list: RuntimeArtifact[];
   active: string | null;
 } {
-  const map = state?.artifacts ?? {};
-  return { list: Object.values(map), active: state?.activeArtifactKey ?? null };
+  const map = state.artifacts ?? {};
+  return { list: Object.values(map), active: state.activeArtifactKey ?? null };
+}
+
+function ptrDecode(seg: string): string {
+  return seg.replace(/~1/g, '/').replace(/~0/g, '~');
+}
+
+function applyStateDelta(state: ArtifactState, delta: unknown): ArtifactState {
+  if (!Array.isArray(delta)) return state;
+  const next: ArtifactState = {
+    artifacts: { ...(state.artifacts ?? {}) },
+    activeArtifactKey: state.activeArtifactKey ?? null,
+    trialProcess: state.trialProcess,
+  };
+  for (const op of delta) {
+    if (!op || typeof op !== 'object') continue;
+    const patch = op as { op?: string; path?: string; value?: unknown };
+    if (patch.op !== 'add' && patch.op !== 'replace') continue;
+    if (patch.path === '/activeArtifactKey') {
+      next.activeArtifactKey = typeof patch.value === 'string' ? patch.value : null;
+      continue;
+    }
+    if (patch.path === '/trialProcess') {
+      next.trialProcess = patch.value as TrialProcessState;
+      continue;
+    }
+    const prefix = '/artifacts/';
+    if (patch.path?.startsWith(prefix)) {
+      const key = ptrDecode(patch.path.slice(prefix.length));
+      next.artifacts![key] = patch.value as RuntimeArtifact;
+    }
+  }
+  return next;
+}
+
+function lastArtifactKey(artifacts: RuntimeArtifact[]): string | null {
+  return artifacts.at(-1)?.artifactKey ?? null;
 }
 
 export function useAguiSession(
   sessionId: string | undefined,
   detail: SessionDetail | undefined,
 ): AguiSession {
-  const agentRef = useRef<HttpAgent | null>(null);
-  const builtFor = useRef<string | undefined>(undefined);
-  const runningRef = useRef(false);
-  const errorRef = useRef<string | null>(null);
+  const sourceRef = useRef<EventSource | null>(null);
+  const activeRunRef = useRef<string | null>(null);
+  const stateRef = useRef<ArtifactState>({});
 
   const [messages, setMessages] = useState<AguiUiMessage[]>([]);
   const [artifacts, setArtifacts] = useState<RuntimeArtifact[]>([]);
   const [activeKey, setActiveKeyState] = useState<string | null>(null);
+  const [trialProcess, setTrialProcess] = useState<TrialProcessState | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 仅当 detail 确属当前 session 才建（切会话时 detail 可能还是上一会话的，须门住）。
     if (!sessionId || !detail || detail.session.id !== sessionId) return;
-    if (builtFor.current === sessionId) return;
-    builtFor.current = sessionId;
-
-    const agent = new HttpAgent({ url: '/api/v1/runtime/agui', headers: {} });
-    agent.threadId = sessionId;
-    agent.setMessages(
-      detail.messages.map((m) => ({ id: m.id, role: m.role, content: m.text }) as Message),
-    );
-    const initialState: ArtifactState = {
-      artifacts: Object.fromEntries(detail.artifacts.map((a) => [a.artifactKey, a])),
-      activeArtifactKey: detail.artifacts.at(-1)?.artifactKey ?? null,
+    sourceRef.current?.close();
+    sourceRef.current = null;
+    activeRunRef.current = null;
+    const artifactMap = Object.fromEntries(detail.artifacts.map((a) => [a.artifactKey, a]));
+    stateRef.current = {
+      artifacts: artifactMap,
+      activeArtifactKey: lastArtifactKey(detail.artifacts),
     };
-    agent.setState(initialState);
-    agentRef.current = agent;
-
-    setMessages(toUi(agent.messages));
-    const init = readArtifacts(initialState);
-    setArtifacts(init.list);
-    setActiveKeyState(init.active);
-    setError(null);
+    setMessages(
+      detail.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        text: m.text,
+        artifacts: m.artifacts,
+      })),
+    );
+    setArtifacts(detail.artifacts);
+    setActiveKeyState(lastArtifactKey(detail.artifacts));
+    setTrialProcess(null);
     setIsRunning(false);
-    runningRef.current = false;
-    errorRef.current = null;
-
-    const { unsubscribe } = agent.subscribe({
-      onMessagesChanged: () => setMessages(toUi(agent.messages)),
-      onStateChanged: () => {
-        const s = readArtifacts(agent.state as ArtifactState);
-        setArtifacts(s.list);
-        setActiveKeyState((cur) => s.active ?? cur);
-      },
-      onRunErrorEvent: ({ event }) => {
-        const msg = (event as { message?: string }).message ?? '对话失败，请重试。';
-        errorRef.current = msg;
-        setError(msg);
-      },
-    });
-
+    setError(null);
     return () => {
-      unsubscribe();
-      agent.abortRun();
-      agentRef.current = null;
-      builtFor.current = undefined;
+      sourceRef.current?.close();
+      sourceRef.current = null;
     };
   }, [sessionId, detail]);
 
-  const send = (text: string): void => {
-    const agent = agentRef.current;
-    if (!agent || runningRef.current) return;
+  const attachEvents = (runId: string, eventsUrl: string, after = 0, attempt = 0): void => {
+    sourceRef.current?.close();
+    let lastSeenEventId = after;
+    const url =
+      after > 0 ? `${eventsUrl}${eventsUrl.includes('?') ? '&' : '?'}after=${after}` : eventsUrl;
+    const source = new EventSource(url, { withCredentials: true });
+    sourceRef.current = source;
+    activeRunRef.current = runId;
+    setIsRunning(true);
+
+    source.onmessage = (event) => {
+      const numericEventId = Number(event.lastEventId);
+      if (Number.isFinite(numericEventId) && numericEventId > 0) lastSeenEventId = numericEventId;
+      let frame: { type?: string; messageId?: string; delta?: unknown; message?: string };
+      try {
+        frame = JSON.parse(event.data) as typeof frame;
+      } catch {
+        return;
+      }
+      switch (frame.type) {
+        case EventType.RUN_STARTED:
+          setIsRunning(true);
+          break;
+        case EventType.TEXT_MESSAGE_START:
+          if (typeof frame.messageId === 'string') {
+            const messageId = frame.messageId;
+            setMessages((cur) =>
+              cur.some((m) => m.id === messageId)
+                ? cur
+                : [...cur, { id: messageId, role: 'assistant', text: '', artifacts: [] }],
+            );
+          }
+          break;
+        case EventType.TEXT_MESSAGE_CONTENT:
+          if (typeof frame.messageId === 'string' && typeof frame.delta === 'string') {
+            const messageId = frame.messageId;
+            const delta = frame.delta;
+            setMessages((cur) =>
+              cur.map((m) =>
+                m.id === messageId ? { ...m, text: `${m.text}${delta}` } : m,
+              ),
+            );
+          }
+          break;
+        case EventType.STATE_SNAPSHOT:
+          stateRef.current = (frame as { snapshot?: ArtifactState }).snapshot ?? {};
+          {
+            const s = readArtifacts(stateRef.current);
+            setArtifacts(s.list);
+            setActiveKeyState((cur) => s.active ?? cur);
+            setTrialProcess(stateRef.current.trialProcess ?? null);
+          }
+          break;
+        case EventType.STATE_DELTA:
+          stateRef.current = applyStateDelta(stateRef.current, frame.delta);
+          {
+            const s = readArtifacts(stateRef.current);
+            setArtifacts(s.list);
+            setActiveKeyState((cur) => s.active ?? cur);
+            setTrialProcess(stateRef.current.trialProcess ?? null);
+          }
+          break;
+        case EventType.RUN_ERROR:
+          setError(frame.message ?? '对话失败，请重试。');
+          setIsRunning(false);
+          activeRunRef.current = null;
+          source.close();
+          break;
+        case EventType.RUN_FINISHED:
+          setIsRunning(false);
+          activeRunRef.current = null;
+          source.close();
+          break;
+        default:
+          break;
+      }
+    };
+
+    source.onerror = () => {
+      source.close();
+      if (activeRunRef.current === runId && attempt < 3) {
+        window.setTimeout(() => attachEvents(runId, eventsUrl, lastSeenEventId, attempt + 1), 600);
+        return;
+      }
+      setError('事件流连接中断，可刷新会话恢复。');
+      setIsRunning(false);
+    };
+  };
+
+  const send = (text: string, lockedElements?: LockedElement[]): void => {
+    if (!sessionId || isRunning) return;
     const trimmed = text.trim();
     if (!trimmed) return;
-    errorRef.current = null;
     setError(null);
-    runningRef.current = true;
+    const userId = `u-${Date.now()}`;
+    setMessages((cur) => [...cur, { id: userId, role: 'user', text: trimmed, artifacts: [] }]);
     setIsRunning(true);
-    agent.addMessage({ id: `u-${Date.now()}`, role: 'user', content: trimmed } as Message);
-    setMessages(toUi(agent.messages));
-    void agent
-      .runAgent({ tools: [], context: [], forwardedProps: {} })
+    void apiPost<CreateRunResult>(`/runtime/sessions/${sessionId}/runs`, {
+      contentParts: [{ type: 'text', text: trimmed }],
+      ...(lockedElements && lockedElements.length > 0 ? { lockedElements } : {}),
+    })
+      .then((result) => attachEvents(result.run.id, result.eventsUrl))
       .catch(() => {
-        if (!errorRef.current) setError('对话失败，请重试。');
-      })
-      .finally(() => {
-        runningRef.current = false;
         setIsRunning(false);
+        setError('无法启动运行，请重试。');
       });
+  };
+
+  const interrupt = (): void => {
+    const runId = activeRunRef.current;
+    if (!runId) return;
+    void apiPost(`/runtime/runs/${runId}/interrupt`).catch(() => undefined);
   };
 
   return {
     messages,
     artifacts,
     activeKey,
+    trialProcess,
     isRunning,
     error,
     setActiveKey: setActiveKeyState,
     send,
+    interrupt,
   };
 }

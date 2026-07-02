@@ -29,9 +29,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     let userMessage = '请求失败，请稍后重试。';
     let traceId: string | undefined;
     try {
-      const env = (await res.json()) as { userMessage?: string; traceId?: string };
-      if (env.userMessage) userMessage = env.userMessage;
-      traceId = env.traceId;
+      const env = (await res.json()) as {
+        userMessage?: string;
+        traceId?: string;
+        error?: { userMessage?: string; traceId?: string };
+      };
+      if (env.error?.userMessage) userMessage = env.error.userMessage;
+      else if (env.userMessage) userMessage = env.userMessage;
+      traceId = env.error?.traceId ?? env.traceId;
     } catch {
       /* 非 JSON 错误体：用兜底文案 */
     }

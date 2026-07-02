@@ -21,6 +21,57 @@ interface DemoDef {
 
 const DEMOS: DemoDef[] = [
   {
+    slug: 'persona-generator',
+    name: 'Persona Generator',
+    tagline: '把目标受众与语气要求生成三张可试用的人物画像卡',
+    role: '受众研究与叙事策略专家',
+    goal: '根据目标受众、语气风格和参考案例，生成三张可供创作者验证的消费者视角人物画像卡',
+    instructions: [
+      '你是一名受众研究与叙事策略专家。你要帮助创作者在发布前试用一条 Persona Generator 能力。',
+      '本能力的试用交付优先是 GenUI / Full HTML，而不是普通聊天正文。务必通过 upsert_artifact 工具产出，kind=html，artifactKey="main"，title="Persona Generator 画像卡"，content 为完整自包含 HTML 文档（含 <!doctype html>、<html>、内联 <style>，必要交互用内联 <script>）。',
+      'HTML 产物必须包含三张人物画像卡。每张卡包含：姓名、头衔或身份、一句引用、说服力/记忆点/可信度三项打分、一条“异议”。',
+      '如果用户提供参考案例，要把它作为语气和异议来源；不能伪造具体真实引用。引用不确定时要标注为“模拟引用”。',
+      '产物里要包含“创作者可锁定异议”的视觉状态：每张卡的异议旁提供“锁定为参考案例”的只读按钮或标记位。按钮可做前端静态交互，但不需要真正回写后端。',
+      '版式要像消费者最终看到的运行实例：主画布优先，卡片可扫描，移动端不溢出。避免依赖私有资源，禁止外链需要鉴权的资源。',
+      '聊天正文只用一两句话说明已生成画像卡，并邀请创作者锁定一条异议后继续微调；不要把 HTML 内容重复粘在正文里。',
+    ].join('\n'),
+    inputs: {
+      fields: [
+        {
+          key: 'audience',
+          label: '目标受众',
+          type: 'string',
+          required: true,
+          derivedFrom: 'instructions',
+        },
+        {
+          key: 'tone',
+          label: '语气风格',
+          type: 'string',
+          required: true,
+          derivedFrom: 'instructions',
+        },
+        {
+          key: 'reference',
+          label: '参考案例',
+          type: 'text',
+          required: false,
+          derivedFrom: 'instructions',
+        },
+      ],
+    },
+    output: { type: 'text' },
+    boundaries: {
+      riskLevel: 'low',
+      redLines: ['不把模拟人物当成真实用户', '不伪造真实引用或具体事实', '不输出歧视性画像'],
+    },
+    starterPrompts: [
+      '给 3 位早期投资人画像',
+      '给大厂产品经理生成严格审视风格画像',
+      '给独立开发者生成鼓励陪伴风格画像',
+    ],
+  },
+  {
     slug: 'visual-brief',
     name: '可视化简报生成器',
     tagline: '把主题与要点变成一页式可交互的 HTML 简报',
@@ -175,7 +226,7 @@ async function main(): Promise<void> {
         byline: `@${user.account}`,
         trustBadge: '源自一次真实会话',
         price: { priceMicros: 0, display: '免费' },
-        trialEnabled: false,
+        trialEnabled: true,
         installs: null,
         rating: null,
       };

@@ -28,6 +28,17 @@ const EnvSchema = z.object({
 
   // 匿名身份 cookie（MVP）。CORS 允许来源（dev 走 vite 代理同源；留空 = 反射来源放开，生产收敛）。
   CORS_ORIGIN: z.string().default(''),
+
+  // 创作者登录态（trial 路径）：复用 authoring 写入的 cb_session。runtime 只验证 token 并读 users，
+  // 不 import authoring 代码、不负责登录回调。
+  LOGTO_ISSUER: z.string().default('http://localhost:3001/oidc'),
+  LOGTO_JWKS_URI: z.string().default('http://localhost:3001/oidc/jwks'),
+  LOGTO_AUDIENCE: z.string().default(''),
+  DEV_LOGIN_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  DEV_SESSION_SECRET: z.string().default(''),
 });
 export type Env = z.infer<typeof EnvSchema>;
 
@@ -42,6 +53,21 @@ export function loadEnv(): Env {
     const url = process.env.DATABASE_URL;
     if (!url || url.trim() === '') {
       throw new Error('[env] 生产模式缺少 DATABASE_URL（不允许默认 fallback）。请显式设置后重启。');
+    }
+    const issuer = process.env.LOGTO_ISSUER;
+    const audience = process.env.LOGTO_AUDIENCE;
+    const jwks = process.env.LOGTO_JWKS_URI;
+    if (
+      !issuer ||
+      issuer.trim() === '' ||
+      !audience ||
+      audience.trim() === '' ||
+      !jwks ||
+      jwks.trim() === ''
+    ) {
+      throw new Error(
+        '[env] 生产模式缺少 LOGTO_ISSUER/LOGTO_JWKS_URI/LOGTO_AUDIENCE（trial 登录态验证不允许默认 fallback）。',
+      );
     }
   }
 
@@ -61,6 +87,10 @@ export function loadEnv(): Env {
   }
 
   cached = parsed.data;
+  if (isProd && cached.DEV_LOGIN_ENABLED) {
+    console.warn('[env] 生产模式禁止 DEV_LOGIN_ENABLED=true：已强制关闭。');
+    cached = { ...cached, DEV_LOGIN_ENABLED: false };
+  }
   if (!isProd && (!process.env.DATABASE_URL || process.env.DATABASE_URL.trim() === '')) {
     console.warn('[env] dev/test 使用默认 DATABASE_URL（生产将拒绝启动）。');
   }

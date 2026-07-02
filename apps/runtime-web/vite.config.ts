@@ -11,8 +11,10 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
-      // dev：把 /api 与健康检查代理到试用端 api 进程（默认 3100，浏览器永远只碰 5174）。
-      '/api': 'http://localhost:3100',
+      // dev：runtime API 走 3100；登录态和 /me 复用 authoring API 3000。
+      '/api/v1/runtime': 'http://localhost:3100',
+      '/api/v1/auth': 'http://localhost:3000',
+      '/api/v1/me': 'http://localhost:3000',
       '/healthz': 'http://localhost:3100',
       '/readyz': 'http://localhost:3100',
     },

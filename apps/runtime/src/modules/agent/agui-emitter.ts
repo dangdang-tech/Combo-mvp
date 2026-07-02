@@ -20,6 +20,8 @@ export interface AguiEmitter {
   runError: (message: string) => void;
   /** 终态：成功收尾。 */
   runFinished: () => void;
+  /** 等待所有异步事件写入完成。HTTP 直写 emitter 为 no-op。 */
+  flush: () => Promise<void>;
   end: () => void;
   signal: AbortSignal;
 }
@@ -59,15 +61,20 @@ export function startAguiStream(
     runStarted: () =>
       write({ type: EventType.RUN_STARTED, threadId: args.threadId, runId: args.runId }),
     textStart: (messageId) =>
-      write({ type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant' }),
+      write({ type: EventType.TEXT_MESSAGE_START, threadId: args.threadId, runId: args.runId, messageId, role: 'assistant' }),
     textContent: (messageId, delta) =>
-      write({ type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta }),
-    textEnd: (messageId) => write({ type: EventType.TEXT_MESSAGE_END, messageId }),
-    stateDelta: (ops) => write({ type: EventType.STATE_DELTA, delta: ops }),
-    stateSnapshot: (snapshot) => write({ type: EventType.STATE_SNAPSHOT, snapshot }),
-    runError: (message) => write({ type: EventType.RUN_ERROR, message }),
+      write({ type: EventType.TEXT_MESSAGE_CONTENT, threadId: args.threadId, runId: args.runId, messageId, delta }),
+    textEnd: (messageId) =>
+      write({ type: EventType.TEXT_MESSAGE_END, threadId: args.threadId, runId: args.runId, messageId }),
+    stateDelta: (ops) =>
+      write({ type: EventType.STATE_DELTA, threadId: args.threadId, runId: args.runId, delta: ops }),
+    stateSnapshot: (snapshot) =>
+      write({ type: EventType.STATE_SNAPSHOT, threadId: args.threadId, runId: args.runId, snapshot }),
+    runError: (message) =>
+      write({ type: EventType.RUN_ERROR, threadId: args.threadId, runId: args.runId, message }),
     runFinished: () =>
       write({ type: EventType.RUN_FINISHED, threadId: args.threadId, runId: args.runId }),
+    flush: async () => undefined,
     end,
     signal: abort.signal,
   };

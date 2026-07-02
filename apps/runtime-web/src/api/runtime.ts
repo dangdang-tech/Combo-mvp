@@ -48,3 +48,10 @@ export function useCreateSession() {
     },
   });
 }
+
+export function createTrialSession(slugOrId: string): Promise<CreateSessionResult> {
+  return apiPost<CreateSessionResult>(`/runtime/trial-chains/${encodeURIComponent(slugOrId)}/sessions`, {
+    slugOrId,
+    title: 'Persona 试用',
+  });
+}
