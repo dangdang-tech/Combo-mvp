@@ -9,3 +9,4 @@ export * from './jobs.js';
 export * from './sse.js';
 export * from './drafts.js';
 export * from './health.js';
+export * from './trace.js';

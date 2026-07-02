@@ -76,4 +76,15 @@ describe('api skeleton', () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.headers['x-trace-id']).toBeTruthy();
   });
+
+  it('inherits x-trace-id and emits traceparent response header', async () => {
+    const traceId = '123e4567-e89b-12d3-a456-426614174000';
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { 'x-trace-id': traceId },
+    });
+    expect(res.headers['x-trace-id']).toBe(traceId);
+    expect(String(res.headers['traceparent'])).toContain('123e4567e89b12d3a456426614174000');
+  });
 });

@@ -449,7 +449,12 @@ export function connectUploadHandler(): RouteHandlerMethod {
     // 入队触发云端解析（仅新建分支入队；回放分支 fenceToken=0 不重复入队，幂等）。
     if (created.fenceToken > 0) {
       try {
-        await req.server.infra.queue.enqueue('import', created.jobId as never, created.fenceToken);
+        await req.server.infra.queue.enqueue(
+          'import',
+          created.jobId as never,
+          created.fenceToken,
+          req.id,
+        );
       } catch (err) {
         // 入队失败：助手路径 job 已建且配对已 job_created/used_at（兑换完成，回滚会丢配对状态），
         //   故不回滚——job 是真源，sweeper 的 staleQueued 会扫到停滞 queued 按 fence 补投（Codex P1-r2 防御纵深，

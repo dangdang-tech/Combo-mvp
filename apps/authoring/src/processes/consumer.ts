@@ -3,27 +3,25 @@
 //   - 连续安全前缀水位（§11.D）+ cursor 与处理同事务（§3.3）+ 按 topic 毒丸（§4）由 events 模块实现。
 //   - 轮询循环：周期对每个活跃 (consumer, topic) 配置跑 runOnce；无 Docker 也能起进程（连不上即空转/退出）。
 import { loadEnv } from '../platform/config/env.js';
-import { getPool } from '../platform/infra/db.js';
-import {
-  asTxPool,
-  asLockablePool,
-  tryAcquireAdvisoryLock,
-  runOnce,
-  type AdvisoryLock,
-  type ConsumerTopicConfig,
-} from '../platform/events/index.js';
-import { buildConsumerConfigs, CONSUMER_NAMES } from './event-routes.js';
+import type { AdvisoryLock, ConsumerTopicConfig } from '../platform/events/index.js';
+import { startNodeObservability } from '../platform/observability/node.js';
 
 const POLL_INTERVAL_MS = 1_000;
 
-/** 本期需要拿锁的 consumer 名（MeteringConsumer 本期不启动，不拿锁、不消费）。 */
-const ACTIVE_CONSUMER_NAMES = [CONSUMER_NAMES.marketplace, CONSUMER_NAMES.notify];
-
 async function main(): Promise<void> {
   const env = loadEnv();
+  const observability = startNodeObservability(env, 'consumer');
+  const [{ getPool }, events, { buildConsumerConfigs, CONSUMER_NAMES }] = await Promise.all([
+    import('../platform/infra/db.js'),
+    import('../platform/events/index.js'),
+    import('./event-routes.js'),
+  ]);
+  const { asTxPool, asLockablePool, tryAcquireAdvisoryLock, runOnce } = events;
   const pool = getPool(env);
   const txPool = asTxPool(pool);
   const lockablePool = asLockablePool(pool);
+  /** 本期需要拿锁的 consumer 名（MeteringConsumer 本期不启动，不拿锁、不消费）。 */
+  const ACTIVE_CONSUMER_NAMES = [CONSUMER_NAMES.marketplace, CONSUMER_NAMES.notify];
 
   // 启动级单实例防重：每个 active consumer 取一把 advisory lock；拿不到 → 该 consumer 不消费（degraded）。
   const heldLocks: AdvisoryLock[] = [];
@@ -59,7 +57,7 @@ async function main(): Promise<void> {
     console.log(
       `[consumer] booted; consuming cursors: ${configs
         .map((c) => `${c.cursorTopic}[${c.topics.join('+')}]`)
-        .join(', ')}`,
+        .join(', ')}; observability=${observability.enabled ? 'on' : 'off'}`,
     );
   }
 
@@ -68,7 +66,7 @@ async function main(): Promise<void> {
     while (!stopped) {
       for (const cfg of configs) {
         try {
-          await pollConsumer(txPool, cfg);
+          await pollConsumer(txPool, cfg, runOnce);
         } catch (err) {
           // 单 cursor 异常不拖垮整循环（连不上 DB 等）；下轮重试。
           console.warn(`[consumer] poll error cursor=${cfg.cursorTopic}`, err);
@@ -82,15 +80,18 @@ async function main(): Promise<void> {
   for (const sig of ['SIGINT', 'SIGTERM'] as const) {
     process.on(sig, () => {
       stopped = true;
-      void Promise.allSettled(heldLocks.map((l) => l.release())).finally(() => process.exit(0));
+      void Promise.allSettled(heldLocks.map((l) => l.release()))
+        .then(() => observability.shutdown())
+        .finally(() => process.exit(0));
     });
   }
 }
 
 /** 跑一个 topic 的多轮 runOnce 直到本批耗尽（processed=0 且未卡住 → 本轮无新事件，停）。 */
 async function pollConsumer(
-  txPool: ReturnType<typeof asTxPool>,
+  txPool: ReturnType<typeof import('../platform/events/index.js').asTxPool>,
   cfg: ConsumerTopicConfig,
+  runOnce: typeof import('../platform/events/index.js').runOnce,
 ): Promise<void> {
   // 连续推进：一直跑到本轮没有新可处理事件（避免 1s 间隔下大批积压消费过慢）。
   // stuck（lifecycle 卡住）或 processed=0 且 deadLettered=0 → 本轮无进展，退出等下次 poll。

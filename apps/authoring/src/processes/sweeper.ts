@@ -5,23 +5,9 @@
 //   诚实推迟：orphan 清理（§6.4，依赖 ObjectStore 列举/删除真集成）。
 import { hostname } from 'node:os';
 import { loadEnv } from '../platform/config/env.js';
-import { getPool } from '../platform/infra/db.js';
-import { getHotRedis } from '../platform/infra/redis.js';
-import { createRedisLock, LOCK_KEYS } from '../platform/infra/lock.js';
-import { createBullQueuePort } from '../platform/infra/queue.js';
-import {
-  reconcileJobsOnce,
-  pgTypeLookup,
-  type ReEnqueue,
-} from '../platform/jobs/sweeper-reconcile.js';
-import {
-  scanOutboxStall,
-  redriveDeadEvents,
-  withTransaction,
-  asTxPool,
-  type RedrivableDeadEvent,
-} from '../platform/events/index.js';
-import { routeForTopic, topicToCursorTopic } from './event-routes.js';
+import type { ReEnqueue } from '../platform/jobs/sweeper-reconcile.js';
+import type { RedrivableDeadEvent } from '../platform/events/index.js';
+import { startNodeObservability } from '../platform/observability/node.js';
 
 /** outbox 滞留告警阈值（写入超过此时长仍未被任一活跃 consumer 越过即告警，§6.3）。 */
 const OUTBOX_STALL_THRESHOLD_MS = 60_000;
@@ -31,8 +17,29 @@ const SWEEP_INTERVAL_MS = 10_000;
 /** 单活锁 TTL（须 > 巡查周期，周期续期）。 */
 const LOCK_TTL_MS = 30_000;
 
-function main(): void {
+async function main(): Promise<void> {
   const env = loadEnv();
+  const observability = startNodeObservability(env, 'sweeper');
+  const [
+    { getPool },
+    { getHotRedis },
+    { createRedisLock, LOCK_KEYS },
+    { createBullQueuePort },
+    jobs,
+    events,
+    routes,
+  ] = await Promise.all([
+    import('../platform/infra/db.js'),
+    import('../platform/infra/redis.js'),
+    import('../platform/infra/lock.js'),
+    import('../platform/infra/queue.js'),
+    import('../platform/jobs/sweeper-reconcile.js'),
+    import('../platform/events/index.js'),
+    import('./event-routes.js'),
+  ]);
+  const { reconcileJobsOnce, pgTypeLookup } = jobs;
+  const { scanOutboxStall, redriveDeadEvents, withTransaction, asTxPool } = events;
+  const { routeForTopic, topicToCursorTopic } = routes;
   const db = getPool(env);
   const txPool = asTxPool(db);
   const lock = createRedisLock(getHotRedis(env));
@@ -94,7 +101,7 @@ function main(): void {
       // —— dead_events 补投（§6.3）：可补投死信按 event_id 幂等重放（lifecycle 不在死信，天然不触及）——
       await redriveDeadEvents({
         db,
-        redrive: (de) => redriveOne(txPool, de),
+        redrive: (de) => redriveOne(txPool, de, routeForTopic, withTransaction),
         onAlert: (msg) => console.warn(`[sweeper][alert] ${msg}`),
       }).catch((err) => console.error(`[sweeper] 死信补投失败（仅告警）：${String(err)}`));
 
@@ -106,7 +113,7 @@ function main(): void {
 
   console.log(
     `[sweeper] booted; duties: job 对账（实装）/ orphan 清理（推迟）/ outbox 滞留补投（推迟）; ` +
-      `interval=${SWEEP_INTERVAL_MS}ms`,
+      `interval=${SWEEP_INTERVAL_MS}ms; observability=${observability.enabled ? 'on' : 'off'}`,
   );
   const timer = setInterval(() => void tick(), SWEEP_INTERVAL_MS);
   // 启动即跑一轮（不等首个周期）。
@@ -116,6 +123,7 @@ function main(): void {
     clearInterval(timer);
     void (async () => {
       if (lockToken) await lock.release(LOCK_KEYS.sweeper, lockToken).catch(() => undefined);
+      await observability.shutdown();
       process.exit(0);
     })();
   };
@@ -124,8 +132,10 @@ function main(): void {
 
 /** 补投一条死信（§6.3）：按 topic 找回 processor，同事务内重放副作用（event_id 幂等，重放安全）。 */
 async function redriveOne(
-  txPool: ReturnType<typeof asTxPool>,
+  txPool: ReturnType<typeof import('../platform/events/index.js').asTxPool>,
   de: RedrivableDeadEvent,
+  routeForTopic: typeof import('./event-routes.js').routeForTopic,
+  withTransaction: typeof import('../platform/events/index.js').withTransaction,
 ): Promise<boolean> {
   const route = routeForTopic(de.topic);
   if (!route) return false; // 无 processor（冻结 topic）→ 不补投
@@ -145,4 +155,7 @@ async function redriveOne(
   }
 }
 
-main();
+main().catch((err) => {
+  console.error('[sweeper] fatal', err);
+  process.exit(1);
+});

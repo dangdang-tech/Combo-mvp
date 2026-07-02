@@ -3,19 +3,13 @@
 //     领租约（fence）→ 跑 handler（受保护持久化 + redis_hot 推帧）→ 受保护落终态。
 //   写库铁律（脊柱 §11.A）：runner/repo 内所有写回带 WHERE id=:jobId AND fence_token=:fence AND status='running'。
 //   handler 由 3B-3E 经 registerHandler 注册；本期注册表可空（执行框架就绪、诚实标推迟具体 handler）。
-import { Worker, type ConnectionOptions } from 'bullmq';
+import type { ConnectionOptions, Worker as BullWorker } from 'bullmq';
 import { hostname } from 'node:os';
-import pino, { type Logger } from 'pino';
+import type pino from 'pino';
+import type { Logger } from 'pino';
 import type { JobType } from '@cb/shared';
-import { ACTIVE_JOB_TYPES, QUEUE_PREFIX } from '@cb/shared';
 import { loadEnv, type Env } from '../platform/config/env.js';
-import { getPool } from '../platform/infra/db.js';
-import { getHotRedis } from '../platform/infra/redis.js';
-import { RedisEventStream } from '../platform/sse/event-stream.js';
-import { getHandler, missingActiveHandlers, registeredTypes } from '../platform/jobs/registry.js';
-import { runJob } from '../platform/jobs/runner.js';
-// 副作用导入：register-handlers 在此 import 时自注册全部 JobHandler（B-19；extract/structure/publish_batch）。
-import './register-handlers.js';
+import { currentTraceLogFields, startNodeObservability } from '../platform/observability/node.js';
 
 /** 整体超时分级（脊柱 §6 / 70 §8.3 LLM 40/45/60/180s）。runner 兜底超时按类型选档。 */
 const TIMEOUT_BY_TYPE: Record<JobType, number> = {
@@ -33,14 +27,16 @@ const TIMEOUT_BY_TYPE: Record<JobType, number> = {
  *   job 失败的内部 code/堆栈完全不落 docker logs（排障只能进容器复现）——本次修复的核心。
  *   formatters.log 直透对象（与 app.ts 一致，按 traceId 串联）。开发期走 pino-pretty 易读。
  */
-function buildWorkerLogger(env: Env): Logger {
+type PinoFactory = typeof pino;
+
+function buildWorkerLogger(env: Env, pino: PinoFactory): Logger {
   return pino({
     // env.LOG_LEVEL 在正常启动经 zod .default('info') 必有值；但部分测试以裁剪过的 env 桩调 main()
     //   （只给 REDIS_QUEUE_URL），LOG_LEVEL 为 undefined 会让 pino 抛 "default level:undefined ..."。
     //   兜底回 'info'（与 env schema 默认一致），保证 worker 进程任何入口都不因 logger 构造裸崩。
     level: env.LOG_LEVEL ?? 'info',
-    base: { svc: 'worker' },
-    formatters: { log: (obj) => obj },
+    base: { service: env.OTEL_SERVICE_NAME, process: 'worker' },
+    formatters: { log: (obj: Record<string, unknown>) => obj },
     ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
   });
 }
@@ -57,9 +53,33 @@ function connectionFor(env: Env): ConnectionOptions {
   };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const env = loadEnv();
-  const log = buildWorkerLogger(env);
+  const observability = startNodeObservability(env, 'worker');
+  const [
+    { Worker },
+    { default: pino },
+    { ACTIVE_JOB_TYPES, QUEUE_PREFIX },
+    { getPool },
+    { getHotRedis },
+    { RedisEventStream },
+    registry,
+    { runJob },
+  ] = await Promise.all([
+    import('bullmq'),
+    import('pino'),
+    import('@cb/shared'),
+    import('../platform/infra/db.js'),
+    import('../platform/infra/redis.js'),
+    import('../platform/sse/event-stream.js'),
+    import('../platform/jobs/registry.js'),
+    import('../platform/jobs/runner.js'),
+  ]);
+  // 副作用导入：register-handlers 在此 import 时自注册全部 JobHandler（B-19；extract/structure/publish_batch）。
+  await import('./register-handlers.js');
+
+  const { getHandler, missingActiveHandlers, registeredTypes } = registry;
+  const log = buildWorkerLogger(env, pino);
   const db = getPool(env);
   const bridge = new RedisEventStream(getHotRedis(env));
   const leaseOwner = `${hostname()}#${process.pid}`;
@@ -73,7 +93,7 @@ function main(): void {
     );
   }
 
-  const workers: Worker[] = [];
+  const workers: BullWorker[] = [];
   // 仅对【已注册 handler 且属本期四类】的类型起 Worker（脊柱 §6.3）。
   const startable = (ACTIVE_JOB_TYPES as readonly JobType[]).filter((t) => getHandler(t));
   for (const type of startable) {
@@ -99,7 +119,7 @@ function main(): void {
             timeoutMs: TIMEOUT_BY_TYPE[type],
             slowAfterMs: 30_000,
           },
-          log, // 注入 logger：让 runner 把 job 失败/fence-out 的内部 code+堆栈结构化落 stdout/stderr。
+          log.child(currentTraceLogFields(traceId)), // 注入 logger：让 runner 把 job 失败/fence-out 的内部 code+堆栈结构化落 stdout/stderr。
         );
         // outcome 仅用于 BullMQ 完成态/日志；jobs 表才是状态真源（脊柱 §6.1）。
         // fenced_out / not_claimed 不抛错（正常控制流，§11.A）：BullMQ 视作成功，不重试触发。
@@ -123,7 +143,7 @@ function main(): void {
           jobType: type,
           bullJobId: job?.id,
           jobId: data.jobId,
-          traceId: data.traceId ?? job?.id,
+          ...currentTraceLogFields(data.traceId ?? job?.id),
           attempt: attemptsMade,
           maxAttempts,
           retriesExhausted: attemptsMade >= maxAttempts,
@@ -136,12 +156,14 @@ function main(): void {
   }
 
   log.info(
-    { leaseOwner, activeWorkers: startable },
+    { leaseOwner, activeWorkers: startable, observability: observability.enabled },
     `worker booted; active workers: ${startable.join(', ') || '(none — handlers pending)'}`,
   );
 
   const shutdown = (): void => {
-    void Promise.allSettled(workers.map((w) => w.close())).finally(() => process.exit(0));
+    void Promise.allSettled(workers.map((w) => w.close()))
+      .then(() => observability.shutdown())
+      .finally(() => process.exit(0));
   };
   for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, shutdown);
 
@@ -155,4 +177,7 @@ function main(): void {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error('[worker] fatal', err);
+  process.exit(1);
+});

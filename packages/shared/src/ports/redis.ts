@@ -1,10 +1,10 @@
 // B-04 · Redis 双实例端口（70 §8.1）。redis_queue（BullMQ）/ redis_hot（streams/lock/限流）。
-import type { JobId } from '../core/ids.js';
+import type { JobId, TraceId } from '../core/ids.js';
 import type { JobType } from '../core/jobs.js';
 
 /** redis_queue：BullMQ 抽象（app 层用）。jobId 去重 + 带 fence。 */
 export interface QueuePort {
-  enqueue(jobType: JobType, jobId: JobId, fenceToken: number): Promise<void>;
+  enqueue(jobType: JobType, jobId: JobId, fenceToken: number, traceId?: TraceId): Promise<void>;
   remove(jobId: JobId): Promise<void>;
 }
 

@@ -228,6 +228,7 @@ export function createJobHandler(): RouteHandlerMethod {
           uploadId,
           source,
           rawS3Keys: gate.rawS3Keys,
+          traceId: req.id,
           ...(draftId ? { draftId } : {}),
         },
       );

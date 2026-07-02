@@ -73,6 +73,7 @@ export function triggerExtractHandler(): RouteHandlerMethod {
         snapshotId,
         userId,
         draftId,
+        req.id,
       );
     } catch {
       // DB 异常：人话 503 可重试（绝不裸露原始报错，脊柱 §11.B）。
@@ -260,6 +261,7 @@ export function retryCandidateHandler(): RouteHandlerMethod {
         req.server.infra.queue,
         candidateId,
         userId,
+        req.id,
       );
     } catch {
       reply.code(503).send(buildError(ErrorCode.DEPENDENCY_UNAVAILABLE, req.id));

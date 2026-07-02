@@ -14,7 +14,7 @@
 // 骨架阶段：惰性建 Queue（不连 Redis 直到首次 enqueue），可 tsc/单测/启动冒烟无 Docker。
 // 连接以 URL 形式传给 BullMQ（避免 BullMQ 自带 ioredis 与 workspace ioredis 的类型双实例冲突）。
 import { Queue, type ConnectionOptions, type Job } from 'bullmq';
-import type { JobId, JobType, QueuePort } from '@cb/shared';
+import type { JobId, JobType, QueuePort, TraceId } from '@cb/shared';
 import { ACTIVE_JOB_TYPES, QUEUE_PREFIX } from '@cb/shared';
 import type { Env } from '../config/env.js';
 
@@ -110,7 +110,12 @@ async function jobsForBusinessId(q: Queue, businessJobId: string): Promise<Job[]
  */
 export function createBullQueuePort(env: Env): QueuePort {
   return {
-    async enqueue(jobType: JobType, jobId: JobId, fenceToken: number): Promise<void> {
+    async enqueue(
+      jobType: JobType,
+      jobId: JobId,
+      fenceToken: number,
+      traceId?: TraceId,
+    ): Promise<void> {
       if (!ACTIVE_TYPES.includes(jobType)) {
         // 仅四类有 processor（脊柱 §6.3）；其余拒绝入队（防误派）。
         throw new Error(`job type not registered: ${jobType}`);
@@ -118,7 +123,7 @@ export function createBullQueuePort(env: Env): QueuePort {
       // attempt 级触发 id：换 fence 必产生新触发（不被旧触发去重吞掉）；同 fence 重入仍幂等（第二道闸，脊柱 §4）。
       await queueFor(env, jobType).add(
         jobType,
-        { jobId, fenceToken },
+        { jobId, fenceToken, ...(traceId ? { traceId } : {}) },
         { jobId: bullJobId(jobId, fenceToken) },
       );
     },

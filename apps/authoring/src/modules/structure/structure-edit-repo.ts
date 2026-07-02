@@ -287,8 +287,8 @@ interface LockedVersionRowForRegen {
  */
 export async function acquireRegenerateFieldJob(
   txPool: TxPool,
-  queue: { enqueue(type: string, jobId: string, fence: number): Promise<void> },
-  args: { versionId: string; ownerUserId: string; field: SoftFieldKey },
+  queue: { enqueue(type: string, jobId: string, fence: number, traceId?: string): Promise<void> },
+  args: { versionId: string; ownerUserId: string; field: SoftFieldKey; traceId?: string },
 ): Promise<AcquireRegenResult> {
   // —— 事务内：锁行 → 字段级闸 → 取 version 锁（建 job）→ 置 generating；任一拒因抛出令整体回滚（state 不变）——
   type TxOutcome =
@@ -370,7 +370,7 @@ export async function acquireRegenerateFieldJob(
   if (!outcome.ok) return { kind: outcome.kind };
 
   // 4) COMMIT 后 best-effort 入队（失败留 queued 交 sweeper，不影响已落 generating 态；不裸转圈）。
-  const enqueued = await safeEnqueue(queue, outcome.jobId);
+  const enqueued = await safeEnqueue(queue, outcome.jobId, args.traceId);
   return {
     kind: 'ok',
     jobId: outcome.jobId,
@@ -390,11 +390,12 @@ class RegenRollback extends Error {
 
 /** 入队（best-effort）：失败不抛（job 已建成 queued，交 staleQueued sweeper 补投，与 create-structure-job 同口径）。 */
 async function safeEnqueue(
-  queue: { enqueue(type: string, jobId: string, fence: number): Promise<void> },
+  queue: { enqueue(type: string, jobId: string, fence: number, traceId?: string): Promise<void> },
   jobId: string,
+  traceId?: string,
 ): Promise<boolean> {
   try {
-    await queue.enqueue('structure', jobId, 1);
+    await queue.enqueue('structure', jobId, 1, traceId);
     return true;
   } catch {
     return false;

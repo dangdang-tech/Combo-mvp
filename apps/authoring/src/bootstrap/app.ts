@@ -11,6 +11,11 @@ import {
   buildErrorWithCode,
   ErrorCode,
   httpStatusFor,
+  newTraceId,
+  TRACE_ID_HEADER,
+  TRACEPARENT_HEADER,
+  traceIdFromHeaders,
+  traceIdFromUrl,
   type ErrorCodeValue,
 } from '@cb/shared';
 import { loadEnv, type Env } from '../platform/config/env.js';
@@ -20,12 +25,20 @@ import { registerHealthRoutes } from '../platform/http/health.js';
 import { registerBusinessRoutes } from './routes.js';
 import { registerDevAuthRoutes } from '../modules/account/index.js';
 import { devLoginAvailable } from '../platform/infra/dev-session.js';
+import {
+  currentTraceId,
+  currentTraceLogFields,
+  currentTraceparent,
+} from '../platform/observability/node.js';
 // 副作用导入：注册 Fastify 类型增强（req.auth / app.infra 等）。
 import '../platform/http/fastify.js';
 
-/** 生成 traceId（骨架：用 crypto.randomUUID；生产换 UUID v7/ULID，脊柱 §3.4）。 */
-function newTraceId(): string {
-  return crypto.randomUUID();
+/** 生成/继承请求 traceId。 */
+function resolveRequestTraceId(
+  headers: Record<string, string | string[] | undefined>,
+  url?: string,
+): string {
+  return traceIdFromHeaders(headers) ?? traceIdFromUrl(url) ?? currentTraceId() ?? newTraceId();
 }
 
 export interface BuildAppOptions {
@@ -42,13 +55,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     bodyLimit: 32 * 1024 * 1024,
     logger: {
       level: env.LOG_LEVEL,
+      base: { service: env.OTEL_SERVICE_NAME, process: env.PROCESS },
       ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
       // 结构化日志按 traceId（脊柱 §3.4：贯穿日志/Sentry/outbox/SSE）。
       formatters: {
         log: (obj) => obj,
       },
     },
-    genReqId: () => newTraceId(),
+    genReqId: (req) => resolveRequestTraceId(req.headers, req.url),
     disableRequestLogging: false,
     // 反代后取真实 IP（限流/日志用）。
     trustProxy: true,
@@ -72,7 +86,21 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // 把每请求 traceId 暴露在 reply 头（前端「反馈代码」用，脊柱 §3.4）+ 进日志上下文。
   app.addHook('onRequest', async (req, reply) => {
-    reply.header('x-trace-id', req.id);
+    reply.header(TRACE_ID_HEADER, req.id);
+    reply.header(TRACEPARENT_HEADER, currentTraceparent(req.id));
+  });
+
+  app.addHook('onResponse', async (req, reply) => {
+    req.log.info(
+      {
+        ...currentTraceLogFields(req.id),
+        method: req.method,
+        url: req.url,
+        route: req.routeOptions.url ?? req.url,
+        statusCode: reply.statusCode,
+      },
+      'request completed',
+    );
   });
 
   // 幂等响应落库（脊柱 §4.2，Codex#6）：全局注册【一次】onSend，对本次取得租约的写命令
@@ -103,14 +131,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     // 内部错误对：envelope（对外，无 code）+ code（仅日志）。
     const { code: internalCode, envelope } = buildErrorWithCode(code, traceId);
     // 内部记完整 err（含堆栈/原始报错）+ 内部 code + traceId（D1 关联），对外绝不出这些。
-    req.log.error({ err, code: internalCode, traceId }, 'request failed');
+    req.log.error({ err, code: internalCode, ...currentTraceLogFields(traceId) }, 'request failed');
     reply.code(httpStatusFor(code)).send(envelope);
   });
 
   // —— 404 也走信封（不裸露路由信息）——
   app.setNotFoundHandler((req, reply) => {
     const { code, envelope } = buildErrorWithCode(ErrorCode.NOT_FOUND, req.id);
-    req.log.warn({ code, traceId: req.id }, 'route not found');
+    req.log.warn({ code, ...currentTraceLogFields(req.id) }, 'route not found');
     reply.code(httpStatusFor(ErrorCode.NOT_FOUND)).send(envelope);
   });
 

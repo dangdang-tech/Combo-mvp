@@ -267,6 +267,7 @@ export function startStructureHandler(): RouteHandlerMethod {
       job = await createStructureJob(req.server.infra.db, req.server.infra.queue, {
         versionId,
         ownerUserId: userId,
+        traceId: req.id,
         ...(fields && fields.length > 0 ? { fields } : {}),
       });
     } catch {
@@ -424,6 +425,7 @@ export function regenerateFieldHandler(): RouteHandlerMethod {
         versionId,
         ownerUserId: userId,
         field: softField,
+        traceId: req.id,
       });
     } catch {
       return replyError(req, reply, ErrorCode.DEPENDENCY_UNAVAILABLE, {

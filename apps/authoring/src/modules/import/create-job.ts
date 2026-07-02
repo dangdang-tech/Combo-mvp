@@ -57,6 +57,7 @@ export interface CreateImportJobArgs {
   /** manifest gate 算出的有序 rawS3Keys（worker 逐个拉原文）。 */
   rawS3Keys: string[];
   draftId?: string;
+  traceId?: string;
 }
 
 /**
@@ -128,7 +129,7 @@ export async function createImportJobFromManifest(
   if (inserted) {
     let enqueued = true;
     try {
-      await queue.enqueue('import', inserted.jobId as never, inserted.fenceToken);
+      await queue.enqueue('import', inserted.jobId as never, inserted.fenceToken, args.traceId);
     } catch {
       // 入队失败：job 已原子建成 queued（manifest 同事务已 consumed），**不删/不标 failed**——
       //   留在 queued 由 staleQueued sweeper 按既有 fence 补投（sweeper-reconcile.ts）。

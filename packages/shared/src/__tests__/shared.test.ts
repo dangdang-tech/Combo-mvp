@@ -39,8 +39,36 @@ import {
   NotifyPublishCompletedPayloadSchema,
   UsageMeteringPayloadSchema,
   RuntimeSessionEventPayloadSchema,
+  buildTraceparent,
+  parseTraceparent,
+  traceHexToUuid,
+  traceIdFromHeaders,
+  traceIdFromUrl,
+  uuidToTraceHex,
 } from '../index.js';
 import { z } from 'zod';
+
+describe('Trace helpers', () => {
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+  const hex = '123e4567e89b12d3a456426614174000';
+
+  it('maps public UUID traceId to W3C trace hex and back', () => {
+    expect(uuidToTraceHex(uuid)).toBe(hex);
+    expect(traceHexToUuid(hex)).toBe(uuid);
+  });
+
+  it('parses traceparent before x-trace-id and supports EventSource query fallback', () => {
+    const traceparent = buildTraceparent(uuid, '123e4567e89b12d3');
+    expect(parseTraceparent(traceparent)?.traceId).toBe(uuid);
+    expect(
+      traceIdFromHeaders({
+        traceparent,
+        'x-trace-id': 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+      }),
+    ).toBe(uuid);
+    expect(traceIdFromUrl(`/api/v1/runtime/runs/r1/events?traceId=${uuid}`)).toBe(uuid);
+  });
+});
 
 describe('ErrorEnvelope', () => {
   it('builds from classification table with userMessage + action', () => {
