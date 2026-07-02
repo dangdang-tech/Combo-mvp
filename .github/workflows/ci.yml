@@ -69,7 +69,10 @@ jobs:
           LOGTO_APP_ID: ci
           LOGTO_APP_SECRET: ci
           LOGTO_AUDIENCE: ci
+          LOGTO_ISSUER: http://logto:3001/oidc
+          LOGTO_JWKS_URI: http://logto:3001/oidc/jwks
           LOGTO_REDIRECT_URI: http://ci.local/callback
+          GRAFANA_ADMIN_PASSWORD: ci
         run: docker compose -f infra/docker-compose.yml config -q && echo "compose config valid"
 
       - name: ShellCheck scripts

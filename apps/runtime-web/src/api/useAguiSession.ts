@@ -11,6 +11,7 @@ import type {
   TrialProcessState,
 } from '@cb/shared';
 import { apiPost } from './client.js';
+import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
 
 export interface AguiUiMessage {
   id: string;
@@ -128,8 +129,11 @@ export function useAguiSession(
   const attachEvents = (runId: string, eventsUrl: string, after = 0, attempt = 0): void => {
     sourceRef.current?.close();
     let lastSeenEventId = after;
-    const url =
-      after > 0 ? `${eventsUrl}${eventsUrl.includes('?') ? '&' : '?'}after=${after}` : eventsUrl;
+    const trace = clientTraceHeaders();
+    const params = new URLSearchParams();
+    params.set('traceId', trace.traceId);
+    if (after > 0) params.set('after', String(after));
+    const url = `${eventsUrl}${eventsUrl.includes('?') ? '&' : '?'}${params.toString()}`;
     const source = new EventSource(url, { withCredentials: true });
     sourceRef.current = source;
     activeRunRef.current = runId;
@@ -163,9 +167,7 @@ export function useAguiSession(
             const messageId = frame.messageId;
             const delta = frame.delta;
             setMessages((cur) =>
-              cur.map((m) =>
-                m.id === messageId ? { ...m, text: `${m.text}${delta}` } : m,
-              ),
+              cur.map((m) => (m.id === messageId ? { ...m, text: `${m.text}${delta}` } : m)),
             );
           }
           break;
@@ -188,6 +190,12 @@ export function useAguiSession(
           }
           break;
         case EventType.RUN_ERROR:
+          reportClientEvent('sse_error', {
+            traceId: trace.traceId,
+            message: frame.message ?? 'runtime run error',
+            url,
+            source: 'runtime-web',
+          });
           setError(frame.message ?? '对话失败，请重试。');
           setIsRunning(false);
           activeRunRef.current = null;
@@ -209,6 +217,12 @@ export function useAguiSession(
         window.setTimeout(() => attachEvents(runId, eventsUrl, lastSeenEventId, attempt + 1), 600);
         return;
       }
+      reportClientEvent('sse_error', {
+        traceId: trace.traceId,
+        message: 'runtime event stream disconnected',
+        url,
+        source: 'runtime-web',
+      });
       setError('事件流连接中断，可刷新会话恢复。');
       setIsRunning(false);
     };

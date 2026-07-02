@@ -5,6 +5,8 @@
 import { EventEncoder } from '@ag-ui/encoder';
 import { EventType } from '@ag-ui/core';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { TRACE_ID_HEADER, TRACEPARENT_HEADER } from '@cb/shared';
+import { currentTraceparent } from '../../platform/observability/node.js';
 
 type EncodableEvent = Parameters<EventEncoder['encode']>[0];
 
@@ -36,6 +38,8 @@ export function startAguiStream(
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
+    [TRACE_ID_HEADER]: req.id,
+    [TRACEPARENT_HEADER]: currentTraceparent(req.id),
   });
   reply.hijack();
 
@@ -61,15 +65,42 @@ export function startAguiStream(
     runStarted: () =>
       write({ type: EventType.RUN_STARTED, threadId: args.threadId, runId: args.runId }),
     textStart: (messageId) =>
-      write({ type: EventType.TEXT_MESSAGE_START, threadId: args.threadId, runId: args.runId, messageId, role: 'assistant' }),
+      write({
+        type: EventType.TEXT_MESSAGE_START,
+        threadId: args.threadId,
+        runId: args.runId,
+        messageId,
+        role: 'assistant',
+      }),
     textContent: (messageId, delta) =>
-      write({ type: EventType.TEXT_MESSAGE_CONTENT, threadId: args.threadId, runId: args.runId, messageId, delta }),
+      write({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        threadId: args.threadId,
+        runId: args.runId,
+        messageId,
+        delta,
+      }),
     textEnd: (messageId) =>
-      write({ type: EventType.TEXT_MESSAGE_END, threadId: args.threadId, runId: args.runId, messageId }),
+      write({
+        type: EventType.TEXT_MESSAGE_END,
+        threadId: args.threadId,
+        runId: args.runId,
+        messageId,
+      }),
     stateDelta: (ops) =>
-      write({ type: EventType.STATE_DELTA, threadId: args.threadId, runId: args.runId, delta: ops }),
+      write({
+        type: EventType.STATE_DELTA,
+        threadId: args.threadId,
+        runId: args.runId,
+        delta: ops,
+      }),
     stateSnapshot: (snapshot) =>
-      write({ type: EventType.STATE_SNAPSHOT, threadId: args.threadId, runId: args.runId, snapshot }),
+      write({
+        type: EventType.STATE_SNAPSHOT,
+        threadId: args.threadId,
+        runId: args.runId,
+        snapshot,
+      }),
     runError: (message) =>
       write({ type: EventType.RUN_ERROR, threadId: args.threadId, runId: args.runId, message }),
     runFinished: () =>

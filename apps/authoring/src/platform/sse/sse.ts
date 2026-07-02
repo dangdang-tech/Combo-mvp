@@ -11,11 +11,14 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import {
   SSE_HEARTBEAT_INTERVAL_MS,
+  TRACE_ID_HEADER,
+  TRACEPARENT_HEADER,
   type SSEEventType,
   type SSEFrame,
   type SSEStreamKind,
   type StateSnapshotPayload,
 } from '@cb/shared';
+import { currentTraceparent } from '../observability/node.js';
 
 /** 取 Last-Event-ID（脊柱 §5.4：fetch-event-source 重连自动带此头）。 */
 export function getLastEventId(req: FastifyRequest): string | undefined {
@@ -187,6 +190,8 @@ export async function startSseStream(
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no', // nginx 关缓冲（脊柱 §5.1）
+    [TRACE_ID_HEADER]: req.id,
+    [TRACEPARENT_HEADER]: currentTraceparent(req.id),
   });
   // 防止 fastify 继续接管这个已 hijack 的响应。
   reply.hijack();

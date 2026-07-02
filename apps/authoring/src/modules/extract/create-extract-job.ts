@@ -158,6 +158,7 @@ export async function createFullExtractJob(
   snapshotId: string,
   ownerUserId: string,
   draftId?: string,
+  traceId?: string,
 ): Promise<
   { kind: 'created'; job: CreatedExtractJob } | { kind: 'not_found' } | { kind: 'not_ready' }
 > {
@@ -166,7 +167,7 @@ export async function createFullExtractJob(
   const { row } = inserted;
   let enqueued = true;
   try {
-    await queue.enqueue('extract', row.id as never, Number(row.fence_token));
+    await queue.enqueue('extract', row.id as never, Number(row.fence_token), traceId);
   } catch {
     // 入队失败：job 已建成 queued，**不删/不标 failed**——交 staleQueued sweeper 按既有 fence 补投。
     enqueued = false;
@@ -241,6 +242,7 @@ export async function createRetryJob(
   queue: Pick<QueuePort, 'enqueue'>,
   candidateId: string,
   ownerUserId: string,
+  traceId?: string,
 ): Promise<CreateRetryJobResult> {
   const res = await db.query<{
     id: string;
@@ -319,7 +321,7 @@ export async function createRetryJob(
   }
   let enqueued = true;
   try {
-    await queue.enqueue('extract', row.id as never, Number(row.fence_token));
+    await queue.enqueue('extract', row.id as never, Number(row.fence_token), traceId);
   } catch {
     enqueued = false;
   }

@@ -114,9 +114,10 @@ export async function insertStructureJobTx(
 export async function enqueueStructure(
   queue: Pick<QueuePort, 'enqueue'>,
   jobId: string,
+  traceId?: string,
 ): Promise<boolean> {
   try {
-    await queue.enqueue('structure', jobId as never, 1);
+    await queue.enqueue('structure', jobId as never, 1, traceId);
     return true;
   } catch {
     // 入队失败：job 已建成 queued，**不删/不标 failed**——交 staleQueued sweeper 按既有 fence 补投。
@@ -132,7 +133,7 @@ export async function enqueueStructure(
 export async function createStructureJob(
   db: Queryable,
   queue: Pick<QueuePort, 'enqueue'>,
-  args: { versionId: string; ownerUserId: string; fields?: SoftFieldKey[] },
+  args: { versionId: string; ownerUserId: string; fields?: SoftFieldKey[]; traceId?: string },
 ): Promise<CreatedStructureJob | null> {
   // 1) 版本级幂等：已有未终态 structure job → 回放（不重复跑、不重复字段，§4.C）。
   const running = await findRunningStructureJob(db, args.versionId, args.ownerUserId);
@@ -161,7 +162,7 @@ export async function createStructureJob(
     throw err;
   }
   if (!jobId) return null; // 非 draft/不存在/非本人。
-  const enqueued = await enqueueStructure(queue, jobId);
+  const enqueued = await enqueueStructure(queue, jobId, args.traceId);
   return { jobId, versionId: args.versionId, enqueued, replayed: false };
 }
 

@@ -13,7 +13,10 @@ export function App() {
       <BrowserRouter basename="/try">
         <Routes>
           <Route element={<AppShell />}>
-            <Route index element={<Navigate to={`/c/${DEFAULT_TRIAL_CAPABILITY_SLUG}`} replace />} />
+            <Route
+              index
+              element={<Navigate to={`/c/${DEFAULT_TRIAL_CAPABILITY_SLUG}`} replace />}
+            />
             <Route path="market" element={<MarketPage />} />
             {/* 新建试用 Session（按能力 slug 起一局）；路由名用 c 避免 basename=/try 下出现 /try/try */}
             <Route path="c/:slug" element={<ChatPage />} />

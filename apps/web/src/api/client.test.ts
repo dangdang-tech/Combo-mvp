@@ -51,6 +51,10 @@ describe('apiGet / 解包', () => {
     await apiGet('/capabilities/cap_1');
     expect(mock.calls[0]?.headers['Idempotency-Key']).toBeUndefined();
     expect(mock.calls[0]?.headers['X-Idempotency-Scope']).toBeUndefined();
+    expect(mock.calls[0]?.headers['x-trace-id']).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(mock.calls[0]?.headers['traceparent']).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
   });
 });
 

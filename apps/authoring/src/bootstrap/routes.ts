@@ -16,6 +16,7 @@ import {
   NOTIFICATION_ENDPOINTS,
 } from '../modules/notifications/index.js';
 import { registerJobRoutes, JOB_ENDPOINTS } from './jobs-routes.js';
+import { registerClientEventRoutes } from '../platform/http/client-events.js';
 import type { EndpointDecl } from '../platform/http/_helpers.js';
 
 /** 全部业务端点声明汇总（供守门/测试核对端点数、方法、鉴权链）。 */
@@ -48,6 +49,7 @@ export async function registerBusinessRoutes(app: FastifyInstance): Promise<void
       await registerSocialRoutes(scoped); // 60 社交写（关注/点赞）
       await registerNotificationRoutes(scoped); // 70 通知
       await registerJobRoutes(scoped); // 脊柱通用（jobs SSE + cancel）
+      await registerClientEventRoutes(scoped); // 浏览器侧错误/调试事件（只落结构化日志）
     },
     { prefix: API_PREFIX },
   );

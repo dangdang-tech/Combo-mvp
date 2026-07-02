@@ -133,6 +133,14 @@ describe('BullMQ 触发 jobId attempt 级唯一（Codex P0-new）', () => {
     expect(trig2.data.fenceToken).toBe(2);
   });
 
+  it('enqueue 可把请求 traceId 放进 BullMQ data，供 worker 串联异步日志', async () => {
+    fakeQueue.jobs.clear();
+    const port = createBullQueuePort(env);
+    await port.enqueue('import', 'job-trace' as never, 1, '123e4567-e89b-12d3-a456-426614174000');
+    const trig = fakeQueue.jobs.get(bullJobId('job-trace', 1))!;
+    expect(trig.data.traceId).toBe('123e4567-e89b-12d3-a456-426614174000');
+  });
+
   it('remove 按业务 jobId 清理其【所有 attempt 触发】（attempt 级 id 后 getJob(业务id) 已找不到）', async () => {
     fakeQueue.jobs.clear();
     fakeQueue.addCalls.length = 0;

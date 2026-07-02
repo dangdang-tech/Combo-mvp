@@ -48,7 +48,8 @@ function trialProcessState(index: number, status: RunStageStatus): TrialProcessS
   }));
   return {
     steps,
-    currentKey: status === 'completed' && index >= steps.length - 1 ? null : steps[index]?.key ?? null,
+    currentKey:
+      status === 'completed' && index >= steps.length - 1 ? null : (steps[index]?.key ?? null),
   };
 }
 
@@ -59,13 +60,17 @@ export async function runAgui(input: RunAguiInput): Promise<RunAguiResult> {
   let currentStage = 0;
   const emitStage = (index: number, status: RunStageStatus): void => {
     currentStage = index;
-    emitter.stateDelta([{ op: 'add', path: '/trialProcess', value: trialProcessState(index, status) }]);
+    emitter.stateDelta([
+      { op: 'add', path: '/trialProcess', value: trialProcessState(index, status) },
+    ]);
   };
   emitStage(0, 'running');
 
   if (!hasLlmCredential(env)) {
     emitStage(currentStage, 'failed');
-    emitter.runError('试用服务未配置模型密钥（ANTHROPIC_API_KEY 或 OPENROUTER_API_KEY），暂时无法对话。');
+    emitter.runError(
+      '试用服务未配置模型密钥（ANTHROPIC_API_KEY 或 OPENROUTER_API_KEY），暂时无法对话。',
+    );
     await emitter.flush();
     emitter.end();
     return 'failed';

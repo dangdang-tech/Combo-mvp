@@ -101,6 +101,80 @@ services:
       - ./minio/init-buckets.sh:/scripts/init-buckets.sh:ro
     restart: 'no'
 
+  # ───────────────────────── Observability（Trace ID 排障：Grafana + Loki + Tempo + OTel Collector）─────────────────────────
+  loki:
+    image: grafana/loki:3.5.0
+    command: ['-config.file=/etc/loki/loki.yml']
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./observability/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3100/ready >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ['-config.file=/etc/tempo/tempo.yml']
+    ports:
+      - '3200:3200'
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3200/ready >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.135.0
+    command: ['--config=/etc/otelcol/config.yml']
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    ports:
+      - '4317:4317'
+      - '4318:4318'
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol/config.yml:ro
+      # 本地自托管日志入口：tail Docker JSON stdout/stderr，保留应用 JSON 日志里的 traceId/trace_id/span_id。
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:13133/ >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD 必填（生产禁默认）}
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    ports:
+      - '3003:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   # ───────────────────────── Logto 身份（一次性 seed/alteration → 运行态）─────────────────────────
   # 一次性容器（首次部署跑一次，跑完退出）：CLI `logto db seed`，Logto OSS 不自跑迁移，必须先 seed 建表 + 初始数据。幂等可重入。
   logto_db_seed:
@@ -235,6 +309,9 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      OTEL_SERVICE_NAME: cb-authoring-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
     ports:
       - '3000:3000'
     healthcheck:
@@ -279,6 +356,9 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      OTEL_SERVICE_NAME: cb-authoring-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
 
   # consumer 受保序约束不可多实例（启动拿 advisory lock/lease 防误 scale，70 §3.1）；不要 deploy.replicas > 1。
   consumer:
@@ -297,6 +377,9 @@ services:
       PROCESS: consumer
       DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       REDIS_HOT_URL: redis://redis_hot:6379/0
+      OTEL_SERVICE_NAME: cb-authoring-consumer
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
 
   # sweeper 固定单实例（启动拿 redis_hot 锁单活，70 §6.1）。
   sweeper:
@@ -321,6 +404,9 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?}
       S3_REGION: ${S3_REGION:-us-east-1}
+      OTEL_SERVICE_NAME: cb-authoring-sweeper
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
 
   # 试用端 runtime（消费链路）：消费已发布契约，pi 执行层，AG-UI 流式对话 + 类 Claude Artifacts 产物。
   #   只依赖 postgres（只读已发布投影 + 读写自有 rt_chat_* 表）与 Logto JWT 公钥校验；不需 redis/minio。
@@ -348,6 +434,9 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       RUNTIME_LLM_PROVIDER: ${RUNTIME_LLM_PROVIDER:-}
       RUNTIME_LLM_MODEL: ${RUNTIME_LLM_MODEL:-anthropic/claude-sonnet-4.6}
+      OTEL_SERVICE_NAME: cb-runtime-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
     expose:
       - '3100'
     healthcheck:
@@ -386,3 +475,6 @@ volumes:
   pgdata:
   redis_queue_data:
   miniodata:
+  loki_data:
+  tempo_data:
+  grafana_data:

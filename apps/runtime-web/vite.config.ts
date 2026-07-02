@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       // dev：runtime API 走 3100；登录态和 /me 复用 authoring API 3000。
       '/api/v1/runtime': 'http://localhost:3100',
+      '/api/v1/client-events': 'http://localhost:3000',
       '/api/v1/auth': 'http://localhost:3000',
       '/api/v1/me': 'http://localhost:3000',
       '/healthz': 'http://localhost:3100',

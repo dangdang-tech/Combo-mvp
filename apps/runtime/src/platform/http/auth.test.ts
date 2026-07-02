@@ -32,7 +32,11 @@ function poolReturning(row: unknown): Pool {
   } as unknown as Pool;
 }
 
-async function signDevToken(args: { sub: string; roles: string[]; username: string }): Promise<string> {
+async function signDevToken(args: {
+  sub: string;
+  roles: string[];
+  username: string;
+}): Promise<string> {
   return new SignJWT({ roles: args.roles, username: args.username })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(args.sub)
@@ -89,4 +93,3 @@ describe('runtime cb_session auth', () => {
     expect(res.kind).toBe('disabled');
   });
 });
-

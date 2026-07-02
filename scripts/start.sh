@@ -55,6 +55,7 @@ REQUIRED_SECRETS=(
   POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB
   S3_ACCESS_KEY S3_SECRET_KEY
   LOGTO_APP_ID LOGTO_APP_SECRET
+  GRAFANA_ADMIN_PASSWORD
 )
 
 GUARD_FAILED=0
@@ -74,8 +75,8 @@ fi
 log "0/6 密钥守卫通过（无空值、无已知弱默认）。"
 
 # 1) 起数据与中间件，等其 healthy（depends_on condition 已 gate，--wait 再兜底）
-log "1/6 起 postgres / redis_queue / redis_hot / minio，并等待 healthy ..."
-"${COMPOSE[@]}" up -d --wait postgres redis_queue redis_hot minio
+log "1/6 起 postgres / redis_queue / redis_hot / minio / observability，并等待 healthy ..."
+"${COMPOSE[@]}" up -d --wait postgres redis_queue redis_hot minio loki tempo otel-collector grafana
 
 # 1b) 建 ObjectStore 四桶（一次性容器，跑完退出）
 log "1b 建 MinIO 四桶 ..."
@@ -98,7 +99,7 @@ log "5/6 业务迁移（db/scripts/migrate.ts）..."
 "${COMPOSE[@]}" run --rm migrate || die "业务迁移失败，已中止；业务容器未启动"
 
 # 6) 起业务容器（api/worker/consumer/sweeper/web），等 api/web healthy
-log "6/6 起 api / worker / consumer / sweeper / web ..."
+log "6/6 起 api / worker / consumer / sweeper / runtime / web ..."
 "${COMPOSE[@]}" up -d --wait api worker consumer sweeper web
 
 log "全栈已启动。健康检查："
@@ -106,3 +107,4 @@ log "  - API   : http://localhost:3000/ready"
 log "  - Web   : http://localhost/"
 log "  - Logto : http://localhost:3001/oidc/.well-known/openid-configuration"
 log "  - MinIO : http://localhost:9001 (console)"
+log "  - Grafana: http://localhost:3003/d/agora-trace-debug/trace-debug"

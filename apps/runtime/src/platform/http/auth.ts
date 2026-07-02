@@ -43,7 +43,9 @@ function cookieToken(req: FastifyRequest): string | null {
 }
 
 function devLoginAvailable(env: Env): boolean {
-  return env.NODE_ENV !== 'production' && env.DEV_LOGIN_ENABLED && env.DEV_SESSION_SECRET.trim() !== '';
+  return (
+    env.NODE_ENV !== 'production' && env.DEV_LOGIN_ENABLED && env.DEV_SESSION_SECRET.trim() !== ''
+  );
 }
 
 function rolesFromPayload(payload: JWTPayload): Role[] {
@@ -209,9 +211,9 @@ export async function requireCreatorIdentity(
     return auth.identity;
   }
   if (auth.kind === 'disabled') sendError(reply, ErrorCode.FORBIDDEN, req.id);
-  else if (auth.kind === 'upstream_unavailable') sendError(reply, ErrorCode.AUTH_UPSTREAM_UNAVAILABLE, req.id);
+  else if (auth.kind === 'upstream_unavailable')
+    sendError(reply, ErrorCode.AUTH_UPSTREAM_UNAVAILABLE, req.id);
   else if (auth.kind === 'internal') sendError(reply, ErrorCode.INTERNAL, req.id);
   else sendError(reply, ErrorCode.UNAUTHENTICATED, req.id);
   return null;
 }
-

@@ -25,6 +25,14 @@ const EnvSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
+  // Observability（OpenTelemetry）。默认不启用导出；配置 OTLP endpoint 后才向 Collector 发 traces。
+  OTEL_SERVICE_NAME: z.string().default('cb-authoring'),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.preprocess(emptyToUndefined, z.string().optional()),
+  OTEL_RESOURCE_ATTRIBUTES: z.string().default(''),
+  OTEL_TRACES_SAMPLER: z.string().default(''),
+  OTEL_TRACES_SAMPLER_ARG: z.string().default(''),
+  OTEL_SDK_DISABLED: z.enum(['true', 'false']).default('false'),
+
   // PostgreSQL
   DATABASE_URL: z.string().default('postgres://agora:agora@localhost:5432/agora'),
 

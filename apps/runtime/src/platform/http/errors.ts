@@ -2,7 +2,11 @@
 import type { FastifyReply } from 'fastify';
 import { buildErrorWithCode, ErrorCode, httpStatusFor, type ErrorCodeValue } from '@cb/shared';
 
-export function sendError(reply: FastifyReply, code: ErrorCodeValue, traceId: string): FastifyReply {
+export function sendError(
+  reply: FastifyReply,
+  code: ErrorCodeValue,
+  traceId: string,
+): FastifyReply {
   const { envelope } = buildErrorWithCode(code, traceId);
   return reply.code(httpStatusFor(code)).send(envelope);
 }

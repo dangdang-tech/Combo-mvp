@@ -74,6 +74,13 @@ vi.mock('bullmq', () => ({ Queue: FakeQueue, Worker: FakeWorker }));
 
 const env = { REDIS_QUEUE_URL: 'redis://localhost:6379/0' } as never;
 
+async function waitForWorkerCtorCall(): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (workerCtorCalls.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 beforeEach(() => {
   queueCtorCalls.length = 0;
   workerCtorCalls.length = 0;
@@ -125,6 +132,7 @@ describe('BullMQ 队列名禁含 ":"（live 崩溃修复）', () => {
 
     workerCtorCalls.length = 0;
     await import('../processes/worker.js'); // 顶层 main() 执行 → 对已注册类型起 Worker
+    await waitForWorkerCtorCall();
 
     expect(workerCtorCalls.length).toBeGreaterThan(0);
     for (const call of workerCtorCalls) {

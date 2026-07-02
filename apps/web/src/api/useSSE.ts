@@ -31,6 +31,7 @@ import {
   type DonePayload,
   type ErrorBody,
 } from '@cb/shared';
+import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
 
 /** 连接级状态机：UI 据此区分「连接中 / 流动中 / 已完成 / 错误 / 重连中」，永不裸转圈。 */
 export type SSEConnectionStatus = 'connecting' | 'open' | 'reconnecting' | 'done' | 'error';
@@ -408,6 +409,7 @@ export function useSSE(
     doneRef.current = false;
     lastEventIdRef.current = '';
     let closed = false;
+    const trace = clientTraceHeaders();
     // 当前连接的 AbortController：看门狗超时 / cleanup 用它断流，触发库内重连或彻底停止。
     let ctrl = new AbortController();
 
@@ -440,7 +442,10 @@ export function useSSE(
         credentials: 'include', // 同源 Cookie 鉴权（脊柱 §11.C）。
         openWhenHidden: true, // 后台标签页不暂停流（任务可能仍在跑）。
         // 显式带续传锚点：库内部也会用它，但我们重连前手动设以保证「看门狗重建」也续接（不丢窗口）。
-        ...(lastEventIdRef.current ? { headers: { 'Last-Event-ID': lastEventIdRef.current } } : {}),
+        headers: {
+          ...trace.headers,
+          ...(lastEventIdRef.current ? { 'Last-Event-ID': lastEventIdRef.current } : {}),
+        },
 
         async onopen(response: Response) {
           if (closed) return;
@@ -458,9 +463,15 @@ export function useSSE(
             } catch {
               body = undefined; // 非 JSON body：unwrapErrorBody 兜底人话（永不裸错）。
             }
+            const error = unwrapErrorBody(body);
+            reportClientEvent('sse_error', {
+              traceId: error.traceId || trace.traceId,
+              message: error.userMessage,
+              url,
+            });
             doneRef.current = true; // 终止：鉴权失败不重连。
             clearWatchdog();
-            dispatch({ type: 'localError', error: unwrapErrorBody(body) });
+            dispatch({ type: 'localError', error });
             // 抛致命错误：库 create() 捕获后交 onerror，onerror 见 SSEFatalError 再抛 → 彻底停止重连。
             throw new SSEFatalError('sse open failed');
           }
@@ -483,6 +494,25 @@ export function useSSE(
             payload = msg.data; // 非 JSON（理论上不应发生）：保留原文，不致命。
           }
           dispatch({ type: 'frame', event: evt as SSEEventType, id: msg.id, payload });
+          if (evt === 'error') {
+            const error = unwrapErrorBody(payload);
+            reportClientEvent('sse_error', {
+              traceId: error.traceId || trace.traceId,
+              message: error.userMessage,
+              url,
+            });
+          }
+          if (evt === 'done') {
+            const done = payload as DonePayload | undefined;
+            if (done?.error) {
+              const error = unwrapErrorBody(done.error);
+              reportClientEvent('sse_error', {
+                traceId: error.traceId || trace.traceId,
+                message: error.userMessage,
+                url,
+              });
+            }
+          }
           if (evt === 'done') {
             // 终止：标记 + 抛致命错误停止库内自动重连 + 断流。
             doneRef.current = true;

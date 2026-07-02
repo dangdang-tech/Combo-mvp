@@ -6,6 +6,8 @@ import {
   CreateSessionBodySchema,
   CreateTrialChainSessionBodySchema,
   RunInputSchema,
+  TRACE_ID_HEADER,
+  TRACEPARENT_HEADER,
   UpdateSessionBodySchema,
   type RuntimeArtifact,
   type SessionDetail,
@@ -20,6 +22,7 @@ import { getPublishedCapability } from '../capability/loader.js';
 import { getArtifacts } from '../artifact/repo.js';
 import { createRun, getRun, listRunEvents, setRunStatus, appendRunEvent } from '../run/repo.js';
 import { createEventLogEmitter } from '../run/event-log-emitter.js';
+import { currentTraceparent } from '../../platform/observability/node.js';
 import {
   archiveSession,
   createSession,
@@ -32,7 +35,9 @@ import {
 } from './repo.js';
 
 /** 从 AG-UI RunAgentInput.messages 取最新一条 user 消息的文本（服务端只认这条做新输入，其余以本地转录为真源）。 */
-function latestUserText(messages: ReadonlyArray<{ role: string; content?: unknown }>): string | null {
+function latestUserText(
+  messages: ReadonlyArray<{ role: string; content?: unknown }>,
+): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (!m || m.role !== 'user') continue;
@@ -91,7 +96,10 @@ function mockFullHtmlArtifact(): RuntimeArtifact {
   };
 }
 
-function effectiveArtifacts(messagesLength: number, artifacts: RuntimeArtifact[]): RuntimeArtifact[] {
+function effectiveArtifacts(
+  messagesLength: number,
+  artifacts: RuntimeArtifact[],
+): RuntimeArtifact[] {
   return messagesLength === 0 && artifacts.length === 0 ? [mockFullHtmlArtifact()] : artifacts;
 }
 
@@ -107,7 +115,10 @@ function runInputToText(input: unknown): string {
     .filter(Boolean);
   if (parsed.data.lockedElements?.length) {
     const locks = parsed.data.lockedElements
-      .map((item) => `${item.elementKey}=${Array.isArray(item.value) ? item.value.join(', ') : item.value}`)
+      .map(
+        (item) =>
+          `${item.elementKey}=${Array.isArray(item.value) ? item.value.join(', ') : item.value}`,
+      )
       .join('; ');
     parts.push(`锁定要素：${locks}`);
   }
@@ -352,6 +363,8 @@ export async function registerSessionRoutes(
         'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
+        [TRACE_ID_HEADER]: req.id,
+        [TRACEPARENT_HEADER]: currentTraceparent(req.id),
       });
       reply.hijack();
 
@@ -369,9 +382,7 @@ export async function registerSessionRoutes(
         for (const event of events) {
           after = event.id;
           reply.raw.write(`id: ${event.id}\n`);
-          reply.raw.write(
-            encoder.encode(event.event as Parameters<EventEncoder['encode']>[0]),
-          );
+          reply.raw.write(encoder.encode(event.event as Parameters<EventEncoder['encode']>[0]));
         }
         const current = await getRun(ctx.pool, run.id, ownerId);
         if (!current || (isTerminalStatus(current.status) && events.length === 0)) break;
@@ -384,22 +395,19 @@ export async function registerSessionRoutes(
   );
 
   // POST /runtime/runs/:runId/interrupt — 打断运行，Session 保留，可继续开新 run。
-  app.post<{ Params: { runId: string } }>(
-    '/runtime/runs/:runId/interrupt',
-    async (req, reply) => {
-      const ownerId = await resolveRuntimeOwnerId(req, reply, ctx.pool, ctx.env);
-      const run = await getRun(ctx.pool, req.params.runId, ownerId);
-      if (!run) return notFound(reply, req.id);
-      const controller = runControls.get(run.id);
-      await appendRunEvent(ctx.pool, run.id, {
-        type: EventType.RUN_ERROR,
-        message: '运行已打断。',
-      });
-      controller?.abort();
-      const updated = await setRunStatus(ctx.pool, run.id, 'interrupted');
-      return reply.send({ run: updated ?? run });
-    },
-  );
+  app.post<{ Params: { runId: string } }>('/runtime/runs/:runId/interrupt', async (req, reply) => {
+    const ownerId = await resolveRuntimeOwnerId(req, reply, ctx.pool, ctx.env);
+    const run = await getRun(ctx.pool, req.params.runId, ownerId);
+    if (!run) return notFound(reply, req.id);
+    const controller = runControls.get(run.id);
+    await appendRunEvent(ctx.pool, run.id, {
+      type: EventType.RUN_ERROR,
+      message: '运行已打断。',
+    });
+    controller?.abort();
+    const updated = await setRunStatus(ctx.pool, run.id, 'interrupted');
+    return reply.send({ run: updated ?? run });
+  });
 
   // POST /runtime/agui — AG-UI 标准端点：收 RunAgentInput，回标准 AG-UI 事件流（SSE）。
   //   threadId 即 sessionId；只取最新一条 user 消息当新输入，其余仍以服务端 transcript 为真源。

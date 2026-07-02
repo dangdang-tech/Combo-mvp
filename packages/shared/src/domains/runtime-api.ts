@@ -18,13 +18,7 @@ export type ChatRole = z.infer<typeof ChatRoleSchema>;
 export const RuntimeSessionModeSchema = z.enum(['consume', 'trial']);
 export type RuntimeSessionMode = z.infer<typeof RuntimeSessionModeSchema>;
 
-export const RunStatusSchema = z.enum([
-  'queued',
-  'running',
-  'interrupted',
-  'failed',
-  'completed',
-]);
+export const RunStatusSchema = z.enum(['queued', 'running', 'interrupted', 'failed', 'completed']);
 export type RunStatus = z.infer<typeof RunStatusSchema>;
 
 export const RunStageStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
@@ -157,9 +151,7 @@ export const CreateTrialChainSessionBodySchema = z.object({
   runGrant: z.string().optional(),
   intake: z.record(z.string()).optional(),
 });
-export type CreateTrialChainSessionBody = z.infer<
-  typeof CreateTrialChainSessionBodySchema
->;
+export type CreateTrialChainSessionBody = z.infer<typeof CreateTrialChainSessionBodySchema>;
 
 // GET /runtime/sessions → 会话列表（续话侧栏）
 export const RuntimeSessionListItemSchema = z.object({

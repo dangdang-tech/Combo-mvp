@@ -107,7 +107,9 @@ body {
   border-radius: var(--cb-radius-control);
   padding: 8px 16px;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
 .rt-btn:hover {
   border-color: var(--cb-accent);
@@ -174,7 +176,9 @@ body {
   padding: 20px;
   display: flex;
   flex-direction: column;
-  transition: border-color 0.12s, transform 0.12s;
+  transition:
+    border-color 0.12s,
+    transform 0.12s;
 }
 .rt-card:hover {
   border-color: var(--cb-accent);

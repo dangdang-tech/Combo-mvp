@@ -300,7 +300,9 @@ export async function saveTurn(pool: Pool, input: SaveTurnInput): Promise<SaveTu
 
     // 锁会话行，串行化本会话的并发回合 → seq 在锁内分配，杜绝 (session_id, seq) 撞车（旧实现把 maxSeq 读在事务外，
     //   两个并发回合会读到同一 base、各自 INSERT 同一 seq，后者违反唯一约束整回合回滚、用户答复被静默丢弃）。
-    await client.query(`SELECT id FROM rt_chat_sessions WHERE id = $1 FOR UPDATE`, [input.sessionId]);
+    await client.query(`SELECT id FROM rt_chat_sessions WHERE id = $1 FOR UPDATE`, [
+      input.sessionId,
+    ]);
     const seqRes = await client.query<{ m: number | null }>(
       `SELECT MAX(seq) AS m FROM rt_chat_messages WHERE session_id = $1`,
       [input.sessionId],
@@ -389,11 +391,7 @@ export async function updateSessionTitle(
   return row ? toMeta(toRow(row)) : null;
 }
 
-export async function archiveSession(
-  pool: Pool,
-  id: string,
-  ownerId: string,
-): Promise<boolean> {
+export async function archiveSession(pool: Pool, id: string, ownerId: string): Promise<boolean> {
   const res = await pool.query(
     `UPDATE rt_chat_sessions
         SET status = 'archived', updated_at = now()

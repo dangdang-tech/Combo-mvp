@@ -369,7 +369,10 @@ function cleanComparable(text: string | null | undefined): string {
 function cleanCapabilityName(text: string | null | undefined): string {
   const line = firstNonEmptyLine(text);
   if (!line) return '';
-  return line.replace(/^["“”'‘’]+|["“”'‘’]+$/g, '').trim().slice(0, 24);
+  return line
+    .replace(/^["“”'‘’]+|["“”'‘’]+$/g, '')
+    .trim()
+    .slice(0, 24);
 }
 
 function cleanIntent(text: string | null | undefined): string {

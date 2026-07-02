@@ -52,11 +52,7 @@ export async function createRun(
   return toRun(row);
 }
 
-export async function getRun(
-  pool: Pool,
-  id: string,
-  ownerId: string,
-): Promise<RuntimeRun | null> {
+export async function getRun(pool: Pool, id: string, ownerId: string): Promise<RuntimeRun | null> {
   const res = await pool.query<RunDbRow>(
     `SELECT * FROM rt_chat_runs WHERE id = $1 AND owner_id = $2 LIMIT 1`,
     [id, ownerId],

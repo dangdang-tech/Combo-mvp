@@ -69,7 +69,11 @@ export function InputComposer({
       <div className="rt-composer__row">
         <textarea
           className="rt-composer__input"
-          placeholder={isFirst ? '描述你想要的产出，按 Enter 发送…' : '继续对话（Enter 发送，Shift+Enter 换行）'}
+          placeholder={
+            isFirst
+              ? '描述你想要的产出，按 Enter 发送…'
+              : '继续对话（Enter 发送，Shift+Enter 换行）'
+          }
           value={text}
           disabled={disabled}
           rows={2}
@@ -85,11 +89,7 @@ export function InputComposer({
           {disabled ? '生成中…' : '发送'}
         </button>
         {disabled && onInterrupt && (
-          <button
-            type="button"
-            className="rt-btn rt-composer__send"
-            onClick={onInterrupt}
-          >
+          <button type="button" className="rt-btn rt-composer__send" onClick={onInterrupt}>
             打断
           </button>
         )}

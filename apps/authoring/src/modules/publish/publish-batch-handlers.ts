@@ -127,6 +127,7 @@ export function createPublishBatchHandler(): RouteHandlerMethod {
         'publish_batch',
         created.jobId as never,
         created.fenceToken,
+        req.id,
       );
     } catch {
       req.log.warn(
@@ -268,6 +269,7 @@ export function retryPublishBatchItemHandler(): RouteHandlerMethod {
         'publish_batch',
         outcome.jobId as never,
         outcome.fenceToken,
+        req.id,
       );
     } catch {
       req.log.warn(

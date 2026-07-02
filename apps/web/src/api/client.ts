@@ -9,6 +9,8 @@
 import {
   API_PREFIX,
   CLIENT_FALLBACK_TRACE_ID,
+  TRACE_ID_HEADER,
+  TRACEPARENT_HEADER,
   sanitizeErrorEnvelope,
   type Envelope,
   type Meta,
@@ -17,6 +19,7 @@ import {
   type IdempotencyScopeValue,
   type IdempotencyOptionalScopeValue,
 } from '@cb/shared';
+import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
 
 /** 写命令必带的 Idempotency scope（脊柱 §4 的 22 项之一；类型层强制不可省，编译期堵「写请求无幂等键」）。 */
 export type IdempotencyScopeInput = IdempotencyScopeValue;
@@ -125,6 +128,9 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 /** 底层请求：解包 { data, meta }；非 2xx 统一抛 ApiError（永远带人话 + 退路）。 */
 async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelope<T>> {
   const headers: Record<string, string> = { ...opts.headers };
+  const trace = clientTraceHeaders(headers[TRACE_ID_HEADER]);
+  headers[TRACE_ID_HEADER] ??= trace.traceId;
+  headers[TRACEPARENT_HEADER] ??= trace.headers[TRACEPARENT_HEADER]!;
   const hasBody = opts.body !== undefined;
   if (hasBody) headers['Content-Type'] = 'application/json';
 
@@ -135,8 +141,9 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
   }
 
   let res: Response;
+  const url = buildUrl(path, opts.query);
   try {
-    res = await fetch(buildUrl(path, opts.query), {
+    res = await fetch(url, {
       method: opts.method,
       credentials: 'include',
       headers,
@@ -146,6 +153,12 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
   } catch (cause) {
     // 网络层失败（断网/被 abort）：abort 透传，其余包成人话信封。
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+    reportClientEvent('api_error', {
+      traceId: trace.traceId,
+      message: cause instanceof Error ? cause.message : 'network error',
+      stack: cause instanceof Error ? cause.stack : undefined,
+      url,
+    });
     throw new ApiError(fallbackEnvelope('网络好像不太稳，检查连接后重试。'));
   }
 
@@ -156,7 +169,14 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
   try {
     body = await res.json();
   } catch {
-    if (!res.ok) throw new ApiError(fallbackEnvelope('服务暂时没有正确响应，请稍后重试。'));
+    if (!res.ok) {
+      reportClientEvent('api_error', {
+        traceId: trace.traceId,
+        message: 'non-json error response',
+        url,
+      });
+      throw new ApiError(fallbackEnvelope('服务暂时没有正确响应，请稍后重试。'));
+    }
     return { data: undefined as T };
   }
 
@@ -170,7 +190,20 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
       inner !== null &&
       typeof inner.error?.userMessage === 'string' &&
       (inner.error.userMessage as string).length > 0;
-    if (hasContractEnvelope) throw new ApiError(sanitizeErrorEnvelope(body));
+    if (hasContractEnvelope) {
+      const envelope = sanitizeErrorEnvelope(body);
+      reportClientEvent('api_error', {
+        traceId: envelope.error.traceId,
+        message: envelope.error.userMessage,
+        url,
+      });
+      throw new ApiError(envelope);
+    }
+    reportClientEvent('api_error', {
+      traceId: trace.traceId,
+      message: 'non-contract error response',
+      url,
+    });
     throw new ApiError(fallbackEnvelope('服务开小差了，请稍后重试。'));
   }
 

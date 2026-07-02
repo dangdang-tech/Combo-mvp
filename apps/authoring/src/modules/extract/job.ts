@@ -536,7 +536,7 @@ async function emitSessionMockCandidate(
  *   - 候选 INSERT 0 行（fence out / (job,slug) 去重）→ fence out（取消）返回 'fenced_out'（调用方据此停）；去重 → 返回 null（静默跳过，计数不翻倍）。
  *   - 成功（事务提交）→ ready item（segmentCount == 实际写入证据数，提取-34）。
  */
-async function emitOneCandidate(
+async function _emitOneCandidate(
   deps: { db: Queryable; txPool: TxPool; gateway: LlmGatewayPort },
   job: LeasedJob,
   ctx: JobContext,

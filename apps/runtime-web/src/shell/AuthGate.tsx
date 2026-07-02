@@ -7,7 +7,9 @@ const AUTH_LOGIN_PATH = '/api/v1/auth/login';
 const DEV_LOGIN_PATH = '/api/v1/auth/dev-login';
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 
-async function fetchMe(signal?: AbortSignal): Promise<{ status: 'authed'; me: MeView } | { status: 'anon' } | { status: 'error' }> {
+async function fetchMe(
+  signal?: AbortSignal,
+): Promise<{ status: 'authed'; me: MeView } | { status: 'anon' } | { status: 'error' }> {
   let res: Response;
   try {
     res = await fetch('/api/v1/me', {

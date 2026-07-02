@@ -172,8 +172,7 @@ function hashOf(manifest: Manifest): string {
 }
 
 async function main(): Promise<void> {
-  const databaseUrl =
-    process.env.DATABASE_URL ?? 'postgres://agora:agora@localhost:5432/agora';
+  const databaseUrl = process.env.DATABASE_URL ?? 'postgres://agora:agora@localhost:5432/agora';
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
@@ -252,7 +251,13 @@ async function main(): Promise<void> {
           `INSERT INTO marketplace_listings
              (capability_id, version_id, slug, card, search_tsv, status)
            VALUES ($1, $2, $3, $4::jsonb, to_tsvector('simple', $5), 'published')`,
-          [capabilityId, versionId, demo.slug, JSON.stringify(card), `${demo.name} ${demo.tagline}`],
+          [
+            capabilityId,
+            versionId,
+            demo.slug,
+            JSON.stringify(card),
+            `${demo.name} ${demo.tagline}`,
+          ],
         );
         await client.query('COMMIT');
         console.log(`seeded：${demo.slug}（${demo.name}）capability=${capabilityId}`);

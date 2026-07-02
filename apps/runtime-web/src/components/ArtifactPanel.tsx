@@ -18,7 +18,12 @@ export interface ArtifactPanelProps {
   onClose: () => void;
 }
 
-export function ArtifactPanel({ artifact, artifacts, onSelectArtifact, onClose }: ArtifactPanelProps) {
+export function ArtifactPanel({
+  artifact,
+  artifacts,
+  onSelectArtifact,
+  onClose,
+}: ArtifactPanelProps) {
   const [selectedVersion, setSelectedVersion] = useState<number>(artifact.latestVersion);
   const [copied, setCopied] = useState(false);
 
@@ -86,7 +91,11 @@ export function ArtifactPanel({ artifact, artifacts, onSelectArtifact, onClose }
         </div>
       </header>
       <div className="rt-artifact__body">
-        {version ? <ArtifactRenderer artifact={version} /> : <div className="rt-empty">暂无内容</div>}
+        {version ? (
+          <ArtifactRenderer artifact={version} />
+        ) : (
+          <div className="rt-empty">暂无内容</div>
+        )}
       </div>
     </aside>
   );
