@@ -885,11 +885,10 @@ body {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
-}
-.rt-trial-app[data-view='consumer'] .rt-trial__body,
-.rt-trial__body:not(:has(.rt-inspector)) {
   grid-template-columns: minmax(0, 1fr);
+}
+.rt-trial__body:has(.rt-trial__side) {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
 }
 .rt-genui {
   min-width: 0;
@@ -1012,10 +1011,22 @@ body {
   background: var(--cb-danger);
   border-color: var(--cb-danger);
 }
+.rt-trial__side {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--cb-border);
+  background: var(--cb-surface);
+}
+.rt-trial__side > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .rt-inspector {
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--cb-border);
   background: var(--cb-surface);
   display: flex;
   flex-direction: column;
@@ -1051,19 +1062,15 @@ body {
   font-size: 13px;
 }
 .rt-floating-chat {
-  position: absolute;
-  right: 22px;
-  bottom: 22px;
-  width: min(420px, calc(100% - 44px));
-  max-height: min(560px, calc(100% - 150px));
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  max-height: none;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--cb-border);
-  border-radius: 8px;
   background: var(--cb-surface);
-  box-shadow: 0 18px 45px rgba(22, 18, 14, 0.18);
   overflow: hidden;
-  z-index: 5;
 }
 .rt-floating-chat__head {
   flex: 0 0 auto;
@@ -1075,7 +1082,9 @@ body {
   font-weight: 600;
 }
 .rt-floating-chat .rt-thread {
-  max-height: 300px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   padding: 12px;
   background: #fff;
 }
@@ -1092,7 +1101,9 @@ body {
 .rt-floating-chat__input textarea {
   width: 100%;
   min-width: 0;
-  resize: none;
+  min-height: 64px;
+  max-height: 140px;
+  resize: vertical;
   border: 1px solid var(--cb-border);
   border-radius: 8px;
   padding: 8px 10px;
@@ -1114,10 +1125,25 @@ body {
     justify-content: flex-start;
   }
   .rt-trial__body {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    overflow: hidden;
+  }
+  .rt-trial__body:has(.rt-trial__side) {
+    grid-template-columns: none;
+  }
+  .rt-genui {
+    flex: 1 1 auto;
+  }
+  .rt-trial__side {
+    flex: 0 0 42dvh;
+    max-height: 42dvh;
+    border-top: 1px solid var(--cb-border);
+    border-left: 0;
   }
   .rt-inspector {
-    display: none;
+    display: flex;
   }
   .rt-process {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1126,9 +1152,6 @@ body {
     grid-template-columns: 1fr;
   }
   .rt-floating-chat {
-    position: static;
-    width: auto;
-    max-height: 46dvh;
-    margin: 10px;
+    max-height: none;
   }
 }

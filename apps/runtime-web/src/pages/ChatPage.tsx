@@ -6,6 +6,9 @@ import type {
   PublicCapabilityView,
   RuntimeArtifact,
   RuntimeMessage,
+  RuntimeSessionList,
+  RuntimeSessionListItem,
+  RuntimeSessionMeta,
   TrialProcessState,
 } from '@cb/shared';
 import { createTrialSession, useSession } from '../api/runtime.js';
@@ -15,12 +18,35 @@ import { ChatThread } from '../components/ChatThread.js';
 import { SessionSidebar } from '../components/SessionSidebar.js';
 
 type PreviewMode = 'creator' | 'consumer';
+type TrialSidePanel = 'chat' | 'inspector';
 
 function latestVersion(artifact: RuntimeArtifact | null) {
   return (
     artifact?.versions.find((v) => v.version === artifact.latestVersion) ??
     artifact?.versions.at(-1)
   );
+}
+
+function toSessionListItem(
+  session: RuntimeSessionMeta,
+  capability: PublicCapabilityView,
+): RuntimeSessionListItem {
+  return {
+    id: session.id,
+    slug: session.slug,
+    mode: session.mode,
+    title: session.title,
+    capabilityName: capability.name,
+    updatedAt: session.updatedAt,
+  };
+}
+
+function upsertSessionListItem(
+  current: RuntimeSessionList | undefined,
+  item: RuntimeSessionListItem,
+): RuntimeSessionList {
+  const items = current?.items ?? [];
+  return { items: [item, ...items.filter((existing) => existing.id !== item.id)] };
 }
 
 function fieldValue(values: Record<string, string>, field: InputField): string {
@@ -324,6 +350,8 @@ export function ChatPage() {
   const [createFailed, setCreateFailed] = useState(false);
   const [mode, setMode] = useState<PreviewMode>('creator');
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [sidePanel, setSidePanel] = useState<TrialSidePanel>('chat');
+  const sawStartedRef = useRef(false);
   const startedSlugRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -331,6 +359,10 @@ export function ChatPage() {
     startedSlugRef.current = slug;
     createTrialSession(slug)
       .then((data) => {
+        const item = toSessionListItem(data.session, data.capability);
+        qc.setQueryData<RuntimeSessionList>(['sessions'], (current) =>
+          upsertSessionListItem(current, item),
+        );
         void qc.invalidateQueries({ queryKey: ['sessions'] });
         navigate(`/session/${data.session.id}`, { replace: true });
       })
@@ -348,6 +380,17 @@ export function ChatPage() {
     : (agui.artifacts.at(-1) ?? null);
   const activeVersion = latestVersion(activeArtifact);
   const hasStarted = agui.messages.length > 0;
+
+  useEffect(() => {
+    if (hasStarted && !sawStartedRef.current) setSidePanel('chat');
+    sawStartedRef.current = hasStarted;
+  }, [hasStarted]);
+
+  const activeSession = detail ? toSessionListItem(detail.session, detail.capability) : undefined;
+  const showInspectorPanel =
+    mode === 'creator' && inspectorOpen && (!hasStarted || sidePanel === 'inspector');
+  const showChatPanel = hasStarted && !showInspectorPanel;
+  const showSidePanel = showChatPanel || showInspectorPanel;
 
   const uiMessages: RuntimeMessage[] = useMemo(
     () =>
@@ -381,7 +424,7 @@ export function ChatPage() {
 
   return (
     <div className="rt-app rt-trial-app" data-view={mode}>
-      <SessionSidebar activeSessionId={sessionId} />
+      <SessionSidebar activeSession={activeSession} activeSessionId={sessionId} />
       <div className="rt-trial">
         <div className="rt-trial__notice">
           <span>试用模式</span>
@@ -414,8 +457,24 @@ export function ChatPage() {
               </button>
             </div>
             {mode === 'creator' && (
-              <button type="button" className="rt-btn" onClick={() => setInspectorOpen((v) => !v)}>
-                {inspectorOpen ? '收起面板' : '经验体'}
+              <button
+                type="button"
+                className="rt-btn"
+                onClick={() => {
+                  if (hasStarted) {
+                    setInspectorOpen(true);
+                    setSidePanel((current) => (current === 'inspector' ? 'chat' : 'inspector'));
+                    return;
+                  }
+                  setSidePanel('inspector');
+                  setInspectorOpen((v) => !v);
+                }}
+              >
+                {hasStarted && showInspectorPanel
+                  ? '回到对话'
+                  : inspectorOpen && !hasStarted
+                    ? '收起面板'
+                    : '经验体'}
               </button>
             )}
           </div>
@@ -448,21 +507,29 @@ export function ChatPage() {
             <TrialProcessPanel process={agui.trialProcess} isRunning={agui.isRunning} />
           </main>
 
-          {mode === 'creator' && inspectorOpen && (
-            <CreatorInspector capability={capability} onClose={() => setInspectorOpen(false)} />
+          {showSidePanel && (
+            <div className="rt-trial__side">
+              {showChatPanel ? (
+                <FloatingChat
+                  messages={uiMessages}
+                  isRunning={agui.isRunning}
+                  error={agui.error}
+                  onSend={(text) => agui.send(text)}
+                  onInterrupt={agui.interrupt}
+                  onOpenArtifact={(ref) => agui.setActiveKey(ref.artifactKey)}
+                />
+              ) : (
+                <CreatorInspector
+                  capability={capability}
+                  onClose={() => {
+                    setInspectorOpen(false);
+                    setSidePanel('chat');
+                  }}
+                />
+              )}
+            </div>
           )}
         </div>
-
-        {hasStarted && (
-          <FloatingChat
-            messages={uiMessages}
-            isRunning={agui.isRunning}
-            error={agui.error}
-            onSend={(text) => agui.send(text)}
-            onInterrupt={agui.interrupt}
-            onOpenArtifact={(ref) => agui.setActiveKey(ref.artifactKey)}
-          />
-        )}
       </div>
     </div>
   );

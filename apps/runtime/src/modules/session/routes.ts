@@ -149,13 +149,14 @@ export async function registerSessionRoutes(
     }
 
     const systemPrompt = composeSystemPrompt(loaded.view);
+    const defaultTitle = input.mode === 'trial' ? `${loaded.publicView.name} 试用` : '新会话';
     const meta = await createSession(ctx.pool, {
       ownerId: input.ownerId,
       capabilityId: loaded.view.capabilityId,
       slug: loaded.publicView.slug,
       version: loaded.view.version,
       mode: input.mode ?? 'consume',
-      title: input.title ?? '新会话',
+      title: input.title?.trim() || defaultTitle,
       instructions: systemPrompt,
       manifestHash: loaded.view.manifestHash,
       publicView: loaded.publicView,
