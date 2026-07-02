@@ -1397,6 +1397,37 @@ body {
   user-select: none;
   touch-action: none;
 }
+.rt-floating-chat__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rt-floating-chat__head-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.rt-floating-chat__shortcut {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(154, 97, 25, 0.34);
+  border-radius: 6px;
+  background: rgba(255, 252, 247, 0.82);
+  color: #9a6119;
+  font-family: var(--cb-font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.rt-floating-chat__shortcut:hover {
+  background: #fff6e5;
+  border-color: rgba(154, 97, 25, 0.58);
+}
 .rt-floating-chat__head .rt-icon-btn {
   cursor: pointer;
 }
@@ -1657,6 +1688,12 @@ body {
   .rt-floating-chat__head {
     cursor: default;
     touch-action: auto;
+  }
+  .rt-floating-chat__shortcuts {
+    display: none;
+  }
+  .rt-floating-chat__shortcut {
+    display: none;
   }
   .rt-floating-chat__resize {
     display: none;

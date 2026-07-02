@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -390,6 +391,7 @@ const FLOATING_CHAT_MIN_WIDTH = 320;
 const FLOATING_CHAT_MIN_HEIGHT = 280;
 const FLOATING_CHAT_DEFAULT_WIDTH = 420;
 const FLOATING_CHAT_DEFAULT_HEIGHT = 360;
+const FLOATING_CHAT_SHORTCUT_SCALE = 1.14;
 const RESIZE_DIRECTIONS: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
 function clamp(value: number, min: number, max: number): number {
@@ -483,6 +485,22 @@ function resizeFloatingChatRect(
   return { x, y, width, height };
 }
 
+function scaleFloatingChatRect(rect: FloatingChatRect, factor: number): FloatingChatRect {
+  const width = rect.width * factor;
+  const height = rect.height * factor;
+  return {
+    x: rect.x - (width - rect.width) / 2,
+    y: rect.y - (height - rect.height) / 2,
+    width,
+    height,
+  };
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
+
 function FloatingChat({
   containerRef,
   sessionId,
@@ -516,6 +534,37 @@ function FloatingChat({
   } | null>(null);
   const storageKey = `${FLOATING_CHAT_STORAGE_PREFIX}:${sessionId}`;
 
+  const applyChatRect = useCallback(
+    (createNext: (current: FloatingChatRect) => FloatingChatRect): void => {
+      const container = containerRef.current;
+      if (!container || !desktopFloatingChatEnabled()) return;
+      setRect((current) => {
+        const next = constrainFloatingChatRect(
+          createNext(current ?? defaultFloatingChatRect(container)),
+          container,
+        );
+        writeFloatingChatRect(storageKey, next);
+        return next;
+      });
+    },
+    [containerRef, storageKey],
+  );
+
+  const resetChatRect = useCallback((): void => {
+    const container = containerRef.current;
+    if (!container || !desktopFloatingChatEnabled()) return;
+    const next = defaultFloatingChatRect(container);
+    writeFloatingChatRect(storageKey, next);
+    setRect(next);
+  }, [containerRef, storageKey]);
+
+  const scaleChat = useCallback(
+    (factor: number): void => {
+      applyChatRect((current) => scaleFloatingChatRect(current, factor));
+    },
+    [applyChatRect],
+  );
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -539,6 +588,29 @@ function FloatingChat({
     observer.observe(container);
     return () => observer.disconnect();
   }, [containerRef, storageKey]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!desktopFloatingChatEnabled() || !event.altKey || event.metaKey || event.ctrlKey) {
+        return;
+      }
+      if (isTypingTarget(event.target)) return;
+
+      if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        scaleChat(1 / FLOATING_CHAT_SHORTCUT_SCALE);
+      } else if (event.key === '=' || event.key === '+') {
+        event.preventDefault();
+        scaleChat(FLOATING_CHAT_SHORTCUT_SCALE);
+      } else if (event.key === '0') {
+        event.preventDefault();
+        resetChatRect();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [resetChatRect, scaleChat]);
 
   const startDrag = (
     mode: 'move' | 'resize',
@@ -617,12 +689,41 @@ function FloatingChat({
         className="rt-floating-chat__head"
         onPointerDown={(event) => startDrag('move', event)}
       >
-        <span>与 {capabilityName} 对话</span>
-        {isRunning && (
-          <button type="button" className="rt-icon-btn" onClick={onInterrupt}>
-            打断
+        <span className="rt-floating-chat__title">与 {capabilityName} 对话</span>
+        <div className="rt-floating-chat__head-actions">
+          <button
+            type="button"
+            className="rt-floating-chat__shortcut"
+            aria-label="缩小对话框"
+            title="缩小对话框 (Alt+-)"
+            onClick={() => scaleChat(1 / FLOATING_CHAT_SHORTCUT_SCALE)}
+          >
+            -
           </button>
-        )}
+          <button
+            type="button"
+            className="rt-floating-chat__shortcut"
+            aria-label="放大对话框"
+            title="放大对话框 (Alt+=)"
+            onClick={() => scaleChat(FLOATING_CHAT_SHORTCUT_SCALE)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="rt-floating-chat__shortcut"
+            aria-label="还原对话框大小"
+            title="还原对话框大小 (Alt+0)"
+            onClick={resetChatRect}
+          >
+            ↙
+          </button>
+          {isRunning && (
+            <button type="button" className="rt-icon-btn" onClick={onInterrupt}>
+              打断
+            </button>
+          )}
+        </div>
       </header>
       <ChatThread messages={messages} streamingText={null} onOpenArtifact={onOpenArtifact} />
       {error && <div className="rt-error rt-error--inline">{error}</div>}
