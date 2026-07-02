@@ -383,15 +383,16 @@ interface FloatingChatRect {
   height: number;
 }
 
+type FloatingChatMode = 'normal' | 'minimized' | 'maximized';
 type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 const FLOATING_CHAT_STORAGE_PREFIX = 'agora-runtime-floating-chat';
 const FLOATING_CHAT_MARGIN = 16;
 const FLOATING_CHAT_MIN_WIDTH = 320;
 const FLOATING_CHAT_MIN_HEIGHT = 280;
+const FLOATING_CHAT_MINIMIZED_HEIGHT = 42;
 const FLOATING_CHAT_DEFAULT_WIDTH = 420;
 const FLOATING_CHAT_DEFAULT_HEIGHT = 360;
-const FLOATING_CHAT_SHORTCUT_SCALE = 1.14;
 const RESIZE_DIRECTIONS: ResizeDirection[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
 function clamp(value: number, min: number, max: number): number {
@@ -485,14 +486,33 @@ function resizeFloatingChatRect(
   return { x, y, width, height };
 }
 
-function scaleFloatingChatRect(rect: FloatingChatRect, factor: number): FloatingChatRect {
-  const width = rect.width * factor;
-  const height = rect.height * factor;
+function maximizedFloatingChatRect(container: HTMLElement): FloatingChatRect {
+  const bounds = container.getBoundingClientRect();
   return {
-    x: rect.x - (width - rect.width) / 2,
-    y: rect.y - (height - rect.height) / 2,
+    x: FLOATING_CHAT_MARGIN,
+    y: FLOATING_CHAT_MARGIN,
+    width: Math.max(260, bounds.width - FLOATING_CHAT_MARGIN * 2),
+    height: Math.max(240, bounds.height - FLOATING_CHAT_MARGIN * 2),
+  };
+}
+
+function minimizedFloatingChatRect(
+  rect: FloatingChatRect,
+  container: HTMLElement,
+): FloatingChatRect {
+  const bounds = container.getBoundingClientRect();
+  const maxWidth = Math.max(260, bounds.width - FLOATING_CHAT_MARGIN * 2);
+  const width = clamp(rect.width, Math.min(FLOATING_CHAT_MIN_WIDTH, maxWidth), maxWidth);
+  const maxX = Math.max(FLOATING_CHAT_MARGIN, bounds.width - width - FLOATING_CHAT_MARGIN);
+  const maxY = Math.max(
+    FLOATING_CHAT_MARGIN,
+    bounds.height - FLOATING_CHAT_MINIMIZED_HEIGHT - FLOATING_CHAT_MARGIN,
+  );
+  return {
+    x: clamp(rect.x, FLOATING_CHAT_MARGIN, maxX),
+    y: clamp(rect.y, FLOATING_CHAT_MARGIN, maxY),
     width,
-    height,
+    height: FLOATING_CHAT_MINIMIZED_HEIGHT,
   };
 }
 
@@ -524,6 +544,8 @@ function FloatingChat({
 }) {
   const [text, setText] = useState('');
   const [rect, setRect] = useState<FloatingChatRect | null>(null);
+  const [windowMode, setWindowMode] = useState<FloatingChatMode>('normal');
+  const restoreRectRef = useRef<FloatingChatRect | null>(null);
   const dragRef = useRef<{
     mode: 'move' | 'resize';
     direction?: ResizeDirection;
@@ -534,42 +556,58 @@ function FloatingChat({
   } | null>(null);
   const storageKey = `${FLOATING_CHAT_STORAGE_PREFIX}:${sessionId}`;
 
-  const applyChatRect = useCallback(
-    (createNext: (current: FloatingChatRect) => FloatingChatRect): void => {
-      const container = containerRef.current;
-      if (!container || !desktopFloatingChatEnabled()) return;
-      setRect((current) => {
-        const next = constrainFloatingChatRect(
-          createNext(current ?? defaultFloatingChatRect(container)),
-          container,
-        );
-        writeFloatingChatRect(storageKey, next);
-        return next;
-      });
-    },
-    [containerRef, storageKey],
-  );
-
-  const resetChatRect = useCallback((): void => {
+  const restoreChat = useCallback((): void => {
     const container = containerRef.current;
     if (!container || !desktopFloatingChatEnabled()) return;
-    const next = defaultFloatingChatRect(container);
+    const next = constrainFloatingChatRect(
+      restoreRectRef.current ??
+        readFloatingChatRect(storageKey) ??
+        defaultFloatingChatRect(container),
+      container,
+    );
+    restoreRectRef.current = next;
     writeFloatingChatRect(storageKey, next);
     setRect(next);
+    setWindowMode('normal');
   }, [containerRef, storageKey]);
 
-  const scaleChat = useCallback(
-    (factor: number): void => {
-      applyChatRect((current) => scaleFloatingChatRect(current, factor));
-    },
-    [applyChatRect],
-  );
+  const minimizeChat = useCallback((): void => {
+    const container = containerRef.current;
+    if (!container || !desktopFloatingChatEnabled()) return;
+    setRect((current) => {
+      const base =
+        windowMode === 'maximized' && restoreRectRef.current
+          ? restoreRectRef.current
+          : (current ?? defaultFloatingChatRect(container));
+      if (windowMode === 'normal') {
+        restoreRectRef.current = constrainFloatingChatRect(base, container);
+      }
+      return minimizedFloatingChatRect(base, container);
+    });
+    setWindowMode('minimized');
+  }, [containerRef, windowMode]);
+
+  const maximizeChat = useCallback((): void => {
+    const container = containerRef.current;
+    if (!container || !desktopFloatingChatEnabled()) return;
+    setRect((current) => {
+      const base = current ?? defaultFloatingChatRect(container);
+      if (windowMode === 'normal') {
+        restoreRectRef.current = constrainFloatingChatRect(base, container);
+      }
+      return maximizedFloatingChatRect(container);
+    });
+    setWindowMode('maximized');
+  }, [containerRef, windowMode]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const stored = readFloatingChatRect(storageKey);
-    setRect(constrainFloatingChatRect(stored ?? defaultFloatingChatRect(container), container));
+    const next = constrainFloatingChatRect(stored ?? defaultFloatingChatRect(container), container);
+    restoreRectRef.current = next;
+    setWindowMode('normal');
+    setRect(next);
   }, [containerRef, storageKey]);
 
   useEffect(() => {
@@ -577,17 +615,18 @@ function FloatingChat({
     if (!container) return undefined;
     const observer = new ResizeObserver(() => {
       setRect((current) => {
-        const next = constrainFloatingChatRect(
-          current ?? defaultFloatingChatRect(container),
-          container,
-        );
+        const base = current ?? defaultFloatingChatRect(container);
+        if (windowMode === 'maximized') return maximizedFloatingChatRect(container);
+        if (windowMode === 'minimized') return minimizedFloatingChatRect(base, container);
+        const next = constrainFloatingChatRect(base, container);
+        restoreRectRef.current = next;
         writeFloatingChatRect(storageKey, next);
         return next;
       });
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [containerRef, storageKey]);
+  }, [containerRef, storageKey, windowMode]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -596,21 +635,20 @@ function FloatingChat({
       }
       if (isTypingTarget(event.target)) return;
 
-      if (event.key === '-' || event.key === '_') {
+      if (event.key.toLowerCase() === 'm') {
         event.preventDefault();
-        scaleChat(1 / FLOATING_CHAT_SHORTCUT_SCALE);
-      } else if (event.key === '=' || event.key === '+') {
+        if (windowMode === 'minimized') restoreChat();
+        else minimizeChat();
+      } else if (event.key === 'Enter') {
         event.preventDefault();
-        scaleChat(FLOATING_CHAT_SHORTCUT_SCALE);
-      } else if (event.key === '0') {
-        event.preventDefault();
-        resetChatRect();
+        if (windowMode === 'maximized') restoreChat();
+        else maximizeChat();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [resetChatRect, scaleChat]);
+  }, [maximizeChat, minimizeChat, restoreChat, windowMode]);
 
   const startDrag = (
     mode: 'move' | 'resize',
@@ -619,6 +657,8 @@ function FloatingChat({
   ): void => {
     if (event.button !== 0 || !desktopFloatingChatEnabled()) return;
     if (mode === 'move' && (event.target as HTMLElement).closest('button')) return;
+    if (mode === 'resize' && windowMode !== 'normal') return;
+    if (mode === 'move' && windowMode === 'maximized') return;
     const container = containerRef.current;
     if (!container) return;
     const startRect = rect ?? defaultFloatingChatRect(container);
@@ -646,14 +686,26 @@ function FloatingChat({
               y: drag.startRect.y + deltaY,
             }
           : resizeFloatingChatRect(drag.startRect, drag.direction ?? 'se', deltaX, deltaY);
-      const constrained = constrainFloatingChatRect(next, activeContainer);
+      const constrained =
+        windowMode === 'minimized'
+          ? minimizedFloatingChatRect(next, activeContainer)
+          : constrainFloatingChatRect(next, activeContainer);
       drag.latestRect = constrained;
       setRect(constrained);
     };
 
     const stopDrag = (): void => {
       const latest = dragRef.current?.latestRect;
-      if (latest) writeFloatingChatRect(storageKey, latest);
+      if (latest && windowMode === 'normal') {
+        restoreRectRef.current = latest;
+        writeFloatingChatRect(storageKey, latest);
+      } else if (latest && windowMode === 'minimized' && restoreRectRef.current) {
+        restoreRectRef.current = {
+          ...restoreRectRef.current,
+          x: latest.x,
+          y: latest.y,
+        };
+      }
       dragRef.current = null;
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', stopDrag);
@@ -681,7 +733,7 @@ function FloatingChat({
     : undefined;
   return (
     <section
-      className={`rt-floating-chat${rect ? ' is-positioned' : ''}${isRunning ? ' is-running' : ''}`}
+      className={`rt-floating-chat${rect ? ' is-positioned' : ''}${isRunning ? ' is-running' : ''} is-${windowMode}`}
       style={chatStyle}
       aria-label="微调对话"
     >
@@ -690,33 +742,36 @@ function FloatingChat({
         onPointerDown={(event) => startDrag('move', event)}
       >
         <span className="rt-floating-chat__title">与 {capabilityName} 对话</span>
-        <div className="rt-floating-chat__head-actions">
+        <div className="rt-floating-chat__window-controls">
           <button
             type="button"
-            className="rt-floating-chat__shortcut"
-            aria-label="缩小对话框"
-            title="缩小对话框 (Alt+-)"
-            onClick={() => scaleChat(1 / FLOATING_CHAT_SHORTCUT_SCALE)}
+            className="rt-floating-chat__window-btn"
+            aria-label={windowMode === 'minimized' ? '还原对话框' : '最小化对话框'}
+            title={windowMode === 'minimized' ? '还原对话框 (Alt+M)' : '最小化对话框 (Alt+M)'}
+            onClick={windowMode === 'minimized' ? restoreChat : minimizeChat}
           >
-            -
+            <span
+              className={`rt-floating-chat__window-icon rt-floating-chat__window-icon--${
+                windowMode === 'minimized' ? 'restore' : 'minimize'
+              }`}
+              aria-hidden="true"
+            />
           </button>
           <button
             type="button"
-            className="rt-floating-chat__shortcut"
-            aria-label="放大对话框"
-            title="放大对话框 (Alt+=)"
-            onClick={() => scaleChat(FLOATING_CHAT_SHORTCUT_SCALE)}
+            className="rt-floating-chat__window-btn"
+            aria-label={windowMode === 'maximized' ? '还原对话框' : '最大化对话框'}
+            title={
+              windowMode === 'maximized' ? '还原对话框 (Alt+Enter)' : '最大化对话框 (Alt+Enter)'
+            }
+            onClick={windowMode === 'maximized' ? restoreChat : maximizeChat}
           >
-            +
-          </button>
-          <button
-            type="button"
-            className="rt-floating-chat__shortcut"
-            aria-label="还原对话框大小"
-            title="还原对话框大小 (Alt+0)"
-            onClick={resetChatRect}
-          >
-            ↙
+            <span
+              className={`rt-floating-chat__window-icon rt-floating-chat__window-icon--${
+                windowMode === 'maximized' ? 'restore' : 'maximize'
+              }`}
+              aria-hidden="true"
+            />
           </button>
           {isRunning && (
             <button type="button" className="rt-icon-btn" onClick={onInterrupt}>
@@ -725,52 +780,64 @@ function FloatingChat({
           )}
         </div>
       </header>
-      <ChatThread messages={messages} streamingText={null} onOpenArtifact={onOpenArtifact} />
-      {error && <div className="rt-error rt-error--inline">{error}</div>}
-      <div className="rt-floating-chat__chips">
-        <button type="button" disabled={isRunning} onClick={() => onSend('再狠一点，减少套话。')}>
-          再狠一点
-        </button>
-        <button type="button" disabled={isRunning} onClick={() => onSend('引用出处，并说明改动依据。')}>
-          引用出处
-        </button>
-        <button type="button" disabled={isRunning} onClick={() => onSend('直接生成下一版。')}>
-          直接生成 V3
-        </button>
-      </div>
-      <div className="rt-floating-chat__input">
-        <textarea
-          value={text}
-          disabled={isRunning}
-          rows={1}
-          placeholder="回复，或 /命令..."
-          onChange={(event) => setText(event.target.value)}
-        />
-        <button
-          type="button"
-          className="rt-chat-send"
-          aria-label="发送"
-          disabled={isRunning || !text.trim()}
-          onClick={submit}
-        >
-          ↑
-        </button>
-      </div>
-      <button
-        type="button"
-        className="rt-floating-chat__resize rt-floating-chat__resize--se"
-        aria-label="从右下角调整对话框大小"
-        onPointerDown={(event) => startDrag('resize', event, 'se')}
-      />
-      {RESIZE_DIRECTIONS.filter((direction) => direction !== 'se').map((direction) => (
-        <button
-          key={direction}
-          type="button"
-          className={`rt-floating-chat__resize rt-floating-chat__resize--${direction}`}
-          aria-label="调整对话框大小"
-          onPointerDown={(event) => startDrag('resize', event, direction)}
-        />
-      ))}
+      {windowMode !== 'minimized' && (
+        <>
+          <ChatThread messages={messages} streamingText={null} onOpenArtifact={onOpenArtifact} />
+          {error && <div className="rt-error rt-error--inline">{error}</div>}
+          <div className="rt-floating-chat__chips">
+            <button type="button" disabled={isRunning} onClick={() => onSend('再狠一点，减少套话。')}>
+              再狠一点
+            </button>
+            <button
+              type="button"
+              disabled={isRunning}
+              onClick={() => onSend('引用出处，并说明改动依据。')}
+            >
+              引用出处
+            </button>
+            <button type="button" disabled={isRunning} onClick={() => onSend('直接生成下一版。')}>
+              直接生成 V3
+            </button>
+          </div>
+          <div className="rt-floating-chat__input">
+            <textarea
+              value={text}
+              disabled={isRunning}
+              rows={1}
+              placeholder="回复，或 /命令..."
+              onChange={(event) => setText(event.target.value)}
+            />
+            <button
+              type="button"
+              className="rt-chat-send"
+              aria-label="发送"
+              disabled={isRunning || !text.trim()}
+              onClick={submit}
+            >
+              ↑
+            </button>
+          </div>
+        </>
+      )}
+      {windowMode === 'normal' && (
+        <>
+          <button
+            type="button"
+            className="rt-floating-chat__resize rt-floating-chat__resize--se"
+            aria-label="从右下角调整对话框大小"
+            onPointerDown={(event) => startDrag('resize', event, 'se')}
+          />
+          {RESIZE_DIRECTIONS.filter((direction) => direction !== 'se').map((direction) => (
+            <button
+              key={direction}
+              type="button"
+              className={`rt-floating-chat__resize rt-floating-chat__resize--${direction}`}
+              aria-label="调整对话框大小"
+              onPointerDown={(event) => startDrag('resize', event, direction)}
+            />
+          ))}
+        </>
+      )}
     </section>
   );
 }

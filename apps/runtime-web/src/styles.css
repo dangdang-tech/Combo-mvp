@@ -1379,6 +1379,15 @@ body {
 .rt-floating-chat.is-running {
   box-shadow: 0 24px 60px rgba(22, 18, 14, 0.22);
 }
+.rt-floating-chat.is-minimized {
+  min-height: 42px;
+}
+.rt-floating-chat.is-minimized .rt-floating-chat__head {
+  border-bottom: 0;
+}
+.rt-floating-chat.is-maximized {
+  box-shadow: 0 28px 70px rgba(22, 18, 14, 0.24);
+}
 .rt-floating-chat__head {
   flex: 0 0 40px;
   display: flex;
@@ -1403,13 +1412,13 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rt-floating-chat__head-actions {
+.rt-floating-chat__window-controls {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
-.rt-floating-chat__shortcut {
+.rt-floating-chat__window-btn {
   width: 24px;
   height: 24px;
   display: grid;
@@ -1419,14 +1428,53 @@ body {
   background: rgba(255, 252, 247, 0.82);
   color: #9a6119;
   font-family: var(--cb-font-mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1;
   cursor: pointer;
 }
-.rt-floating-chat__shortcut:hover {
+.rt-floating-chat__window-btn:hover {
   background: #fff6e5;
   border-color: rgba(154, 97, 25, 0.58);
+}
+.rt-floating-chat__window-icon {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+.rt-floating-chat__window-icon--minimize::before {
+  content: '';
+  position: absolute;
+  right: 1px;
+  bottom: 2px;
+  left: 1px;
+  border-top: 2px solid currentColor;
+}
+.rt-floating-chat__window-icon--maximize::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+.rt-floating-chat__window-icon--restore::before,
+.rt-floating-chat__window-icon--restore::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+.rt-floating-chat__window-icon--restore::before {
+  top: 1px;
+  right: 1px;
+}
+.rt-floating-chat__window-icon--restore::after {
+  bottom: 1px;
+  left: 1px;
+  background: rgba(255, 252, 247, 0.82);
 }
 .rt-floating-chat__head .rt-icon-btn {
   cursor: pointer;
@@ -1689,10 +1737,7 @@ body {
     cursor: default;
     touch-action: auto;
   }
-  .rt-floating-chat__shortcuts {
-    display: none;
-  }
-  .rt-floating-chat__shortcut {
+  .rt-floating-chat__window-btn {
     display: none;
   }
   .rt-floating-chat__resize {
