@@ -12,6 +12,8 @@ import {
   presignUploads,
   putUploadPart,
   createImportJob,
+  fetchActiveImportJobByDraft,
+  fetchImportJob,
 } from './importApi.js';
 
 let mock: FetchMock;
@@ -171,6 +173,62 @@ describe('importApi', () => {
     expect(res.phase).toBe('uploading');
     expect(mock.calls[0]!.url).toBe('/api/v1/import/connect/pair/p1');
     expect(mock.calls[0]!.headers['X-Idempotency-Scope']).toBeUndefined();
+  });
+
+  it('fetchImportJob → GET /import/jobs/{jobId}（无幂等头）', async () => {
+    mock = installFetchMock({
+      status: 200,
+      json: {
+        data: {
+          job: {
+            id: 'job1',
+            type: 'import',
+            status: 'running',
+            progress: { percent: 10, phrase: '10%', subtasks: [] },
+            attemptNo: 1,
+            createdAt: '2026-06-17T00:00:00Z',
+          },
+          eventsUrl: '/api/v1/jobs/job1/events',
+          draftId: 'd1',
+        },
+      },
+    });
+    const res = await fetchImportJob('job1');
+    expect(res.job.id).toBe('job1');
+    expect(res.eventsUrl).toBe('/api/v1/jobs/job1/events');
+    expect(mock.calls[0]!.method).toBe('GET');
+    expect(mock.calls[0]!.url).toBe('/api/v1/import/jobs/job1');
+    expect(mock.calls[0]!.headers['X-Idempotency-Scope']).toBeUndefined();
+  });
+
+  it('fetchActiveImportJobByDraft → GET /import/jobs/active?draftId=...；空结果归一为 null', async () => {
+    mock = installFetchMock([
+      {
+        status: 200,
+        json: {
+          data: {
+            job: {
+              id: 'job1',
+              type: 'import',
+              status: 'queued',
+              progress: { percent: 0, phrase: '准备中', subtasks: [] },
+              attemptNo: 0,
+              createdAt: '2026-06-17T00:00:00Z',
+            },
+            eventsUrl: '/api/v1/jobs/job1/events',
+            draftId: 'd1',
+          },
+        },
+      },
+      { status: 200, json: { data: null } },
+    ]);
+    const found = await fetchActiveImportJobByDraft('d1');
+    expect(found?.job.id).toBe('job1');
+    expect(mock.calls[0]!.url).toBe('/api/v1/import/jobs/active?draftId=d1');
+    expect(mock.calls[0]!.headers['X-Idempotency-Scope']).toBeUndefined();
+
+    const empty = await fetchActiveImportJobByDraft('d2');
+    expect(empty).toBeNull();
   });
 
   it('fetchSnapshot → 解包统计四格', async () => {

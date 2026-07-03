@@ -19,6 +19,8 @@ import {
 import {
   presignHandler,
   createJobHandler,
+  getActiveImportJobHandler,
+  getImportJobSnapshotHandler,
   getSnapshotHandler,
   listSegmentsHandler,
   listSnapshotsHandler,
@@ -40,6 +42,19 @@ export const IMPORT_ENDPOINTS: EndpointDecl[] = [
     url: '/import/jobs',
     preHandlers: [requireRole('creator'), requireIdempotency(IdempotencyScope.IMPORT_CREATE)],
     handler: createJobHandler(),
+  },
+  // 刷新恢复：active 必须排在 :jobId 前，避免被动态段吞掉。
+  {
+    method: 'GET',
+    url: '/import/jobs/active',
+    preHandlers: [requireAuth()],
+    handler: getActiveImportJobHandler(),
+  },
+  {
+    method: 'GET',
+    url: '/import/jobs/:jobId',
+    preHandlers: [requireAuth()],
+    handler: getImportJobSnapshotHandler(),
   },
   // 本机助手配对：铸码（网页侧，creator）。
   {

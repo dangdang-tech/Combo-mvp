@@ -12,6 +12,7 @@ import {
   DEFAULT_PAGE_LIMIT,
   type PresignResult,
   type JobView,
+  type ImportJobSnapshotView,
   type SnapshotView,
   type SnapshotSegmentView,
   type SnapshotListItem,
@@ -27,6 +28,10 @@ import {
   readUploadManifest,
   type ExpectedPart,
 } from './upload-manifest-repo.js';
+import {
+  readImportJobSnapshotForDraft,
+  readImportJobSnapshotForOwner,
+} from './job-recovery-repo.js';
 import { asTxPool } from '../../platform/events/db-tx.js';
 
 /** 原文对象 key 前缀（agora-raw 桶；直传路径按 owner+uploadId 隔离，create-job 据此 list 校验传齐）。 */
@@ -266,6 +271,57 @@ export function createJobHandler(): RouteHandlerMethod {
 // ---------------------------------------------------------------------------
 // B-19 快照读（统计四格 + 去敏报告 / 会话节选只读 / 用户快照列表）
 // ---------------------------------------------------------------------------
+
+/** GET /import/jobs/:jobId — 刷新恢复：按 jobId 读 import job 当前快照（owner 守门）。 */
+export function getImportJobSnapshotHandler(): RouteHandlerMethod {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    const userId = requireUserId(req, reply);
+    if (!userId) return reply;
+    const { jobId } = req.params as { jobId: string };
+    try {
+      const view = await readImportJobSnapshotForOwner(req.server.infra.db, {
+        jobId,
+        ownerUserId: userId,
+      });
+      if (!view) {
+        reply.code(404).send(buildError(ErrorCode.NOT_FOUND, req.id));
+        return reply;
+      }
+      const body: Envelope<ImportJobSnapshotView> = { data: view, meta: { traceId: req.id } };
+      reply.code(200).send(body);
+    } catch {
+      reply.code(500).send(buildError(ErrorCode.INTERNAL, req.id));
+    }
+    return reply;
+  };
+}
+
+/** GET /import/jobs/active?draftId=... — 刷新恢复：按 draft 找最近 import job。 */
+export function getActiveImportJobHandler(): RouteHandlerMethod {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    const userId = requireUserId(req, reply);
+    if (!userId) return reply;
+    const { draftId } = req.query as { draftId?: string };
+    if (typeof draftId !== 'string' || draftId.length === 0) {
+      reply.code(400).send(buildError(ErrorCode.VALIDATION_FAILED, req.id));
+      return reply;
+    }
+    try {
+      const view = await readImportJobSnapshotForDraft(req.server.infra.db, {
+        draftId,
+        ownerUserId: userId,
+      });
+      const body: Envelope<ImportJobSnapshotView | null> = {
+        data: view,
+        meta: { traceId: req.id },
+      };
+      reply.code(200).send(body);
+    } catch {
+      reply.code(500).send(buildError(ErrorCode.INTERNAL, req.id));
+    }
+    return reply;
+  };
+}
 
 /** GET /snapshots/:snapshotId — 快照统计四格 + 去敏报告（§5.1，owner 守门，404 不暴露存在性）。 */
 export function getSnapshotHandler(): RouteHandlerMethod {

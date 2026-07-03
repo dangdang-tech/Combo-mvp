@@ -11,7 +11,14 @@
 // 退路：整体失败由 useSSE error → StreamLoading 内 ErrorState（重试重连）；两次失败 markStepError('import')。
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { PairResult, SnapshotView, SnapshotSegmentView, DonePayload } from '@cb/shared';
+import type {
+  DonePayload,
+  ErrorBody,
+  ImportJobSnapshotView,
+  PairResult,
+  SnapshotSegmentView,
+  SnapshotView,
+} from '@cb/shared';
 import { ApiError, useSSE, type UseSSEState } from '../../../api/index.js';
 import { ErrorState, LoadingState } from '../../../components/index.js';
 import { findDraftById, useWizard, useBootstrapDraft } from '../../wizard/index.js';
@@ -25,6 +32,7 @@ import { usePairPolling } from './usePairPolling.js';
 import {
   createPair,
   cancelImportJob,
+  fetchActiveImportJobByDraft,
   fetchSnapshot,
   fetchSnapshotSegments,
   importJobEventsUrl,
@@ -41,6 +49,29 @@ type Phase =
 /** 兜底人话 ApiError（取数失败时，永不裸错）。 */
 function fallbackError(userMessage: string): ApiError {
   return new ApiError({ error: { userMessage, retriable: true, action: 'retry', traceId: '' } });
+}
+
+function errorFromBody(error: ErrorBody | undefined, userMessage: string): ApiError {
+  return new ApiError({
+    error: error ?? { userMessage, retriable: true, action: 'retry', traceId: '' },
+  });
+}
+
+function terminalImportError(view: ImportJobSnapshotView): ApiError {
+  if (view.job.status === 'failed') {
+    return errorFromBody(view.job.error, '导入失败了，可以重试或重新发起导入。');
+  }
+  if (view.job.status === 'cancelled') {
+    return new ApiError({
+      error: {
+        userMessage: '导入已取消，可以重新发起导入。',
+        retriable: true,
+        action: 'change_input',
+        traceId: '',
+      },
+    });
+  }
+  return fallbackError('导入已结束，可以重新发起导入。');
 }
 
 /** done.result.snapshotId 安全取（done.result 是 unknown）。 */
@@ -124,6 +155,8 @@ export function ImportStepPage(): ReactElement {
   const urlSnapshotId = searchParams.get('snapshotId') ?? undefined;
   const urlDraftId = searchParams.get('draftId') ?? undefined;
   const activeDraftId = draftId ?? urlDraftId;
+  const initialUrlDraftIdRef = useRef(urlDraftId);
+  const restoreAttemptedRef = useRef<string | null>(null);
 
   // 草稿 bootstrap（P0-2，续传基线）：全新进入（无 draftId、无 snapshot/job 深链）即建真实草稿，拿 draftId
   //   贯穿 WizardContext + 续传 URL。续传 / 回看（有任一来源）不建。失败就地 ErrorState + 重试（永不裸错）。
@@ -142,7 +175,9 @@ export function ImportStepPage(): ReactElement {
     ? { kind: 'restoring' }
     : urlJobId
       ? { kind: 'loading', jobId: urlJobId }
-      : { kind: 'empty' };
+      : initialUrlDraftIdRef.current
+        ? { kind: 'restoring' }
+        : { kind: 'empty' };
 
   const [phase, setPhase] = useState<Phase>(initialPhase);
   const [starting, setStarting] = useState(false);
@@ -231,6 +266,66 @@ export function ImportStepPage(): ReactElement {
     if (phase.kind !== 'empty' && phase.kind !== 'restoring') return;
     navigateToCapabilities(ctxSnapshotId);
   }, [ctxSnapshotId, urlSnapshotId, urlJobId, phase.kind, navigateToCapabilities]);
+
+  // 初始 URL 只有 draftId 时，按 draftId 从后端找回正在跑/已结束的 import job。
+  useEffect(() => {
+    if (!initialUrlDraftIdRef.current) return;
+    if (!activeDraftId || ctxSnapshotId || urlJobId || urlSnapshotId) return;
+    if (phase.kind !== 'empty' && phase.kind !== 'restoring') return;
+    if (restoreAttemptedRef.current === activeDraftId) return;
+    restoreAttemptedRef.current = activeDraftId;
+
+    const ctrl = new AbortController();
+    let disposed = false;
+    const restore = async (): Promise<void> => {
+      if (phase.kind === 'empty') setPhase({ kind: 'restoring' });
+      try {
+        const view = await fetchActiveImportJobByDraft(activeDraftId, { signal: ctrl.signal });
+        if (disposed) return;
+        if (!view) {
+          setPhase({ kind: 'empty' });
+          return;
+        }
+        if (view.job.status === 'queued' || view.job.status === 'running') {
+          const next = new URLSearchParams(searchParams);
+          next.set('jobId', view.job.id);
+          setSearchParams(next, { replace: true });
+          setPhase({ kind: 'loading', jobId: view.job.id });
+          return;
+        }
+        if (view.job.status === 'completed') {
+          if (view.snapshotId) {
+            await loadComplete(view.snapshotId);
+          } else {
+            setPhase({ kind: 'empty' });
+            setStartError(fallbackError('导入已完成，但没拿到结果地址。请刷新后重试。'));
+          }
+          return;
+        }
+        setPhase({ kind: 'empty' });
+        setStartError(terminalImportError(view));
+      } catch (e) {
+        if (disposed || (e instanceof DOMException && e.name === 'AbortError')) return;
+        setPhase({ kind: 'empty' });
+        setStartError(e instanceof ApiError ? e : fallbackError('导入状态恢复失败，请稍后重试。'));
+      }
+    };
+
+    void restore();
+    return () => {
+      disposed = true;
+      ctrl.abort();
+    };
+  }, [
+    activeDraftId,
+    ctxSnapshotId,
+    loadComplete,
+    phase.kind,
+    searchParams,
+    setSearchParams,
+    urlJobId,
+    urlSnapshotId,
+  ]);
 
   // SSE done 成功 → 取快照进完成态。
   const handleStreamDone = useCallback(

@@ -49,11 +49,15 @@ export interface JobRowF {
   owner_user_id: string;
   subject_ref: unknown;
   progress: unknown;
+  result?: unknown;
+  error?: unknown;
   fence_token: number;
   /** lease 持有者（null = 从未被领/已被接管待补；deleteQueuedJob/staleQueued 谓词用）。 */
   lease_owner?: string | null;
   attempt_no?: number;
   created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
 }
 
 /** 直传 upload manifest 行（import_uploads，B-20 §2.1/§2.2，Codex P1-r2/P1-r5）。 */
@@ -255,6 +259,63 @@ export class ImportFakeDb implements Queryable {
           created_at: j.created_at ?? new Date(this.now).toISOString(),
         },
       ] as R[]);
+    }
+
+    // ---- readImportJobSnapshotForOwner / readImportJobSnapshotForDraft（刷新恢复，只读）----
+    if (
+      sql.includes('LEFT JOIN LATERAL') &&
+      sql.includes('COALESCE(j.result->>') &&
+      sql.includes('FROM jobs j')
+    ) {
+      let rows: JobRowF[];
+      if (sql.includes('WHERE j.id = $1')) {
+        const jobId = params[0] as string;
+        const owner = params[1] as string;
+        const j = this.jobs.get(jobId);
+        rows = j && j.owner_user_id === owner && j.type === 'import' ? [j] : [];
+      } else {
+        const owner = params[0] as string;
+        const draftId = params[1] as string;
+        rows = [...this.jobs.values()]
+          .filter(
+            (j) =>
+              j.owner_user_id === owner &&
+              j.type === 'import' &&
+              (j.status === 'queued' || j.status === 'running' || j.status === 'completed') &&
+              (j.subject_ref as { draftId?: string } | null)?.draftId === draftId,
+          )
+          .sort((a, b) => {
+            const ap = a.status === 'queued' || a.status === 'running' ? 0 : 1;
+            const bp = b.status === 'queued' || b.status === 'running' ? 0 : 1;
+            if (ap !== bp) return ap - bp;
+            return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+          })
+          .slice(0, 1);
+      }
+      return ok<R>(
+        rows.map((j) => {
+          const fromResult =
+            typeof j.result === 'object' && j.result !== null
+              ? (j.result as { snapshotId?: unknown }).snapshotId
+              : undefined;
+          const fromSnapshot = [...this.snapshots.values()]
+            .filter((s) => s.import_job_id === j.id)
+            .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.id;
+          return {
+            id: j.id,
+            status: j.status,
+            progress: j.progress,
+            result: j.result ?? null,
+            error: j.error ?? null,
+            attempt_no: j.attempt_no ?? 0,
+            created_at: j.created_at ?? new Date(this.now).toISOString(),
+            started_at: j.started_at ?? null,
+            finished_at: j.finished_at ?? null,
+            subject_ref: j.subject_ref,
+            snapshot_id: typeof fromResult === 'string' ? fromResult : (fromSnapshot ?? null),
+          };
+        }) as R[],
+      );
     }
 
     // ---- readUploadManifest（SELECT ... FROM import_uploads WHERE owner_user_id=$1 AND upload_id=$2）----

@@ -42,6 +42,14 @@ export const CreateImportJobRequestSchema = z.object({
 });
 export type CreateImportJobRequest = z.infer<typeof CreateImportJobRequestSchema>;
 
+export const ImportJobSnapshotViewSchema = z.object({
+  job: JobViewSchema,
+  eventsUrl: z.string(),
+  draftId: IdSchema.optional(),
+  snapshotId: IdSchema.optional(),
+});
+export type ImportJobSnapshotView = z.infer<typeof ImportJobSnapshotViewSchema>;
+
 // ---------- 本机助手路径（B-21）----------
 export const PairResultSchema = z.object({
   pairId: z.string(),

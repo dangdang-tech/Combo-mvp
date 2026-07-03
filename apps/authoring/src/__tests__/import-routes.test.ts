@@ -5,6 +5,8 @@ import type { RouteHandlerMethod } from 'fastify';
 import {
   presignHandler,
   createJobHandler,
+  getActiveImportJobHandler,
+  getImportJobSnapshotHandler,
   getSnapshotHandler,
   listSegmentsHandler,
   listSnapshotsHandler,
@@ -372,6 +374,155 @@ describe('createJobHandler (B-20→B-19) — manifest 完整性闸（Codex P1-r2
       infra: { db: new ImportFakeDb(), objectStore: { list: async () => [] }, queue: {} },
     });
     await call(createJobHandler(), ctx);
+    expect(ctx.sent.code).toBe(400);
+  });
+});
+
+describe('导入 job 恢复 handler（issue #5）', () => {
+  function seedJob(db: ImportFakeDb, over: Partial<JobRowF> = {}): JobRowF {
+    const row: JobRowF = {
+      id: 'job1',
+      type: 'import',
+      status: 'running',
+      owner_user_id: 'u1',
+      subject_ref: { draftId: 'd1', source: 'mixed', rawS3Keys: ['raw/u1/up1/p0'] },
+      progress: { percent: 42, phrase: '42% · 已拉取 1 / 3 个分片', subtasks: [] },
+      fence_token: 1,
+      attempt_no: 1,
+      created_at: '2026-07-03T00:00:00.000Z',
+      ...over,
+    };
+    db.jobs.set(row.id, row);
+    return row;
+  }
+
+  it('GET /import/jobs/:jobId 返回本人 import job 快照 + eventsUrl', async () => {
+    const db = new ImportFakeDb();
+    seedJob(db);
+    const ctx = makeReqReply({ userId: 'u1', params: { jobId: 'job1' }, infra: { db } });
+    await call(getImportJobSnapshotHandler(), ctx);
+    expect(ctx.sent.code).toBe(200);
+    const data = (
+      ctx.sent.body as {
+        data: { job: { id: string; status: string; progress: { percent: number } }; eventsUrl: string };
+      }
+    ).data;
+    expect(data.job.id).toBe('job1');
+    expect(data.job.status).toBe('running');
+    expect(data.job.progress.percent).toBe(42);
+    expect(data.eventsUrl).toBe('/api/v1/jobs/job1/events');
+  });
+
+  it('GET /import/jobs/:jobId 非本人 / 非 import job / 不存在 → 404', async () => {
+    const db = new ImportFakeDb();
+    seedJob(db);
+    seedJob(db, { id: 'extract-job', type: 'extract' });
+
+    const attacker = makeReqReply({ userId: 'other', params: { jobId: 'job1' }, infra: { db } });
+    await call(getImportJobSnapshotHandler(), attacker);
+    expect(attacker.sent.code).toBe(404);
+
+    const wrongType = makeReqReply({
+      userId: 'u1',
+      params: { jobId: 'extract-job' },
+      infra: { db },
+    });
+    await call(getImportJobSnapshotHandler(), wrongType);
+    expect(wrongType.sent.code).toBe(404);
+
+    const missing = makeReqReply({ userId: 'u1', params: { jobId: 'missing' }, infra: { db } });
+    await call(getImportJobSnapshotHandler(), missing);
+    expect(missing.sent.code).toBe(404);
+  });
+
+  it('GET /import/jobs/active?draftId=d1 优先返回未终态 import job', async () => {
+    const db = new ImportFakeDb();
+    seedJob(db, {
+      id: 'old-completed',
+      status: 'completed',
+      result: { snapshotId: 'snap-old' },
+      created_at: '2026-07-03T00:00:00.000Z',
+    });
+    seedJob(db, {
+      id: 'running-job',
+      status: 'running',
+      created_at: '2026-07-03T01:00:00.000Z',
+    });
+    const ctx = makeReqReply({ userId: 'u1', query: { draftId: 'd1' }, infra: { db } });
+    await call(getActiveImportJobHandler(), ctx);
+    expect(ctx.sent.code).toBe(200);
+    const data = (ctx.sent.body as { data: { job: { id: string }; eventsUrl: string } }).data;
+    expect(data.job.id).toBe('running-job');
+    expect(data.eventsUrl).toBe('/api/v1/jobs/running-job/events');
+  });
+
+  it('GET /import/jobs/active?draftId=d1 返回 completed job 的 snapshotId（raw_snapshots 兜底）', async () => {
+    const db = new ImportFakeDb();
+    seedJob(db, {
+      id: 'done-job',
+      status: 'completed',
+      result: null,
+      created_at: '2026-07-03T01:00:00.000Z',
+    });
+    db.snapshots.set('snap-fallback', {
+      id: 'snap-fallback',
+      owner_user_id: 'u1',
+      import_job_id: 'done-job',
+      source: 'mixed',
+      sources: ['claude'],
+      raw_s3_key: null,
+      raw_purged_at: null,
+      segment_count: 1,
+      message_count: 1,
+      project_count: 0,
+      time_span_from: null,
+      time_span_to: null,
+      redaction_report: { applied: true, totalRedactions: 0, byCategory: [], rulesetVersion: 'v1' },
+      redaction_ruleset_ver: 'v1',
+      superseded_by: null,
+      created_at: '2026-07-03T01:01:00.000Z',
+    });
+    const ctx = makeReqReply({ userId: 'u1', query: { draftId: 'd1' }, infra: { db } });
+    await call(getActiveImportJobHandler(), ctx);
+    expect(ctx.sent.code).toBe(200);
+    const data = (ctx.sent.body as { data: { job: { status: string }; snapshotId?: string } }).data;
+    expect(data.job.status).toBe('completed');
+    expect(data.snapshotId).toBe('snap-fallback');
+  });
+
+  it('GET /import/jobs/active?draftId=d1 无可恢复 job → 200 data:null，且只读不改库', async () => {
+    const db = new ImportFakeDb();
+    const before = db.jobs.size;
+    const ctx = makeReqReply({ userId: 'u1', query: { draftId: 'd1' }, infra: { db } });
+    await call(getActiveImportJobHandler(), ctx);
+    expect(ctx.sent.code).toBe(200);
+    expect((ctx.sent.body as { data: unknown }).data).toBeNull();
+    expect(db.jobs.size).toBe(before);
+  });
+
+  it('GET /import/jobs/active?draftId=d1 只有 failed/cancelled job → 200 data:null', async () => {
+    const db = new ImportFakeDb();
+    seedJob(db, {
+      id: 'failed-job',
+      status: 'failed',
+      error: { userMessage: '导入失败', retriable: true, action: 'retry', traceId: 't1' },
+      created_at: '2026-07-03T01:00:00.000Z',
+    });
+    seedJob(db, {
+      id: 'cancelled-job',
+      status: 'cancelled',
+      created_at: '2026-07-03T02:00:00.000Z',
+    });
+    const ctx = makeReqReply({ userId: 'u1', query: { draftId: 'd1' }, infra: { db } });
+    await call(getActiveImportJobHandler(), ctx);
+    expect(ctx.sent.code).toBe(200);
+    expect((ctx.sent.body as { data: unknown }).data).toBeNull();
+  });
+
+  it('GET /import/jobs/active 缺 draftId → 400', async () => {
+    const db = new ImportFakeDb();
+    const ctx = makeReqReply({ userId: 'u1', infra: { db } });
+    await call(getActiveImportJobHandler(), ctx);
     expect(ctx.sent.code).toBe(400);
   });
 });

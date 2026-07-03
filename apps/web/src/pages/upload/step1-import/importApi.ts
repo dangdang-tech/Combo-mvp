@@ -16,6 +16,7 @@ import {
   type SnapshotView,
   type SnapshotSegmentView,
   type JobView,
+  type ImportJobSnapshotView,
 } from '@cb/shared';
 import {
   apiPost,
@@ -35,6 +36,16 @@ export function presignPath(): string {
 /** 引用已上传对象触发导入 Job 端点路径（20 §2.2，写命令 scope=import.create）。 */
 export function createJobPath(): string {
   return '/import/jobs';
+}
+
+/** 按 jobId 读取导入 Job 快照（刷新恢复；只读）。 */
+export function importJobSnapshotPath(jobId: string): string {
+  return `/import/jobs/${encodeURIComponent(jobId)}`;
+}
+
+/** 按 draftId 查最近的导入 Job（刷新恢复；只读）。 */
+export function activeImportJobPath(): string {
+  return '/import/jobs/active';
 }
 
 /** 铸配对码端点路径（20 §3.1，写命令 scope=import.connect.pair）。 */
@@ -214,6 +225,26 @@ export async function createImportJob(
     ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
   };
   return apiPost<JobView>(createJobPath(), body, write);
+}
+
+/** 按 jobId 读取 import job 当前状态快照（含 eventsUrl / snapshotId）。 */
+export async function fetchImportJob(
+  jobId: string,
+  opts: RequestOptions = {},
+): Promise<ImportJobSnapshotView> {
+  return apiGet<ImportJobSnapshotView>(importJobSnapshotPath(jobId), opts);
+}
+
+/** 按 draftId 查最近 import job；无可恢复 job 时返回 null。 */
+export async function fetchActiveImportJobByDraft(
+  draftId: string,
+  opts: RequestOptions = {},
+): Promise<ImportJobSnapshotView | null> {
+  const data = await apiGet<ImportJobSnapshotView | null>(activeImportJobPath(), {
+    ...opts,
+    query: { ...(opts.query ?? {}), draftId },
+  });
+  return data ?? null;
 }
 
 /** 取快照统计四格 + 去敏报告（完成态用；20 §5.1）。 */
