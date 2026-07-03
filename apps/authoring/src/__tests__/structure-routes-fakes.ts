@@ -207,9 +207,9 @@ export class StructureRoutesFakeDb implements Queryable {
       const owner = params[1] as string;
       const c = this.candidates.get(id);
       if (!c || c.owner_user_id !== owner) return ok<R>([]);
-      return ok<R>(
-        [{ id: c.id, name: c.name, intent: null, slug: c.slug, status: c.status }] as R[],
-      );
+      return ok<R>([
+        { id: c.id, name: c.name, intent: null, slug: c.slug, status: c.status },
+      ] as R[]);
     }
 
     // —— readCapabilityForNewVersion（SELECT c.id, c.slug, cur.status, cur.version ...）——

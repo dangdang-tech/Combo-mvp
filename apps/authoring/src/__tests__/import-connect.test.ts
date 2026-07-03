@@ -436,9 +436,9 @@ describe('B-21 纯逻辑', () => {
     }
   });
 
-  it('buildConnectCommand 注入 BASE+code、去尾斜杠、走 sh', () => {
+  it('buildConnectCommand 注入 BASE+code、去尾斜杠、URL 加引号后走 sh', () => {
     expect(buildConnectCommand('https://agora.app/', '123456')).toBe(
-      'curl -fsSL https://agora.app/api/v1/import/connect/script?code=123456 | sh',
+      "curl -fsSL 'https://agora.app/api/v1/import/connect/script?code=123456' | sh",
     );
   });
 

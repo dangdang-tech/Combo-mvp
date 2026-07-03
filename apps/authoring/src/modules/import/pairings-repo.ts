@@ -30,13 +30,18 @@ export function generatePairingCode(): string {
 
 /**
  * 注入了 BASE + code 的整行可复制命令（导入-25 真实链路）。
- *   形如：curl -fsSL <BASE>/api/v1/import/connect/script?code=XXXXXX | sh
+ *   形如：curl -fsSL '<BASE>/api/v1/import/connect/script?code=XXXXXX' | sh
  *   执行器为 sh（脚本本体是 POSIX shell + curl，去掉 Node 依赖，见 connect-script.ts）。
  * BASE 由调用方据请求 Host + x-forwarded-proto 算（railway 给 https）。
  */
+function shellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 export function buildConnectCommand(base: string, code: string): string {
   const trimmed = base.replace(/\/+$/, ''); // 去尾斜杠，避免 //api
-  return `curl -fsSL ${trimmed}/api/v1/import/connect/script?code=${code} | sh`;
+  const scriptUrl = `${trimmed}/api/v1/import/connect/script?code=${code}`;
+  return `curl -fsSL ${shellSingleQuote(scriptUrl)} | sh`;
 }
 
 /** mint 入参（铸码者 + 可选续传草稿挂接）。 */

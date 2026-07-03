@@ -150,17 +150,15 @@ class BatchRestructureFakeDb extends PublishBatchFakeDb {
     ) {
       const c = this.candidates.get(params[0] as string);
       if (!c || c.owner_user_id !== params[1]) return ok<R>([]);
-      return ok<R>(
-        [
-          {
-            id: c.id,
-            name: c.name ?? null,
-            intent: c.intent ?? null,
-            slug: c.slug ?? c.id,
-            status: c.status ?? 'ready',
-          },
-        ] as R[],
-      );
+      return ok<R>([
+        {
+          id: c.id,
+          name: c.name ?? null,
+          intent: c.intent ?? null,
+          slug: c.slug ?? c.id,
+          status: c.status ?? 'ready',
+        },
+      ] as R[]);
     }
 
     // readEvidenceForCandidate（candidate_evidence JOIN session_segments）。

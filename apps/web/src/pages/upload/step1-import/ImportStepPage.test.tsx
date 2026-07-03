@@ -82,6 +82,12 @@ afterEach(() => {
 
 describe('ImportStepPage', () => {
   it('空态 → 点「开始导入」铸码 → 进配对态展示命令框', async () => {
+    const command = "curl -fsSL 'http://localhost/api/v1/import/connect/script?code=123456' | sh";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
     mock = installFetchMock([
       // createPair
       {
@@ -90,7 +96,7 @@ describe('ImportStepPage', () => {
           data: {
             pairId: 'p1',
             pairingCode: '123456',
-            command: 'cmd',
+            command,
             curlOneLiner: 'curl -fsSL agora.app/import | sh',
             expiresAt: '2026-06-17T01:00:00Z',
           },
@@ -106,6 +112,9 @@ describe('ImportStepPage', () => {
     await waitFor(() =>
       expect(screen.getByText('在你电脑的终端里运行这行命令')).toBeInTheDocument(),
     );
+    expect(screen.getByText(command)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '复制命令' }));
+    expect(writeText).toHaveBeenCalledWith(command);
     // 铸码用写命令 scope。
     const pairCall = mock.calls.find(
       (c) => c.url.includes('/import/connect/pair') && c.method === 'POST',

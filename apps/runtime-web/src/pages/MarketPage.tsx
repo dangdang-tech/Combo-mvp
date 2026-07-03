@@ -98,11 +98,7 @@ export function MarketPage() {
                 <div className="rt-card__meta">
                   <span className="rt-card__byline">{c.byline}</span>
                   <span>
-                    {linked?.consume
-                      ? '已有正式会话'
-                      : linked?.trial
-                        ? '已有试用会话'
-                        : '尚未运行'}
+                    {linked?.consume ? '已有正式会话' : linked?.trial ? '已有试用会话' : '尚未运行'}
                   </span>
                 </div>
                 <div className="rt-card__foot">

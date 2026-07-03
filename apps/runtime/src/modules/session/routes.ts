@@ -211,7 +211,7 @@ export async function registerSessionRoutes(
         ownerId: identity.userId,
         slugOrId: parsed.data.versionId
           ? req.params.capabilityId
-          : parsed.data.slugOrId ?? req.params.capabilityId,
+          : (parsed.data.slugOrId ?? req.params.capabilityId),
         versionId: parsed.data.versionId,
         title: parsed.data.title,
         mode: 'trial',
