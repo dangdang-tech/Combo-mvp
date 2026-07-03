@@ -164,10 +164,7 @@ describe('createCapabilityHandler (§4.A)', () => {
     expect(slugs.size).toBe(2); // slug 唯一
   });
 
-  it('① 同候选重复 POST（CJK 名 slug 撞 uq_capabilities_slug）→ 409 STATE_CONFLICT 干净信封（非 503、不可重试、无 code，BUG-2）', async () => {
-    // BUG-2：CJK 候选名 slugify 回退成 cap-{hash(candidateId)}，同候选两次产同 slug → 第二次撞唯一约束。
-    //   修前：原始 PG 23505 落 handler catch-all → 503 DEPENDENCY_UNAVAILABLE「系统正在恢复」（retriable 但重试永不成功）。
-    //   修后：映射成 409 STATE_CONFLICT「这个能力已经创建过了」（action=none、retriable=false）。
+  it('① 同候选重复 POST → 复用已有 draft version，不重复建能力体', async () => {
     const db = new StructureRoutesFakeDb();
     const candidateId = seedCandidate(db, 'u1', { name: '需求炼金师' }); // 纯 CJK 名 → slug 走 hash 后缀
     const first = makeReqReply({ userId: 'u1', body: { sourceCandidateId: candidateId }, db });
@@ -177,15 +174,12 @@ describe('createCapabilityHandler (§4.A)', () => {
 
     const second = makeReqReply({ userId: 'u1', body: { sourceCandidateId: candidateId }, db });
     await call(createCapabilityHandler(), second);
-    // 干净 409 冲突（不是 503）：同候选重复创建。
-    expect(second.sent.code).toBe(409);
-    const err = (second.sent.body as { error: { retriable: boolean; action: string } }).error;
-    expect(err.retriable).toBe(false); // 冲突不可重试（修前 503 是 retriable=true 永远失败）
-    expect(err.action).toBe('none');
-    expect(errOf(second.sent.body).userMessage).toContain('已经创建过');
-    assertNoCode(second.sent.body); // 对外无 code（D1）
-    // 第二次未新建第二个能力体（事务回滚 / 冲突）。
+    expect(second.sent.code).toBe(201);
+    expect((second.sent.body as { data: { versionId: string } }).data.versionId).toBe(
+      (first.sent.body as { data: { versionId: string } }).data.versionId,
+    );
     expect(db.capabilities.size).toBe(1);
+    expect(db.versions.size).toBe(1);
   });
 
   it('① 注入 23505 + constraint=uq_capabilities_slug → 409 STATE_CONFLICT 干净信封（正例保留：精确约束名命中）', async () => {

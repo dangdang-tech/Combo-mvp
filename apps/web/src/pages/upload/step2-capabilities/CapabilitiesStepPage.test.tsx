@@ -60,6 +60,7 @@ function candidateJson(over: Record<string, unknown> = {}) {
     scope: null,
     error: null,
     retryCount: 0,
+    trialCapability: { capabilityId: 'cap1', versionId: 'v1', slug: 'svs' },
     createdAt: '2026-06-10T00:00:00Z',
     ...over,
   };
@@ -152,7 +153,7 @@ describe('CapabilitiesStepPage', () => {
     expect(screen.getByRole('button', { name: /一键发布到市集 · 2 项/ })).toBeEnabled();
   });
 
-  it('试用按钮 → 建 draft 版本 + 结构化完成 → 开 runtime trial session 并跳转', async () => {
+  it('试用按钮 → 使用预准备 trialCapability 直接开 runtime trial session 并跳转', async () => {
     const openTrial = vi.fn();
     restoreOpenTrial = __setOpenRuntimeTrialForTests(openTrial);
     mock = installFetchMock([
@@ -167,30 +168,6 @@ describe('CapabilitiesStepPage', () => {
           meta: {
             page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
             confidenceSummary: { high: 1, med: 0, low: 0 },
-          },
-        },
-      },
-      {
-        status: 201,
-        json: {
-          data: {
-            capabilityId: 'cap1',
-            versionId: 'v1',
-            slug: 'svs',
-            version: '0.1.0',
-            manifest: {},
-            structureState: { fields: [], totalCount: 0, doneCount: 0 },
-          },
-        },
-      },
-      {
-        status: 202,
-        json: {
-          data: {
-            jobId: 'sj1',
-            versionId: 'v1',
-            eventsUrl: '/api/v1/versions/v1/structure/events',
-            structureState: { fields: [], totalCount: 0, doneCount: 0 },
           },
         },
       },
@@ -220,23 +197,12 @@ describe('CapabilitiesStepPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
 
     await waitFor(() =>
-      expect(mock.calls.some((c) => c.url === '/api/v1/capabilities')).toBe(true),
-    );
-    expect(mock.calls.find((c) => c.url === '/api/v1/capabilities')?.body).toEqual({
-      sourceCandidateId: 'c1',
-    });
-    expect(
-      mock.calls.find((c) => c.url === '/api/v1/capabilities')?.headers['Idempotency-Key'],
-    ).toBe('trial:create:c1');
-    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(2));
-    act(() => connAt(1).open());
-    act(() => connAt(1).emit('done', { status: 'completed' }, { id: '2-0' }));
-
-    await waitFor(() =>
       expect(
         mock.calls.some((c) => c.url === '/api/v1/runtime/trial-chains/cap1/sessions'),
       ).toBe(true),
     );
+    expect(mock.calls.some((c) => c.url === '/api/v1/capabilities')).toBe(false);
+    expect(mock.calls.some((c) => c.url.includes('/versions/v1/structure'))).toBe(false);
     expect(mock.calls.find((c) => c.url.includes('/runtime/trial-chains'))?.body).toEqual({
       versionId: 'v1',
       title: '短视频脚本生成器 试用',
@@ -270,30 +236,6 @@ describe('CapabilitiesStepPage', () => {
       {
         status: 201,
         json: {
-          data: {
-            capabilityId: 'cap1',
-            versionId: 'v1',
-            slug: 'svs',
-            version: '0.1.0',
-            manifest: {},
-            structureState: { fields: [], totalCount: 0, doneCount: 0 },
-          },
-        },
-      },
-      {
-        status: 202,
-        json: {
-          data: {
-            jobId: 'sj1',
-            versionId: 'v1',
-            eventsUrl: '/api/v1/versions/v1/structure/events',
-            structureState: { fields: [], totalCount: 0, doneCount: 0 },
-          },
-        },
-      },
-      {
-        status: 201,
-        json: {
           session: {
             id: 'rt1',
             capabilityId: 'cap1',
@@ -316,10 +258,6 @@ describe('CapabilitiesStepPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
 
-    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(2));
-    act(() => connAt(1).open());
-    act(() => connAt(1).emit('done', { status: 'completed' }, { id: '2-0' }));
-
     await waitFor(() => expect(openTrial).toHaveBeenCalledOnce());
     const trialUrl = openTrial.mock.calls[0]![0] as string;
     expect(new URLSearchParams(trialUrl.split('?')[1]).get('returnTo')).toBe(
@@ -338,7 +276,7 @@ describe('CapabilitiesStepPage', () => {
       {
         status: 200,
         json: {
-          data: [candidateJson()],
+          data: [candidateJson({ trialCapability: undefined })],
           meta: {
             page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
             confidenceSummary: { high: 1, med: 0, low: 0 },
@@ -381,7 +319,7 @@ describe('CapabilitiesStepPage', () => {
       {
         status: 200,
         json: {
-          data: [candidateJson()],
+          data: [candidateJson({ trialCapability: undefined })],
           meta: {
             page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
             confidenceSummary: { high: 1, med: 0, low: 0 },
@@ -445,30 +383,6 @@ describe('CapabilitiesStepPage', () => {
         },
       },
       {
-        status: 201,
-        json: {
-          data: {
-            capabilityId: 'cap1',
-            versionId: 'v1',
-            slug: 'svs',
-            version: '0.1.0',
-            manifest: {},
-            structureState: { fields: [], totalCount: 0, doneCount: 0 },
-          },
-        },
-      },
-      {
-        status: 202,
-        json: {
-          data: {
-            jobId: 'sj1',
-            versionId: 'v1',
-            eventsUrl: '/api/v1/versions/v1/structure/events',
-            structureState: { fields: [], totalCount: 0, doneCount: 0 },
-          },
-        },
-      },
-      {
         status: 503,
         json: {
           error: {
@@ -487,10 +401,6 @@ describe('CapabilitiesStepPage', () => {
     await waitFor(() => expect(screen.getByText('短视频脚本生成器')).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
-
-    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(2));
-    act(() => connAt(1).open());
-    act(() => connAt(1).emit('done', { status: 'completed' }, { id: '2-0' }));
 
     expect(await screen.findByText('没能打开试用，请稍后重试。')).toBeInTheDocument();
     expect(openTrial).not.toHaveBeenCalled();

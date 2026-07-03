@@ -40,7 +40,17 @@ interface SegRow {
  *   不建模 create-capability 的 INSERT（本套件场景 item 早已带 versionId，复跑走 existingVersionId 路径，不再 create）。
  */
 class BatchRestructureFakeDb extends PublishBatchFakeDb {
-  candidates = new Map<string, { id: string; owner_user_id: string }>();
+  candidates = new Map<
+    string,
+    {
+      id: string;
+      owner_user_id: string;
+      name?: string | null;
+      intent?: string | null;
+      slug?: string;
+      status?: string;
+    }
+  >();
   segments = new Map<string, SegRow>();
   evidence = new Map<string, { id: string; candidate_id: string; segment_id: string }>();
 
@@ -48,7 +58,7 @@ class BatchRestructureFakeDb extends PublishBatchFakeDb {
     sql: string,
     params: unknown[] = [],
   ): Promise<QueryResultLike<R>> {
-    // findExistingDraftVersionForCandidate（上传页先试用创建过 draft version，再一键发布需复用）。
+    // readDraftVersionForCandidate（上传页先试用创建过 draft version，再一键发布需复用）。
     if (
       sql.includes('FROM capability_versions v') &&
       sql.includes('JOIN capabilities c ON c.id = v.capability_id') &&
@@ -65,7 +75,51 @@ class BatchRestructureFakeDb extends PublishBatchFakeDb {
           v.status === 'draft'
         );
       });
-      return ok<R>(row ? ([{ version_id: row.id }] as R[]) : []);
+      const cap = row ? this.capabilities.get(row.capability_id) : null;
+      return ok<R>(
+        row && cap
+          ? ([
+              {
+                id: row.id,
+                capability_id: row.capability_id,
+                slug: cap.slug,
+                version: row.version,
+                status: row.status,
+                manifest: row.manifest,
+                structure_state: {},
+                source_candidate_id: candidateId,
+                creator_user_id: cap.creator_user_id,
+                updated_at: new Date(0).toISOString(),
+              },
+            ] as R[])
+          : [],
+      );
+    }
+
+    // readVersion（JOIN capabilities）。
+    if (
+      sql.includes('FROM capability_versions v') &&
+      sql.includes('JOIN capabilities c') &&
+      sql.includes('v.source_candidate_id') &&
+      sql.includes('WHERE v.id = $1')
+    ) {
+      const v = this.versions.get(params[0] as string);
+      if (!v) return ok<R>([]);
+      const cap = this.capabilities.get(v.capability_id);
+      return ok<R>([
+        {
+          id: v.id,
+          capability_id: v.capability_id,
+          slug: cap?.slug ?? '',
+          version: v.version,
+          status: v.status,
+          manifest: v.manifest,
+          structure_state: {},
+          source_candidate_id: this.versionSourceCandidate.get(v.id) ?? null,
+          creator_user_id: cap?.creator_user_id ?? '',
+          updated_at: new Date(0).toISOString(),
+        },
+      ] as R[]);
     }
 
     // readVersionForStructure（无 JOIN：manifest + source_candidate_id + capability_id + status）。
@@ -87,6 +141,26 @@ class BatchRestructureFakeDb extends PublishBatchFakeDb {
           status: v.status,
         },
       ] as R[]);
+    }
+
+    // readCandidateForCreate（candidate draft preparation seeds manifest name/tagline from the candidate when available）。
+    if (
+      sql.includes('FROM capability_candidates') &&
+      sql.includes('WHERE id = $1 AND owner_user_id = $2')
+    ) {
+      const c = this.candidates.get(params[0] as string);
+      if (!c || c.owner_user_id !== params[1]) return ok<R>([]);
+      return ok<R>(
+        [
+          {
+            id: c.id,
+            name: c.name ?? null,
+            intent: c.intent ?? null,
+            slug: c.slug ?? c.id,
+            status: c.status ?? 'ready',
+          },
+        ] as R[],
+      );
     }
 
     // readEvidenceForCandidate（candidate_evidence JOIN session_segments）。

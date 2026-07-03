@@ -207,7 +207,18 @@ describe('B-23 retry 整链：受理 + worker 收尾 → retryCount 只 +1（Cod
     const tx = new ExtractFakeTxPool(workerDb);
     const gw = new FakeLlmGateway();
     gw.default = { text: '{"name":"重试后能力","intent":"重试后用途"}', degraded: false };
-    const handler = createExtractHandler({ db: workerDb, txPool: tx, gateway: gw });
+    const handler = createExtractHandler({
+      db: workerDb,
+      txPool: tx,
+      gateway: gw,
+      prepareConcurrency: 1,
+      prepareCandidateDraft: async (_deps, args) => ({
+        kind: 'ready',
+        capabilityId: `cap-${args.candidateId}`,
+        versionId: `ver-${args.candidateId}`,
+        slug: `trial-${args.candidateId}`,
+      }),
+    });
     const workerJob: LeasedJob = {
       id: retryJobRow.id,
       type: 'extract',

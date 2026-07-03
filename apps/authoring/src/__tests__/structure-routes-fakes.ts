@@ -169,17 +169,47 @@ export class StructureRoutesFakeDb implements Queryable {
       return ok<R>(v ? ([{ updated_at: v.updated_at }] as R[]) : []);
     }
 
-    // —— readCandidateForCreate（SELECT id, name, slug, status FROM capability_candidates WHERE id AND owner）——
+    // —— readDraftVersionForCandidate（source_candidate_id + owner + draft 复用）——
+    if (
+      sql.includes('FROM capability_versions v') &&
+      sql.includes('v.source_candidate_id = $1') &&
+      sql.includes("v.status = 'draft'")
+    ) {
+      const candidateId = params[0] as string;
+      const owner = params[1] as string;
+      const found = [...this.versions.values()]
+        .filter((v) => v.source_candidate_id === candidateId && v.status === 'draft')
+        .map((v) => ({ v, c: this.capabilities.get(v.capability_id) }))
+        .find(({ c }) => c?.creator_user_id === owner);
+      if (!found) return ok<R>([]);
+      return ok<R>([
+        {
+          id: found.v.id,
+          capability_id: found.v.capability_id,
+          slug: found.c!.slug,
+          version: found.v.version,
+          status: found.v.status,
+          manifest: found.v.manifest,
+          structure_state: found.v.structure_state,
+          source_candidate_id: found.v.source_candidate_id,
+          creator_user_id: found.c!.creator_user_id,
+          updated_at: found.v.updated_at,
+        },
+      ] as R[]);
+    }
+
+    // —— readCandidateForCreate（SELECT id, name, intent, slug, status FROM capability_candidates WHERE id AND owner）——
     if (
       sql.includes('FROM capability_candidates') &&
-      sql.includes('id = $1 AND owner_user_id = $2') &&
-      sql.includes('name, slug, status')
+      sql.includes('id = $1 AND owner_user_id = $2')
     ) {
       const id = params[0] as string;
       const owner = params[1] as string;
       const c = this.candidates.get(id);
       if (!c || c.owner_user_id !== owner) return ok<R>([]);
-      return ok<R>([{ id: c.id, name: c.name, slug: c.slug, status: c.status }] as R[]);
+      return ok<R>(
+        [{ id: c.id, name: c.name, intent: null, slug: c.slug, status: c.status }] as R[],
+      );
     }
 
     // —— readCapabilityForNewVersion（SELECT c.id, c.slug, cur.status, cur.version ...）——

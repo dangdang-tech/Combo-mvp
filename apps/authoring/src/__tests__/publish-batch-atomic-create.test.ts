@@ -53,7 +53,7 @@ class BatchAtomicCreateFakeDb extends PublishBatchFakeDb {
     sql: string,
     params: unknown[] = [],
   ): Promise<QueryResultLike<R>> {
-    // findExistingDraftVersionForCandidate：本套件验证从 0 create，故没有可复用 draft。
+    // readDraftVersionForCandidate：本套件验证从 0 create，故没有可复用 draft。
     if (
       sql.includes('FROM capability_versions v') &&
       sql.includes('JOIN capabilities c ON c.id = v.capability_id') &&
@@ -63,14 +63,42 @@ class BatchAtomicCreateFakeDb extends PublishBatchFakeDb {
       return ok<R>([]);
     }
 
-    // readCandidateForCreate（SELECT id, name, slug, status FROM capability_candidates WHERE id=$1 AND owner_user_id=$2）。
+    // readVersion（JOIN capabilities）。
+    if (
+      sql.includes('FROM capability_versions v') &&
+      sql.includes('JOIN capabilities c') &&
+      sql.includes('v.source_candidate_id') &&
+      sql.includes('WHERE v.id = $1')
+    ) {
+      const v = this.versions.get(params[0] as string);
+      if (!v) return ok<R>([]);
+      const cap = this.capabilities.get(v.capability_id);
+      return ok<R>([
+        {
+          id: v.id,
+          capability_id: v.capability_id,
+          slug: cap?.slug ?? '',
+          version: v.version,
+          status: v.status,
+          manifest: v.manifest,
+          structure_state: {},
+          source_candidate_id: this.versionSourceCandidate.get(v.id) ?? null,
+          creator_user_id: cap?.creator_user_id ?? '',
+          updated_at: new Date(0).toISOString(),
+        },
+      ] as R[]);
+    }
+
+    // readCandidateForCreate（SELECT id, name, intent, slug, status FROM capability_candidates WHERE id=$1 AND owner_user_id=$2）。
     if (
       sql.includes('FROM capability_candidates') &&
       sql.includes('WHERE id = $1 AND owner_user_id = $2')
     ) {
       const c = this.candidates.get(params[0] as string);
       if (!c || c.owner_user_id !== params[1]) return ok<R>([]);
-      return ok<R>([{ id: c.id, name: c.name, slug: c.slug, status: c.status }] as R[]);
+      return ok<R>(
+        [{ id: c.id, name: c.name, intent: null, slug: c.slug, status: c.status }] as R[],
+      );
     }
 
     // INSERT capabilities（create-capability ① 分支建能力体）。

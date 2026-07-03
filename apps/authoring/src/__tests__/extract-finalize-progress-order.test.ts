@@ -23,6 +23,13 @@ import {
   type SegmentRowF,
 } from './extract-fakes.js';
 
+const fakePrepareCandidateDraft = async (_deps: unknown, args: { candidateId: string }) => ({
+  kind: 'ready' as const,
+  capabilityId: `cap-${args.candidateId}`,
+  versionId: `ver-${args.candidateId}`,
+  slug: `trial-${args.candidateId}`,
+});
+
 // ---------------------------------------------------------------------------
 // 合并假 PG：extract 域 SQL（继承 ExtractFakeDb）+ jobs 生命周期 SQL（claimLease/
 //   renewLease/persistProgress/completeJob/failJob/readJobStatus，status='running' 守门）。
@@ -274,7 +281,13 @@ describe('Codex r4 P1 — finalize 后绝不 reportProgress（全量萃取 done 
     const { db, tx, gw, bridge } = setup();
     seedSegments(db, 'snap-1');
     seedExtractJob(db, 'ejob-1', { mode: 'extract', snapshotId: 'snap-1' });
-    const handler = createExtractHandler({ db, txPool: tx, gateway: gw });
+    const handler = createExtractHandler({
+      db,
+      txPool: tx,
+      gateway: gw,
+      prepareCandidateDraft: fakePrepareCandidateDraft,
+      prepareConcurrency: 1,
+    });
 
     const outcome = await runJob(db, bridge as unknown as JobEventBridge, handler, 'ejob-1', {
       leaseOwner: 'w1',
@@ -323,7 +336,13 @@ describe('Codex r4 P1 — finalize 后绝不 reportProgress（全量萃取 done 
 
     // 用一个“破坏版” handler 包装：在真实 handler 返回 finalized:true 之后，
     //   模拟回归写法——对已 completed 的 job 再 reportProgress（正是本 P1 的错误顺序）。
-    const real = createExtractHandler({ db, txPool: tx, gateway: gw });
+    const real = createExtractHandler({
+      db,
+      txPool: tx,
+      gateway: gw,
+      prepareCandidateDraft: fakePrepareCandidateDraft,
+      prepareConcurrency: 1,
+    });
     const buggyHandler = {
       type: real.type,
       run: async (job: Parameters<typeof real.run>[0], ctx: Parameters<typeof real.run>[1]) => {
@@ -374,7 +393,13 @@ describe('Codex r4 P1 — retry 同修（单候选重试 done 帧不退化）', 
     const { db, tx, gw, bridge } = setup();
     seedSegments(db, 'snap-1');
     seedExtractJob(db, 'ejob-1', { mode: 'extract', snapshotId: 'snap-1' });
-    const handler = createExtractHandler({ db, txPool: tx, gateway: gw });
+    const handler = createExtractHandler({
+      db,
+      txPool: tx,
+      gateway: gw,
+      prepareCandidateDraft: fakePrepareCandidateDraft,
+      prepareConcurrency: 1,
+    });
     await runJob(db, bridge as unknown as JobEventBridge, handler, 'ejob-1', {
       leaseOwner: 'w1',
       traceId: 't1',
@@ -402,7 +427,13 @@ describe('Codex r4 P1 — retry 同修（单候选重试 done 帧不退化）', 
     });
     gw.default = { text: '{"name":"重试后能力","intent":"重试后用途"}', degraded: false };
     const bridge = new CollectBridge();
-    const handler = createExtractHandler({ db, txPool: tx, gateway: gw });
+    const handler = createExtractHandler({
+      db,
+      txPool: tx,
+      gateway: gw,
+      prepareCandidateDraft: fakePrepareCandidateDraft,
+      prepareConcurrency: 1,
+    });
 
     const outcome = await runJob(db, bridge as unknown as JobEventBridge, handler, 'retry-1', {
       leaseOwner: 'w2',
@@ -444,7 +475,13 @@ describe('Codex r4 P1 — retry 同修（单候选重试 done 帧不退化）', 
     });
     gw.default = { text: '{"name":"重试后能力","intent":"重试后用途"}', degraded: false };
     const bridge = new CollectBridge();
-    const real = createExtractHandler({ db, txPool: tx, gateway: gw });
+    const real = createExtractHandler({
+      db,
+      txPool: tx,
+      gateway: gw,
+      prepareCandidateDraft: fakePrepareCandidateDraft,
+      prepareConcurrency: 1,
+    });
     const buggyHandler = {
       type: real.type,
       run: async (job: Parameters<typeof real.run>[0], ctx: Parameters<typeof real.run>[1]) => {

@@ -16,6 +16,8 @@ import {
   DonePayloadSchema,
   envelopeSchema,
   MeViewSchema,
+  CandidateItemSchema,
+  CandidateViewSchema,
   CreateCapabilityBodySchema,
   CreatePublishBatchItemSchema,
   SelectionDraftSchema,
@@ -133,6 +135,50 @@ describe('ErrorEnvelope', () => {
       const env = buildError(code, 't');
       expect(lintUserMessage(env.error.userMessage)).toHaveLength(0);
     }
+  });
+});
+
+describe('Extract candidate trial capability contract', () => {
+  const baseCandidate = {
+    id: '11111111-1111-4111-8111-111111111111',
+    extractJobId: '22222222-2222-4222-8222-222222222222',
+    snapshotId: '33333333-3333-4333-8333-333333333333',
+    status: 'ready',
+    name: '脚本生成器',
+    intent: '生成脚本',
+    slug: 'script-maker',
+    type: 'recurring',
+    confidence: 'high',
+    segmentCount: 3,
+    frequencyRatio: 0.5,
+    reusability: 0.8,
+    scopeCoherence: 0.7,
+    splitSuggested: false,
+    scope: null,
+    error: null,
+    retryCount: 0,
+    createdAt: '2026-06-10T00:00:00.000Z',
+  };
+
+  it('accepts prepared trial metadata and remains backward compatible when omitted', () => {
+    expect(CandidateViewSchema.parse(baseCandidate).trialCapability).toBeUndefined();
+    const prepared = CandidateViewSchema.parse({
+      ...baseCandidate,
+      trialCapability: {
+        capabilityId: '44444444-4444-4444-8444-444444444444',
+        versionId: '55555555-5555-4555-8555-555555555555',
+        slug: 'script-maker',
+      },
+    });
+    expect(prepared.trialCapability?.versionId).toBe('55555555-5555-4555-8555-555555555555');
+    expect(
+      CandidateItemSchema.parse({
+        id: baseCandidate.id,
+        status: 'ready',
+        name: baseCandidate.name,
+        trialCapability: prepared.trialCapability,
+      }).trialCapability?.capabilityId,
+    ).toBe('44444444-4444-4444-8444-444444444444');
   });
 });
 

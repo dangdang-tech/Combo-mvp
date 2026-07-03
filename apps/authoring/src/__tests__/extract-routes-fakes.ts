@@ -274,7 +274,7 @@ export class ExtractRoutesFakeDb implements Queryable {
       sql.includes('frequency_ratio')
     ) {
       const jobId = params[0] as string;
-      const isDesc = sql.includes('DESC');
+      const isDesc = sql.includes('ORDER BY cc.id DESC') || sql.includes('ORDER BY id DESC');
       let rows = [...this.candidates.values()].filter((c) => c.extract_job_id === jobId);
       let pi = 1;
       if (sql.includes('= ANY(')) {
@@ -296,7 +296,8 @@ export class ExtractRoutesFakeDb implements Queryable {
     // —— getCandidateForOwner（FROM capability_candidates WHERE id=$1 AND owner_user_id=$2，含 frequency_ratio）——
     if (
       sql.includes('FROM capability_candidates') &&
-      sql.includes('WHERE id = $1 AND owner_user_id = $2') &&
+      (sql.includes('WHERE id = $1 AND owner_user_id = $2') ||
+        sql.includes('WHERE cc.id = $1 AND cc.owner_user_id = $2')) &&
       sql.includes('frequency_ratio')
     ) {
       const id = params[0] as string;

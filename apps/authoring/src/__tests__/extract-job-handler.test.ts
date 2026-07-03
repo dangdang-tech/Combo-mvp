@@ -3,7 +3,11 @@
 //   同事务 outbox（extract 完成→通知）、单候选重试（成功回填 ready / 再失败 failed / fence-out 干净退出）。
 import { describe, it, expect } from 'vitest';
 import type { SubtaskStatus, CandidateItem, ProgressView } from '@cb/shared';
-import { createExtractHandler, EXTRACT_SUBTASK_KEYS } from '../modules/extract/job.js';
+import {
+  createExtractHandler,
+  EXTRACT_SUBTASK_KEYS,
+  type ExtractHandlerDeps,
+} from '../modules/extract/job.js';
 import type { JobContext, LeasedJob } from '../platform/jobs/types.js';
 import {
   ExtractFakeDb,
@@ -132,7 +136,22 @@ function setup(): {
   const db = new ExtractFakeDb();
   const tx = new ExtractFakeTxPool(db);
   const gw = new FakeLlmGateway();
-  const handler = createExtractHandler({ db, txPool: tx, gateway: gw });
+  const prepareCandidateDraft: NonNullable<ExtractHandlerDeps['prepareCandidateDraft']> = async (
+    _deps,
+    args,
+  ) => ({
+    kind: 'ready',
+    capabilityId: `cap-${args.candidateId}`,
+    versionId: `ver-${args.candidateId}`,
+    slug: `trial-${args.candidateId}`,
+  });
+  const handler = createExtractHandler({
+    db,
+    txPool: tx,
+    gateway: gw,
+    prepareCandidateDraft,
+    prepareConcurrency: 1,
+  });
   return { db, tx, gw, handler };
 }
 
