@@ -888,7 +888,9 @@ export function ChatPage() {
   const activeVersion = latestVersion(activeArtifact);
   const hasStarted = agui.messages.length > 0;
   const hasPriorMessages = (detail?.messages.length ?? 0) > 0;
-  const hasRealArtifact = Boolean(activeVersion && activeArtifact?.artifactKey !== 'mock-full-html');
+  const hasRealArtifact = Boolean(
+    activeVersion && activeArtifact?.artifactKey !== 'mock-full-html',
+  );
 
   const activeSession = detail ? toSessionListItem(detail.session, detail.capability) : undefined;
   const sessionMode = detail?.session.mode ?? 'trial';
@@ -954,10 +956,12 @@ export function ChatPage() {
   }
 
   const toolbarTitle = hasStarted ? (activeArtifact?.title ?? capability.name) : capability.name;
-  const toolbarVersion = hasStarted && activeArtifact ? activeArtifact.latestVersion : capability.version;
+  const toolbarVersion =
+    hasStarted && activeArtifact ? activeArtifact.latestVersion : capability.version;
   const showInitialGenerating = agui.isRunning && !hasPriorMessages;
   const showArtifact = hasStarted && hasRealArtifact && !showInitialGenerating;
-  const showInspectorPanel = isTrialSession && effectiveMode === 'creator' && inspectorOpen && !agui.isRunning;
+  const showInspectorPanel =
+    isTrialSession && effectiveMode === 'creator' && inspectorOpen && !agui.isRunning;
   const showCompanionChat = hasStarted && !showInitialGenerating && !showInspectorPanel;
 
   return (
