@@ -23,9 +23,9 @@ class MemoryStorage {
 
 describe('runtime return navigation', () => {
   it('accepts only same-origin relative return paths', () => {
-    expect(
-      safeRuntimeReturnTo('/create/capabilities?snapshotId=s1&draftId=d1#picked'),
-    ).toBe('/create/capabilities?snapshotId=s1&draftId=d1#picked');
+    expect(safeRuntimeReturnTo('/create/capabilities?snapshotId=s1&draftId=d1#picked')).toBe(
+      '/create/capabilities?snapshotId=s1&draftId=d1#picked',
+    );
     expect(safeRuntimeReturnTo('/capabilities')).toBe('/capabilities');
     expect(safeRuntimeReturnTo('https://example.com/create/capabilities')).toBeNull();
     expect(safeRuntimeReturnTo('//example.com/create/capabilities')).toBeNull();
@@ -36,11 +36,7 @@ describe('runtime return navigation', () => {
   it('stores and restores returnTo by runtime session id', () => {
     const storage = new MemoryStorage();
 
-    rememberRuntimeReturnTo(
-      'trial-1',
-      '/create/capabilities?snapshotId=s1&draftId=d1',
-      storage,
-    );
+    rememberRuntimeReturnTo('trial-1', '/create/capabilities?snapshotId=s1&draftId=d1', storage);
     rememberRuntimeReturnTo('trial-2', '//example.com/phish', storage);
 
     expect(readRuntimeReturnTo('trial-1', storage)).toBe(
@@ -53,9 +49,7 @@ describe('runtime return navigation', () => {
   it('keeps returnTo when navigating between runtime sessions', () => {
     expect(
       appendRuntimeReturnTo('/session/consume-1', '/create/capabilities?snapshotId=s1&draftId=d1'),
-    ).toBe(
-      '/session/consume-1?returnTo=%2Fcreate%2Fcapabilities%3FsnapshotId%3Ds1%26draftId%3Dd1',
-    );
+    ).toBe('/session/consume-1?returnTo=%2Fcreate%2Fcapabilities%3FsnapshotId%3Ds1%26draftId%3Dd1');
     expect(appendRuntimeReturnTo('/session/consume-1?panel=timeline', '/capabilities')).toBe(
       '/session/consume-1?panel=timeline&returnTo=%2Fcapabilities',
     );
