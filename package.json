@@ -1,22 +1,34 @@
 {
-  "name": "mvp",
-  "version": "1.0.0",
-  "description": "Agora — 把 AI 对话历史锚定成能力 → 打包成 agentic mini-app",
-  "main": "index.js",
-  "scripts": {
-    "start": "bash start.sh",
-    "doctor": "bash doctor.sh",
-    "test": "node test-unit.mjs"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "@cb/root",
+  "private": true,
+  "version": "0.0.0",
+  "description": "创作者中心主链路 monorepo（脊柱 + shared 包 + apps 骨架）",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24",
+    "pnpm": ">=11"
   },
-  "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.78.0",
-    "@earendil-works/pi-ai": "^0.78.0"
+  "packageManager": "pnpm@11.0.9",
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" run build",
+    "build:shared": "pnpm -F @cb/shared run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r run test",
+    "dev": "pnpm -r --parallel run dev",
+    "clean": "pnpm -r exec rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^22.10.5",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^2.1.8"
   }
 }

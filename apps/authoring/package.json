@@ -1,0 +1,51 @@
+{
+  "name": "@cb/authoring",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fastify API（多进程入口：api/worker/consumer/sweeper）骨架；业务路由 Phase 3 填，本期 501 占位",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit false",
+    "dev": "node --experimental-strip-types --watch src/index.ts",
+    "start": "node dist/index.js",
+    "start:api": "node dist/processes/api.js",
+    "start:worker": "node dist/processes/worker.js",
+    "start:consumer": "node dist/processes/consumer.js",
+    "start:sweeper": "node dist/processes/sweeper.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.1",
+    "@aws-sdk/client-s3": "^3.726.1",
+    "@aws-sdk/s3-request-presigner": "^3.726.1",
+    "@cb/shared": "workspace:*",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/helmet": "^13.0.1",
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/rate-limit": "^10.2.2",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/resources": "^2.8.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
+    "@opentelemetry/semantic-conventions": "^1.41.1",
+    "bullmq": "^5.34.6",
+    "fastify": "^5.2.1",
+    "ioredis": "^5.4.2",
+    "jose": "^5.10.0",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@cb/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PostgreSQL 迁移（B-03）：DDL 真源；基表建序 + 跨域 FK 后置闭合（脊柱 §11.G）。本期可编译可跑（需 PG），不依赖 Docker。",
+  "type": "module",
+  "scripts": {
+    "migrate": "node --experimental-strip-types scripts/migrate.ts",
+    "migrate:status": "node --experimental-strip-types scripts/migrate.ts --status",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

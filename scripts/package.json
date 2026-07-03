@@ -1,0 +1,23 @@
+{
+  "name": "@cb/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "运维/开发脚本（O-05）：bootstrap、openapi 导出、健康冒烟等。",
+  "type": "module",
+  "scripts": {
+    "openapi:dump": "node --experimental-strip-types openapi-dump.ts",
+    "start": "./start.sh",
+    "migrate": "./migrate.sh",
+    "smoke": "./smoke.sh",
+    "acceptance:smoke": "./acceptance-smoke.sh",
+    "typecheck": "tsc -b",
+    "test": "echo 'no tests in scripts' && exit 0"
+  },
+  "dependencies": {
+    "@cb/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
+    "types": ["node"],
+    "noEmit": true
+  },
+  "references": [{ "path": "../packages/shared" }],
+  "include": ["*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

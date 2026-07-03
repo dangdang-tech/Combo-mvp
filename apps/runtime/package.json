@@ -1,0 +1,46 @@
+{
+  "name": "@cb/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "试用端 runtime：消费 SkillPackageRuntimeView 契约，以 pi 为执行层做带 session 管理的流式对话 + 类 Claude Artifacts 的产物生成/渲染。只依赖 @cb/shared，绝不 import authoring。",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit false",
+    "dev": "node --experimental-strip-types --watch src/index.ts",
+    "start": "node dist/index.js",
+    "start:api": "node dist/processes/api.js",
+    "seed": "node --experimental-strip-types scripts/seed-capability.ts",
+    "test": "vitest run",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@ag-ui/core": "0.0.57",
+    "@ag-ui/encoder": "0.0.57",
+    "@cb/shared": "workspace:*",
+    "@earendil-works/pi-agent-core": "^0.80.2",
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
+    "@opentelemetry/resources": "^2.8.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
+    "@opentelemetry/semantic-conventions": "^1.41.1",
+    "fastify": "^5.2.1",
+    "jose": "^5.10.0",
+    "pg": "^8.13.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@ag-ui/client": "0.0.57",
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

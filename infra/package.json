@@ -1,0 +1,14 @@
+{
+  "name": "@cb/infra",
+  "version": "0.0.0",
+  "private": true,
+  "description": "基础设施编排（O-01/O-02/O-03/O-04）：docker-compose（含 logto seed/alteration 一次性容器、业务迁移、健康检查）+ 一镜像四入口 Dockerfile + web nginx + Redis 双实例配置 + 建库/建桶脚本。本期只写不跑（无 Docker）。",
+  "type": "module",
+  "scripts": {
+    "compose:config": "docker compose -f docker-compose.yml config",
+    "compose:up": "docker compose -f docker-compose.yml up -d",
+    "compose:down": "docker compose -f docker-compose.yml down",
+    "typecheck": "echo 'no ts in infra' && exit 0",
+    "test": "echo 'no tests in infra' && exit 0"
+  }
+}

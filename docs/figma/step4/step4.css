@@ -1,0 +1,3390 @@
+/* Sidebar TPL · 上传能力 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 20px 16px;
+gap: 4px;
+
+width: 288px;
+height: 907px;
+
+background: #f4f0e7;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* brand-row */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 0px 0px 8px;
+
+width: 256px;
+height: 40px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* Agora */
+
+width: 83px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* collapse-btn */
+
+box-sizing: border-box;
+
+width: 28px;
+height: 28px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Vector */
+
+position: absolute;
+width: 5px;
+height: 10px;
+left: 11.5px;
+top: 9px;
+
+border: 1.7px solid #6f6860;
+
+/* Frame */
+
+width: 256px;
+height: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* 创作 */
+
+width: 256px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 256px;
+height: 4px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* nav-工作台 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 1px;
+top: 1px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 11px;
+top: 1px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 1px;
+top: 11px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 11px;
+top: 11px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* 工作台 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-我的能力 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 16px;
+height: 2.6px;
+left: 1px;
+top: 4px;
+
+background: #14141a;
+border-radius: 1.3px;
+
+/* Rectangle */
+
+position: absolute;
+width: 16px;
+height: 2.6px;
+left: 1px;
+top: 8.5px;
+
+background: #14141a;
+border-radius: 1.3px;
+
+/* Rectangle */
+
+position: absolute;
+width: 10px;
+height: 2.6px;
+left: 1px;
+top: 13px;
+
+background: #14141a;
+border-radius: 1.3px;
+
+/* 我的能力 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-上传能力 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+background: #fbf9f4;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 1.8px;
+height: 8px;
+left: 8.2px;
+top: 4px;
+
+background: #a73718;
+border-radius: 0.9px;
+
+/* Vector */
+
+position: absolute;
+width: 7.4px;
+height: 3.7px;
+left: 5.4px;
+top: 3.3px;
+
+background: #a73718;
+
+/* Rectangle */
+
+position: absolute;
+width: 12px;
+height: 1.8px;
+left: 3px;
+top: 14px;
+
+background: #a73718;
+border-radius: 0.9px;
+
+/* 上传能力 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-数据分析 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 2.5px;
+top: 9px;
+
+background: #14141a;
+border-radius: 1px;
+
+/* Rectangle */
+
+position: absolute;
+width: 3px;
+height: 12.5px;
+left: 7.5px;
+top: 3.5px;
+
+background: #14141a;
+border-radius: 1px;
+
+/* Rectangle */
+
+position: absolute;
+width: 3px;
+height: 9.5px;
+left: 12.5px;
+top: 6.5px;
+
+background: #14141a;
+border-radius: 1px;
+
+/* 数据分析 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-收益 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 8;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Vector */
+
+position: absolute;
+width: 14px;
+height: 10px;
+left: 2px;
+top: 3.5px;
+
+border: 1.7px solid #14141a;
+
+/* Vector */
+
+position: absolute;
+width: 4px;
+height: 4px;
+left: 12px;
+top: 3.5px;
+
+border: 1.7px solid #14141a;
+
+/* 收益 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* Frame */
+
+width: 256px;
+height: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 9;
+align-self: stretch;
+flex-grow: 0;
+
+/* Rectangle */
+
+width: 256px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 10;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 256px;
+height: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 11;
+align-self: stretch;
+flex-grow: 0;
+
+/* 我的 */
+
+width: 256px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 12;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 256px;
+height: 4px;
+
+/* Inside auto layout */
+flex: none;
+order: 13;
+align-self: stretch;
+flex-grow: 0;
+
+/* nav-个人主页 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 14;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Ellipse */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 6px;
+top: 1.5px;
+
+background: #14141a;
+
+/* Rectangle */
+
+position: absolute;
+width: 12px;
+height: 8px;
+left: 3px;
+top: 10px;
+
+background: #14141a;
+border-radius: 6px 6px 1.5px 1.5px;
+
+/* 个人主页 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* spacer */
+
+width: 256px;
+height: 414px;
+
+/* Inside auto layout */
+flex: none;
+order: 15;
+align-self: stretch;
+flex-grow: 1;
+
+/* user-row */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 0px 0px;
+gap: 10px;
+
+width: 256px;
+height: 56px;
+
+/* Inside auto layout */
+flex: none;
+order: 16;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 32px;
+height: 32px;
+
+background: #a73718;
+border-radius: 16px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* W */
+
+position: absolute;
+width: 12px;
+height: 16px;
+left: 10px;
+top: 8px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 2px;
+
+width: 214px;
+height: 48px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* Wayne */
+
+width: 48px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* CGO */
+
+width: 27px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Frame */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+
+width: 1120px;
+height: 907px;
+
+background: #f7f3ec;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Frame */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 16px 32px;
+gap: 16px;
+
+width: 1120px;
+height: 64px;
+
+background: #fbf9f4;
+border-bottom: 1px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 10px;
+
+width: 236px;
+height: 32px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 上传能力 */
+
+width: 112px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* / */
+
+width: 6px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Creator Builder */
+
+width: 98px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 32px;
+height: 32px;
+
+background: #a73718;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 林 */
+
+width: 28px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 24px 140px;
+
+width: 1120px;
+height: 843px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 24px;
+
+width: 840px;
+height: 795px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+
+width: 840px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 导入 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 提取 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 选择 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 73px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 结构化 */
+
+width: 39px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 8;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 5 */
+
+width: 8px;
+height: 16px;
+
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 16px;
+/* identical to box height */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 发布 */
+
+width: 26px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* header */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 4px;
+
+width: 840px;
+height: 56px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* 发布到市集 */
+
+width: 840px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* 右边这张卡就是市集里看到的样子。左侧可切换能力。 */
+
+width: 840px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* body-row */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 24px;
+
+width: 840px;
+height: 575px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* switcher */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 8px;
+
+width: 190px;
+height: 284px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 切换能力 ↕ */
+
+width: 190px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* cap-row-0 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 72px;
+
+background: rgba(167, 55, 24, 0.1);
+border: 1px solid #a73718;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+background: #a73718;
+border: 1.5px solid #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 面向大厂PM的资格打分器 */
+
+width: 148px;
+height: 52px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* or 26px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* cap-row-1 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 40px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1.5px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 需求炼金师 */
+
+width: 148px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* cap-row-2 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 40px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1.5px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Verifiable 核查报告 */
+
+width: 148px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* cap-row-3 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 40px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1.5px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* VC 拷打模拟器 */
+
+width: 148px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* ← 切换,右侧看该能力的 App Identity */
+
+width: 190px;
+height: 40px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* right-col */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 16px;
+
+width: 626px;
+height: 575px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* card-and-map */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 16px;
+
+width: 626px;
+height: 575px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* market-card */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+
+width: 290px;
+height: 575px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* cover */
+
+width: 290px;
+height: 158px;
+
+background: rgba(184, 137, 58, 0.1);
+border-radius: 8px 8px 0px 0px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* 评 */
+
+position: absolute;
+width: 58px;
+height: 60px;
+left: calc(50% - 58px / 2);
+top: calc(50% - 60px / 2);
+
+/* Display Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 500;
+font-size: 58px;
+line-height: 104%;
+/* or 60px */
+
+color: #b8893a;
+
+/* Rectangle */
+
+position: absolute;
+height: 1px;
+left: 0px;
+right: 0px;
+bottom: 0px;
+
+background: #e1d8ca;
+
+/* coverBadge */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 4px 8px;
+gap: 4px;
+
+position: absolute;
+width: 61px;
+height: 20px;
+left: 8px;
+top: 8px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 999px;
+
+/* Ellipse */
+
+width: 6px;
+height: 6px;
+
+background: #b8893a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* GLYPH */
+
+width: 35px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* statusFlag */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 4px 8px;
+gap: 4px;
+
+position: absolute;
+width: 65px;
+height: 28px;
+right: 8px;
+top: 8px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 999px;
+
+/* Ellipse */
+
+width: 6px;
+height: 6px;
+
+background: #0e6d52;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 新上线 */
+
+width: 39px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #0e6d52;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* body */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 16px 24px 24px;
+
+width: 290px;
+height: 417px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* metaRow */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 0px;
+
+width: 242px;
+height: 28px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* PM · 评分卡 */
+
+width: 77px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* outputChip */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 4px 12px;
+
+width: 125px;
+height: 28px;
+
+background: #f4f0e7;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* scorecard 评分卡 */
+
+width: 101px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 12px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 面向大厂PM的资格打分器 */
+
+width: 242px;
+height: 64px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 4px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* 按大厂标准给资格 A–C 档判断+缺口。 */
+
+width: 242px;
+height: 52px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* or 26px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 12px;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+flex-grow: 0;
+
+/* 输入简历与目标岗位，输出 A–C 档资格判断、逐项能力缺口与补齐建议。 */
+
+width: 242px;
+height: 40px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+align-self: stretch;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 16px;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+flex-grow: 0;
+
+/* Rectangle */
+
+width: 242px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 8;
+align-self: stretch;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 16px;
+
+/* Inside auto layout */
+flex: none;
+order: 9;
+flex-grow: 0;
+
+/* author */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 12px;
+
+width: 242px;
+height: 48px;
+
+/* Inside auto layout */
+flex: none;
+order: 10;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 28px;
+height: 28px;
+
+background: rgba(124, 92, 255, 0.1);
+border: 1px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 2px;
+
+width: 104px;
+height: 48px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* @WAYNE */
+
+width: 66px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 探索型全栈构建者 */
+
+width: 104px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 12px;
+
+/* Inside auto layout */
+flex: none;
+order: 11;
+flex-grow: 0;
+
+/* provenance */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 242px;
+height: 20px;
+
+/* Inside auto layout */
+flex: none;
+order: 12;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1px solid #0e6d52;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 源自 @WAYNE 的一次真实会话 */
+
+width: 179px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* sp */
+
+width: 10px;
+height: 16px;
+
+/* Inside auto layout */
+flex: none;
+order: 13;
+flex-grow: 0;
+
+/* footer */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 0px;
+
+width: 242px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 14;
+align-self: stretch;
+flex-grow: 0;
+
+/* 免费 */
+
+width: 30px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #0e6d52;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* actionBtn */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px 16px;
+
+width: 80px;
+height: 36px;
+
+background: #a73718;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 试用 */
+
+width: 26px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* field-map-panel */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 14px 16px;
+gap: 6px;
+
+width: 320px;
+height: 575px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 这张卡用了哪些字段 */
+
+width: 288px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* 可改 · 发布前能调 */
+
+width: 288px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* field-row-封面 / 图标 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* 封面 / 图标 */
+
+width: 73px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 你选 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-row-名称 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* 名称 */
+
+width: 30px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* identity.name（软） */
+
+width: 124px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-row-一句话 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* 一句话 */
+
+width: 45px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* tagline（软） */
+
+width: 81px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-row-定价 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* 定价 */
+
+width: 30px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 你设 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* 自动 · 系统填 */
+
+width: 288px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+align-self: stretch;
+flex-grow: 0;
+
+/* field-row-署名 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+align-self: stretch;
+flex-grow: 0;
+
+/* 署名 */
+
+width: 30px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* @creator */
+
+width: 56px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-row-装机 · 评分 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 8;
+align-self: stretch;
+flex-grow: 0;
+
+/* 装机 · 评分 */
+
+width: 82px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 上线后真实数据 */
+
+width: 91px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-row-试用钮 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 288px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 9;
+align-self: stretch;
+flex-grow: 0;
+
+/* 试用钮 */
+
+width: 45px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ← */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 系统固定 */
+
+width: 52px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* Rectangle */
+
+width: 288px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 10;
+align-self: stretch;
+flex-grow: 0;
+
+/* 封面来源 · 3 选 1（可改） */
+
+width: 288px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 11;
+align-self: stretch;
+flex-grow: 0;
+
+/* cover-src */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 2px 0px;
+gap: 8px;
+
+width: 288px;
+height: 24px;
+
+/* Inside auto layout */
+flex: none;
+order: 12;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+width: 6px;
+height: 6px;
+
+background: #b8893a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 字形 GLYPH · 由 output.type 推导（本例） */
+
+width: 256px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* cover-src */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 2px 0px;
+gap: 8px;
+
+width: 288px;
+height: 24px;
+
+/* Inside auto layout */
+flex: none;
+order: 13;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+width: 6px;
+height: 6px;
+
+background: #7c5cff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* AI 生成图 · 创作者上传 */
+
+width: 138px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* cover-src */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 2px 0px;
+gap: 8px;
+
+width: 288px;
+height: 24px;
+
+/* Inside auto layout */
+flex: none;
+order: 14;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+width: 6px;
+height: 6px;
+
+background: #1f5673;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* HTML · code-design 渲染快照 */
+
+width: 183px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* footer */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 16px 0px 0px;
+
+width: 840px;
+height: 66px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* 发布后进入 Alpha 人工评审 · 上线后在工作台看调用与消耗 */
+
+width: 346px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* footer-spacer */
+
+width: 360px;
+height: 1px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* publish-btn */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 12px 20px;
+
+width: 134px;
+height: 50px;
+
+background: #a73718;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* 发布到市集 → */
+
+width: 94px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;

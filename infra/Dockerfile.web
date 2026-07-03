@@ -1,0 +1,17 @@
+# Web 静态构建 + nginx（O-01）。本期只写不构建（无 Docker）。
+FROM node:24-slim AS build
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@11.0.9 --activate
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json tsconfig.json ./
+COPY packages ./packages
+COPY apps ./apps
+RUN pnpm install --frozen-lockfile=false
+# 同镜像同时构建创作者中心（web）与试用端（runtime-web，base=/try/）静态产物。
+RUN pnpm -F @cb/shared build && pnpm -F @cb/web build && pnpm -F @cb/runtime-web build
+
+FROM nginx:alpine AS runtime
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+# 试用端静态挂在 /try/（nginx.conf 里 location ^~ /try/ alias 到此）。
+COPY --from=build /app/apps/runtime-web/dist /usr/share/nginx/try
+COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80

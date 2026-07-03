@@ -1,0 +1,21 @@
+# Pass 1 dev-test override（仅本地 live 测试用，绝不上生产）。
+# 叠加在 infra/docker-compose.yml 之上：把 api/worker 切到 NODE_ENV=development，
+# 以启用 dev 种子登录（双守卫仍需 DEV_LOGIN_ENABLED=true + DEV_SESSION_SECRET 非空，均来自 .env）。
+# 用法：docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev-test.yml up -d --wait ...
+# 生产/真实 Logto 验收（Pass 2）只用基础 compose（NODE_ENV=production，dev-login 自动强制关停）。
+services:
+  api:
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
+  runtime:
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
+  worker:
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}

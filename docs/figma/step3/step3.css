@@ -1,0 +1,3585 @@
+/* Sidebar TPL · 上传能力 */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 20px 16px;
+gap: 4px;
+
+width: 288px;
+height: 1130px;
+
+background: #f4f0e7;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* brand-row */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 0px 0px 8px;
+
+width: 256px;
+height: 40px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* Agora */
+
+width: 83px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* collapse-btn */
+
+box-sizing: border-box;
+
+width: 28px;
+height: 28px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Vector */
+
+position: absolute;
+width: 5px;
+height: 10px;
+left: 11.5px;
+top: 9px;
+
+border: 1.7px solid #6f6860;
+
+/* Frame */
+
+width: 256px;
+height: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* 创作 */
+
+width: 256px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 256px;
+height: 4px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* nav-工作台 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 1px;
+top: 1px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 11px;
+top: 1px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 1px;
+top: 11px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* Rectangle */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 11px;
+top: 11px;
+
+background: #14141a;
+border-radius: 1.5px;
+
+/* 工作台 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-我的能力 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 16px;
+height: 2.6px;
+left: 1px;
+top: 4px;
+
+background: #14141a;
+border-radius: 1.3px;
+
+/* Rectangle */
+
+position: absolute;
+width: 16px;
+height: 2.6px;
+left: 1px;
+top: 8.5px;
+
+background: #14141a;
+border-radius: 1.3px;
+
+/* Rectangle */
+
+position: absolute;
+width: 10px;
+height: 2.6px;
+left: 1px;
+top: 13px;
+
+background: #14141a;
+border-radius: 1.3px;
+
+/* 我的能力 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-上传能力 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+background: #fbf9f4;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 1.8px;
+height: 8px;
+left: 8.2px;
+top: 4px;
+
+background: #a73718;
+border-radius: 0.9px;
+
+/* Vector */
+
+position: absolute;
+width: 7.4px;
+height: 3.7px;
+left: 5.4px;
+top: 3.3px;
+
+background: #a73718;
+
+/* Rectangle */
+
+position: absolute;
+width: 12px;
+height: 1.8px;
+left: 3px;
+top: 14px;
+
+background: #a73718;
+border-radius: 0.9px;
+
+/* 上传能力 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-数据分析 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Rectangle */
+
+position: absolute;
+width: 3px;
+height: 7px;
+left: 2.5px;
+top: 9px;
+
+background: #14141a;
+border-radius: 1px;
+
+/* Rectangle */
+
+position: absolute;
+width: 3px;
+height: 12.5px;
+left: 7.5px;
+top: 3.5px;
+
+background: #14141a;
+border-radius: 1px;
+
+/* Rectangle */
+
+position: absolute;
+width: 3px;
+height: 9.5px;
+left: 12.5px;
+top: 6.5px;
+
+background: #14141a;
+border-radius: 1px;
+
+/* 数据分析 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* nav-收益 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 8;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Vector */
+
+position: absolute;
+width: 14px;
+height: 10px;
+left: 2px;
+top: 3.5px;
+
+border: 1.7px solid #14141a;
+
+/* Vector */
+
+position: absolute;
+width: 4px;
+height: 4px;
+left: 12px;
+top: 3.5px;
+
+border: 1.7px solid #14141a;
+
+/* 收益 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* Frame */
+
+width: 256px;
+height: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 9;
+align-self: stretch;
+flex-grow: 0;
+
+/* Rectangle */
+
+width: 256px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 10;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 256px;
+height: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 11;
+align-self: stretch;
+flex-grow: 0;
+
+/* 我的 */
+
+width: 256px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 12;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 256px;
+height: 4px;
+
+/* Inside auto layout */
+flex: none;
+order: 13;
+align-self: stretch;
+flex-grow: 0;
+
+/* nav-个人主页 */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 12px;
+gap: 10px;
+
+width: 256px;
+height: 40px;
+
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 14;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 18px;
+height: 18px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Ellipse */
+
+position: absolute;
+width: 6px;
+height: 6px;
+left: 6px;
+top: 1.5px;
+
+background: #14141a;
+
+/* Rectangle */
+
+position: absolute;
+width: 12px;
+height: 8px;
+left: 3px;
+top: 10px;
+
+background: #14141a;
+border-radius: 6px 6px 1.5px 1.5px;
+
+/* 个人主页 */
+
+width: 204px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* spacer */
+
+width: 256px;
+height: 637px;
+
+/* Inside auto layout */
+flex: none;
+order: 15;
+align-self: stretch;
+flex-grow: 1;
+
+/* user-row */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 8px 0px 0px;
+gap: 10px;
+
+width: 256px;
+height: 56px;
+
+/* Inside auto layout */
+flex: none;
+order: 16;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+width: 32px;
+height: 32px;
+
+background: #a73718;
+border-radius: 16px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* W */
+
+position: absolute;
+width: 12px;
+height: 16px;
+left: 10px;
+top: 8px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 2px;
+
+width: 214px;
+height: 48px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* Wayne */
+
+width: 48px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* CGO */
+
+width: 27px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Frame */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+
+width: 1120px;
+height: 1130px;
+
+background: #f7f3ec;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 16px 32px;
+gap: 16px;
+
+width: 1120px;
+height: 64px;
+
+background: #fbf9f4;
+border-bottom: 1px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 10px;
+
+width: 236px;
+height: 32px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 上传能力 */
+
+width: 112px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* / */
+
+width: 6px;
+height: 26px;
+
+/* Body MD */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Creator Builder */
+
+width: 98px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 12px;
+
+width: 124px;
+height: 32px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* Frame */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 14px;
+
+width: 80px;
+height: 32px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 保存草稿 */
+
+width: 52px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 32px;
+height: 32px;
+
+background: #a73718;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 林 */
+
+width: 28px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 36px 0px 44px;
+
+width: 1120px;
+height: 1066px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 24px;
+
+width: 840px;
+height: 986px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+
+width: 840px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 导入 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 提取 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+opacity: 0.55;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* ✓ */
+
+width: 10px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 选择 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 73px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+flex-grow: 0;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #a73718;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 4 */
+
+width: 8px;
+height: 16px;
+
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 16px;
+/* identical to box height */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 结构化 */
+
+width: 39px;
+height: 16px;
+
+/* Action Label */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 700;
+font-size: 13px;
+line-height: 120%;
+/* identical to box height, or 16px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* c */
+
+width: 131.75px;
+height: 1px;
+
+background: #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+flex-grow: 1;
+
+/* Frame */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 60px;
+height: 26px;
+
+/* Inside auto layout */
+flex: none;
+order: 8;
+flex-grow: 0;
+
+/* Frame */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 0px;
+
+width: 26px;
+height: 26px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 5 */
+
+width: 8px;
+height: 16px;
+
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 500;
+font-size: 12px;
+line-height: 16px;
+/* identical to box height */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 发布 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* step4-header */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 6px;
+
+width: 840px;
+height: 58px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* 把能力整理成 App Identity */
+
+width: 840px;
+height: 32px;
+
+/* Title Serif */
+font-family: 'Noto Serif SC';
+font-style: normal;
+font-weight: 600;
+font-size: 28px;
+line-height: 116%;
+/* or 32px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* 少量固定契约(硬)+ 多数经验体生成(软)。左侧可切换能力。 */
+
+width: 840px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* step4-body */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 0px;
+gap: 20px;
+
+width: 840px;
+height: 764px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* switcher */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 8px;
+
+width: 190px;
+height: 284px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 切换能力 ↕ */
+
+width: 190px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* cap-row-0 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 72px;
+
+background: rgba(167, 55, 24, 0.1);
+border: 1px solid #a73718;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+background: #a73718;
+border: 1.5px solid #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 面向大厂PM的资格打分器 */
+
+width: 148px;
+height: 52px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* or 26px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* cap-row-1 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 40px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1.5px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 需求炼金师 */
+
+width: 148px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* cap-row-2 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 40px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1.5px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* Verifiable 核查报告 */
+
+width: 148px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* cap-row-3 */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 10px 12px;
+gap: 8px;
+
+width: 190px;
+height: 40px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* Ellipse */
+
+box-sizing: border-box;
+
+width: 10px;
+height: 10px;
+
+border: 1.5px solid #e1d8ca;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* VC 拷打模拟器 */
+
+width: 148px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* ← 切换,右侧看该能力的 App Identity */
+
+width: 190px;
+height: 40px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* app-identity-panel */
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 0px;
+gap: 16px;
+
+width: 630px;
+height: 764px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 面向大厂PM的资格打分器 · App Identity */
+
+width: 630px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* soft-group */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 16px;
+gap: 10px;
+
+width: 630px;
+height: 374px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* soft-header */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 598px;
+height: 20px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* ↻ */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 软 · 经验体生成(agent 灵活 · 可重生成 / 可改) */
+
+width: 278px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* field-name */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* name */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 面向大厂产品经理的资格打分器 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-tagline */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* tagline */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 按大厂标准给资格 A–C 档判断+缺口 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-role */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* role */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 资深大厂面试官 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-goal */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* goal */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 按 A–C 档判断并指出关键缺口 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-instructions */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* instructions */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 读材料→按守则逐维度评→给档位与缺口 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-skill_set */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+align-self: stretch;
+flex-grow: 0;
+
+/* skill_set */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 维度拆解→证据定位→分档结论 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* field-starter_prompts */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 7;
+align-self: stretch;
+flex-grow: 0;
+
+/* starter_prompts */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 436px;
+height: 36px;
+
+background: #fffdf9;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 1;
+
+/* 「帮我评这份简历能不能进大厂 P7」 */
+
+width: 416px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 可改 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #a73718;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 0;
+
+/* hard-group */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: column;
+align-items: flex-start;
+padding: 16px;
+gap: 10px;
+
+width: 630px;
+height: 332px;
+
+background: #fbf9f4;
+border: 1px solid #e1d8ca;
+border-radius: 8px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* hard-header */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 6px;
+
+width: 598px;
+height: 20px;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 13px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* 硬 · 固定契约(平台锁定 · 不随生成变) */
+
+width: 214px;
+height: 12px;
+
+/* Label Caps */
+font-family: 'Geist Mono';
+font-style: normal;
+font-weight: 700;
+font-size: 10px;
+line-height: 120%;
+/* identical to box height, or 12px */
+letter-spacing: 0.12em;
+text-transform: uppercase;
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* field-id */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* id */
+
+width: 92px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 336px;
+height: 36px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 1;
+
+/* pm-resume-scorer */
+
+width: 316px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 锁定 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* field-version */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* version */
+
+width: 92px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 336px;
+height: 36px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 1;
+
+/* 0.1.0 */
+
+width: 316px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 锁定 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* field-status */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* status */
+
+width: 92px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 336px;
+height: 36px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 1;
+
+/* draft */
+
+width: 316px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 锁定 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* field-inputs·schema */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 40px;
+
+/* Inside auto layout */
+flex: none;
+order: 4;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* inputs·schema */
+
+width: 92px;
+height: 40px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 336px;
+height: 36px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 1;
+
+/* 受众[enum] 目标岗位[string*] 简历[text*] 参考JD[file] */
+
+width: 316px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 锁定 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* field-output·type */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 5;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* output·type */
+
+width: 92px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 336px;
+height: 36px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 1;
+
+/* scorecard 评分卡 */
+
+width: 316px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 锁定 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* field-boundaries */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: center;
+padding: 0px;
+gap: 8px;
+
+width: 598px;
+height: 36px;
+
+/* Inside auto layout */
+flex: none;
+order: 6;
+align-self: stretch;
+flex-grow: 0;
+
+/* 🔒 */
+
+width: 120px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;
+
+/* boundaries */
+
+width: 92px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* value-box */
+
+box-sizing: border-box;
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+align-items: flex-start;
+padding: 8px 10px;
+
+width: 336px;
+height: 36px;
+
+background: #f4f0e7;
+border: 1px solid #e1d8ca;
+border-radius: 6px;
+
+/* Inside auto layout */
+flex: none;
+order: 2;
+flex-grow: 1;
+
+/* risk low · 红线:不编造经历 */
+
+width: 316px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #14141a;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* 锁定 */
+
+width: 26px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+flex-grow: 0;
+
+/* step4-footer */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+padding: 16px 0px 0px;
+
+width: 840px;
+height: 66px;
+
+/* Inside auto layout */
+flex: none;
+order: 3;
+align-self: stretch;
+flex-grow: 0;
+
+/* 软 7 项可改 · 硬 6 项锁定(第 4 步,共 5 步) */
+
+width: 702px;
+height: 20px;
+
+/* Body SM */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 400;
+font-size: 13px;
+line-height: 155%;
+/* or 20px */
+
+color: #6f6860;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 1;
+
+/* btn-next */
+
+/* Auto layout */
+display: flex;
+flex-direction: row;
+justify-content: center;
+align-items: center;
+padding: 12px 20px;
+
+width: 138px;
+height: 50px;
+
+background: #a73718;
+border-radius: 999px;
+
+/* Inside auto layout */
+flex: none;
+order: 1;
+flex-grow: 0;
+
+/* 下一步:发布 → */
+
+width: 98px;
+height: 26px;
+
+/* Body Strong */
+font-family: 'Noto Sans SC';
+font-style: normal;
+font-weight: 500;
+font-size: 15px;
+line-height: 170%;
+/* identical to box height, or 26px */
+
+color: #ffffff;
+
+/* Inside auto layout */
+flex: none;
+order: 0;
+flex-grow: 0;

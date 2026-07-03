@@ -1,0 +1,11 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'db'
+  - 'infra'
+  - 'scripts'
+allowBuilds:
+  '@google/genai': false
+  esbuild: true
+  msgpackr-extract: true
+  protobufjs: false
