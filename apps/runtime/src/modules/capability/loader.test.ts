@@ -32,19 +32,22 @@ function poolReturning(rows: unknown[]): Pool {
 
 describe('getDraftCapabilityForTrial', () => {
   it('loads an owned complete draft version for creator trial', async () => {
-    const loaded = await getDraftCapabilityForTrial(poolReturning([
+    const loaded = await getDraftCapabilityForTrial(
+      poolReturning([
+        {
+          capability_id: 'cap-1',
+          slug: 'short-video-script',
+          version: '0.1.0',
+          status: 'draft',
+          manifest: MANIFEST,
+        },
+      ]),
       {
-        capability_id: 'cap-1',
-        slug: 'short-video-script',
-        version: '0.1.0',
-        status: 'draft',
-        manifest: MANIFEST,
+        capabilityId: 'cap-1',
+        versionId: 'ver-1',
+        creatorUserId: 'user-1',
       },
-    ]), {
-      capabilityId: 'cap-1',
-      versionId: 'ver-1',
-      creatorUserId: 'user-1',
-    });
+    );
 
     expect(loaded?.view.status).toBe('draft');
     expect(loaded?.view.manifestHash).toBe(manifestHash(MANIFEST));
@@ -53,19 +56,22 @@ describe('getDraftCapabilityForTrial', () => {
   });
 
   it('rejects incomplete draft manifests', async () => {
-    const loaded = await getDraftCapabilityForTrial(poolReturning([
+    const loaded = await getDraftCapabilityForTrial(
+      poolReturning([
+        {
+          capability_id: 'cap-1',
+          slug: 'short-video-script',
+          version: '0.1.0',
+          status: 'draft',
+          manifest: { ...MANIFEST, name: '' },
+        },
+      ]),
       {
-        capability_id: 'cap-1',
-        slug: 'short-video-script',
-        version: '0.1.0',
-        status: 'draft',
-        manifest: { ...MANIFEST, name: '' },
+        capabilityId: 'cap-1',
+        versionId: 'ver-1',
+        creatorUserId: 'user-1',
       },
-    ]), {
-      capabilityId: 'cap-1',
-      versionId: 'ver-1',
-      creatorUserId: 'user-1',
-    });
+    );
 
     expect(loaded).toBeNull();
   });

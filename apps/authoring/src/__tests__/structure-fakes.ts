@@ -389,9 +389,9 @@ export class StructureFakeDb implements Queryable {
     ) {
       const c = this.candidates.get(params[0] as string);
       if (!c || c.owner_user_id !== params[1]) return ok<R>([]);
-      return ok<R>(
-        [{ id: c.id, name: c.name, intent: null, slug: c.slug, status: c.status }] as R[],
-      );
+      return ok<R>([
+        { id: c.id, name: c.name, intent: null, slug: c.slug, status: c.status },
+      ] as R[]);
     }
 
     // ---- readCapabilityForNewVersion（SELECT c.id, c.slug, cur.status, cur.version FROM capabilities c LEFT JOIN ... WHERE c.id=$1 AND c.creator_user_id=$2）----

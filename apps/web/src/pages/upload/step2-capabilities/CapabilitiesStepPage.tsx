@@ -462,8 +462,7 @@ export function CapabilitiesStepPage(): ReactElement {
           ? {
               ...current,
               phase: 'error',
-              error:
-                trialSse.done?.error?.error.userMessage ?? '生成试用能力失败，请稍后重试。',
+              error: trialSse.done?.error?.error.userMessage ?? '生成试用能力失败，请稍后重试。',
             }
           : current,
       );
