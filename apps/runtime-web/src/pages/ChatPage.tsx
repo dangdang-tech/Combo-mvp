@@ -21,7 +21,7 @@ import type {
   RuntimeSessionMeta,
   TrialProcessState,
 } from '@cb/shared';
-import { createTrialSession, useSession } from '../api/runtime.js';
+import { createProductionSession, createTrialSession, useSession } from '../api/runtime.js';
 import { useAguiSession } from '../api/useAguiSession.js';
 import { ArtifactRenderer } from '../components/ArtifactRenderer.js';
 import { ChatThread } from '../components/ChatThread.js';
@@ -261,9 +261,9 @@ function TrialGeneratingCard({
 }) {
   const rows = process?.steps.slice(0, 4) ?? [
     { key: 'read_experience', label: `读取 @${capability.slug} 经验体`, status: 'completed' },
-    { key: 'cluster_persona', label: '聚类受众特征 → 生成画像 1/3', status: 'running' },
-    { key: 'verify_quotes', label: '校验引用真实性', status: 'pending' },
-    { key: 'layout_cards', label: '排版三张产物卡', status: 'pending' },
+    { key: 'draft_output', label: '生成第一版产物', status: 'running' },
+    { key: 'check_boundaries', label: '校验能力边界与输出格式', status: 'pending' },
+    { key: 'compose_artifact', label: '整理产物结构', status: 'pending' },
   ];
 
   return (
@@ -323,7 +323,7 @@ function CreatorInspector({
       <div className="rt-inspector__body">
         <p>当前模板字段：{capability.inputs.fields.length} 个</p>
         <p>引用要求：参考案例可选；不确定引用必须标注为模拟。</p>
-        <p>输出规格：三张人物画像卡，包含引用、三项打分和一条可锁定异议。</p>
+        <p>输出类型：{capability.output.type}</p>
       </div>
     </aside>
   );
@@ -842,6 +842,8 @@ export function ChatPage() {
   const [createFailed, setCreateFailed] = useState(false);
   const [mode, setMode] = useState<PreviewMode>('creator');
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [productionPending, setProductionPending] = useState(false);
+  const [productionError, setProductionError] = useState<string | null>(null);
   const startedSlugRef = useRef<string | undefined>(undefined);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -869,6 +871,12 @@ export function ChatPage() {
   const capability = detail?.capability;
   const agui = useAguiSession(sessionId, detail);
 
+  useEffect(() => {
+    if (detail?.session.mode !== 'consume') return;
+    setMode('consumer');
+    setInspectorOpen(false);
+  }, [detail?.session.mode]);
+
   const activeArtifact = agui.activeKey
     ? (agui.artifacts.find((a) => a.artifactKey === agui.activeKey) ?? null)
     : (agui.artifacts.at(-1) ?? null);
@@ -878,6 +886,31 @@ export function ChatPage() {
   const hasRealArtifact = Boolean(activeVersion && activeArtifact?.artifactKey !== 'mock-full-html');
 
   const activeSession = detail ? toSessionListItem(detail.session, detail.capability) : undefined;
+  const sessionMode = detail?.session.mode ?? 'trial';
+  const isTrialSession = sessionMode === 'trial';
+  const effectiveMode: PreviewMode = isTrialSession ? mode : 'consumer';
+
+  const enterProduction = useCallback(async () => {
+    if (!capability || productionPending) return;
+    setProductionPending(true);
+    setProductionError(null);
+    try {
+      const created = await createProductionSession(capability.slug, capability.name);
+      const item = toSessionListItem(created.session, created.capability);
+      qc.setQueryData<RuntimeSessionList>(['sessions'], (current) =>
+        upsertSessionListItem(current, item),
+      );
+      qc.setQueryData<RuntimeSessionList>(['sessions', created.capability.slug], (current) =>
+        upsertSessionListItem(current, item),
+      );
+      void qc.invalidateQueries({ queryKey: ['sessions'] });
+      navigate(`/session/${created.session.id}`);
+    } catch {
+      setProductionError('无法进入正式使用，请稍后重试。');
+    } finally {
+      setProductionPending(false);
+    }
+  }, [capability, navigate, productionPending, qc]);
 
   const uiMessages: RuntimeMessage[] = useMemo(
     () =>
@@ -913,11 +946,11 @@ export function ChatPage() {
   const toolbarVersion = hasStarted && activeArtifact ? activeArtifact.latestVersion : capability.version;
   const showInitialGenerating = agui.isRunning && !hasPriorMessages;
   const showArtifact = hasStarted && hasRealArtifact && !showInitialGenerating;
-  const showInspectorPanel = mode === 'creator' && inspectorOpen && !agui.isRunning;
+  const showInspectorPanel = isTrialSession && effectiveMode === 'creator' && inspectorOpen && !agui.isRunning;
   const showCompanionChat = hasStarted && !showInitialGenerating && !showInspectorPanel;
 
   return (
-    <div className="rt-app rt-trial-app" data-view={mode}>
+    <div className="rt-app rt-trial-app" data-view={effectiveMode} data-mode={sessionMode}>
       <SessionSidebar
         activeSession={activeSession}
         activeSessionId={sessionId}
@@ -928,6 +961,9 @@ export function ChatPage() {
           <div className="rt-trial__title-group">
             <h1>{toolbarTitle}</h1>
             <span className="rt-version-chip">v{toolbarVersion}</span>
+            <span className={`rt-mode-chip rt-mode-chip--${sessionMode}`}>
+              {isTrialSession ? '试用' : '正式使用'}
+            </span>
             <span className="rt-source-pill">
               @{capability.slug} · 守则 {capability.inputs.fields.length} · 案例{' '}
               {capability.starterPrompts.length}
@@ -938,30 +974,44 @@ export function ChatPage() {
             <button type="button">EXPORT</button>
             <button type="button">SHARE</button>
             <button type="button">FULL</button>
-            <div className="rt-segment" role="group" aria-label="预览身份">
+            {isTrialSession && hasStarted && (
               <button
                 type="button"
-                className={mode === 'creator' ? 'is-active' : ''}
-                onClick={() => setMode('creator')}
+                className="rt-toolbar-pill rt-toolbar-pill--accent"
+                disabled={productionPending}
+                onClick={() => void enterProduction()}
               >
-                创作者
+                {productionPending ? '创建中…' : '满意，进入正式使用'}
               </button>
-              <button
-                type="button"
-                className={mode === 'consumer' ? 'is-active' : ''}
-                onClick={() => setMode('consumer')}
-              >
-                消费者
-              </button>
-            </div>
-            {mode === 'creator' && (
-              <button
-                type="button"
-                className="rt-toolbar-pill"
-                onClick={() => setInspectorOpen((v) => !v)}
-              >
-                {showInspectorPanel ? '回到对话' : '经验体'}
-              </button>
+            )}
+            {isTrialSession && (
+              <>
+                <div className="rt-segment" role="group" aria-label="预览身份">
+                  <button
+                    type="button"
+                    className={mode === 'creator' ? 'is-active' : ''}
+                    onClick={() => setMode('creator')}
+                  >
+                    创作者
+                  </button>
+                  <button
+                    type="button"
+                    className={mode === 'consumer' ? 'is-active' : ''}
+                    onClick={() => setMode('consumer')}
+                  >
+                    消费者
+                  </button>
+                </div>
+                {effectiveMode === 'creator' && (
+                  <button
+                    type="button"
+                    className="rt-toolbar-pill"
+                    onClick={() => setInspectorOpen((v) => !v)}
+                  >
+                    {showInspectorPanel ? '回到对话' : '经验体'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </header>
@@ -972,6 +1022,7 @@ export function ChatPage() {
             className="rt-genui__canvas"
             data-state={showInitialGenerating ? 'running' : hasStarted ? 'output' : 'intake'}
           >
+            {productionError && <div className="rt-inline-error">{productionError}</div>}
             {showArtifact && activeVersion ? (
               <div className="rt-artifact-stage">
                 <ArtifactRenderer artifact={activeVersion} />

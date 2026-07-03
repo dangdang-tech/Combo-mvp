@@ -3,6 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { RuntimeSessionListItem } from '@cb/shared';
 import { useSessions } from '../api/runtime.js';
 
+function modeLabel(mode: RuntimeSessionListItem['mode']): string {
+  return mode === 'consume' ? '正式' : '试用';
+}
+
+function sortLinkedSessions(items: RuntimeSessionListItem[]): RuntimeSessionListItem[] {
+  return [...items].sort((a, b) => {
+    if (a.mode !== b.mode) return a.mode === 'consume' ? -1 : 1;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
+}
+
 export function SessionSidebar({
   activeSession,
   activeSessionId,
@@ -18,10 +29,12 @@ export function SessionSidebar({
     const items = (sessions.data?.items ?? []).filter(
       (item) => !capabilitySlug || item.slug === capabilitySlug,
     );
-    if (!activeSession) return items;
+    if (!activeSession) return sortLinkedSessions(items);
     const exists = items.some((item) => item.id === activeSession.id);
-    if (!exists) return [activeSession, ...items];
-    return items.map((item) => (item.id === activeSession.id ? activeSession : item));
+    if (!exists) return sortLinkedSessions([activeSession, ...items]);
+    return sortLinkedSessions(
+      items.map((item) => (item.id === activeSession.id ? activeSession : item)),
+    );
   }, [activeSession, capabilitySlug, sessions.data?.items]);
 
   return (
@@ -65,7 +78,12 @@ function SessionListLink({
       <span className="rt-sidebar__avatar">{avatar}</span>
       <span className="rt-sidebar__item-copy">
         <span className="rt-sidebar__item-title">{title}</span>
-        {secondary && <span className="rt-sidebar__item-cap">{secondary}</span>}
+        <span className="rt-sidebar__item-cap">
+          <span className={`rt-sidebar__mode rt-sidebar__mode--${session.mode}`}>
+            {modeLabel(session.mode)}
+          </span>
+          {secondary || '当前能力会话'}
+        </span>
       </span>
       <span className="rt-sidebar__status" />
     </Link>

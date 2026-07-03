@@ -56,3 +56,14 @@ export function createTrialSession(slugOrId: string): Promise<CreateSessionResul
     { slugOrId },
   );
 }
+
+export function createProductionSession(
+  slugOrId: string,
+  title?: string,
+): Promise<CreateSessionResult> {
+  return apiPost<CreateSessionResult>('/runtime/sessions', {
+    slugOrId,
+    mode: 'consume',
+    title,
+  });
+}
