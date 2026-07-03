@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { WizardProvider } from '../../wizard/index.js';
 import { CapabilitiesStepPage } from './CapabilitiesStepPage.js';
+import { __setOpenRuntimeTrialForTests } from './trialApi.js';
 import { installFetchMock, type FetchMock } from '../../../test/mockFetch.js';
 import { __setFetchEventSourceForTests } from '../../../api/useSSE.js';
 import {
@@ -69,12 +70,15 @@ const extractDone = {
 
 let mock: FetchMock;
 let restoreFes: () => void;
+let restoreOpenTrial: (() => void) | undefined;
 beforeEach(() => {
   MockFetchEventSource.reset();
   restoreFes = __setFetchEventSourceForTests(MockFetchEventSource.impl);
 });
 afterEach(() => {
   restoreFes();
+  restoreOpenTrial?.();
+  restoreOpenTrial = undefined;
   mock?.restore();
   vi.restoreAllMocks();
 });
@@ -140,7 +144,9 @@ describe('CapabilitiesStepPage', () => {
     expect(screen.getByRole('button', { name: /一键发布到市集 · 2 项/ })).toBeEnabled();
   });
 
-  it('试用按钮是占位：点击后不跳转、不请求运行态', async () => {
+  it('试用按钮 → 建 draft 版本 + 结构化完成 → 开 runtime trial session 并跳转', async () => {
+    const openTrial = vi.fn();
+    restoreOpenTrial = __setOpenRuntimeTrialForTests(openTrial);
     mock = installFetchMock([
       {
         status: 202,
@@ -156,6 +162,46 @@ describe('CapabilitiesStepPage', () => {
           },
         },
       },
+      {
+        status: 201,
+        json: {
+          data: {
+            capabilityId: 'cap1',
+            versionId: 'v1',
+            slug: 'svs',
+            version: '0.1.0',
+            manifest: {},
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 202,
+        json: {
+          data: {
+            jobId: 'sj1',
+            versionId: 'v1',
+            eventsUrl: '/api/v1/versions/v1/structure/events',
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 201,
+        json: {
+          session: {
+            id: 'rt1',
+            capabilityId: 'cap1',
+            slug: 'svs',
+            version: '0.1.0',
+            mode: 'trial',
+            title: '短视频脚本生成器 试用',
+            createdAt: '2026-06-10T00:00:00Z',
+            updatedAt: '2026-06-10T00:00:00Z',
+          },
+          capability: { capabilityId: 'cap1', slug: 'svs', version: '0.1.0' },
+        },
+      },
     ]);
     renderPage();
     await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(1));
@@ -165,8 +211,201 @@ describe('CapabilitiesStepPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
 
-    expect(screen.queryByTestId('market')).toBeNull();
-    expect(mock.calls.some((c) => c.url.includes('/a/'))).toBe(false);
+    await waitFor(() =>
+      expect(mock.calls.some((c) => c.url === '/api/v1/capabilities')).toBe(true),
+    );
+    expect(mock.calls.find((c) => c.url === '/api/v1/capabilities')?.body).toEqual({
+      sourceCandidateId: 'c1',
+    });
+    expect(
+      mock.calls.find((c) => c.url === '/api/v1/capabilities')?.headers['Idempotency-Key'],
+    ).toBe('trial:create:c1');
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(2));
+    act(() => connAt(1).open());
+    act(() => connAt(1).emit('done', { status: 'completed' }, { id: '2-0' }));
+
+    await waitFor(() =>
+      expect(
+        mock.calls.some((c) => c.url === '/api/v1/runtime/trial-chains/cap1/sessions'),
+      ).toBe(true),
+    );
+    expect(mock.calls.find((c) => c.url.includes('/runtime/trial-chains'))?.body).toEqual({
+      versionId: 'v1',
+      title: '短视频脚本生成器 试用',
+    });
+    await waitFor(() =>
+      expect(openTrial).toHaveBeenCalledWith(expect.stringContaining('/try/session/rt1')),
+    );
+  });
+
+  it('试用建版失败 → 卡片内显示错误且不跳转', async () => {
+    const openTrial = vi.fn();
+    restoreOpenTrial = __setOpenRuntimeTrialForTests(openTrial);
+    mock = installFetchMock([
+      {
+        status: 202,
+        json: { data: { jobId: 'j1', snapshotId: 's1', status: 'queued', eventsUrl: '/x' } },
+      },
+      {
+        status: 200,
+        json: {
+          data: [candidateJson()],
+          meta: {
+            page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
+            confidenceSummary: { high: 1, med: 0, low: 0 },
+          },
+        },
+      },
+      {
+        status: 503,
+        json: {
+          error: {
+            userMessage: '没能准备试用，请稍后重试。',
+            retriable: true,
+            action: 'retry',
+            traceId: 't1',
+          },
+        },
+      },
+    ]);
+    renderPage();
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(1));
+    act(() => connAt(0).open());
+    act(() => connAt(0).emit('done', extractDone, { id: '1-0' }));
+    await waitFor(() => expect(screen.getByText('短视频脚本生成器')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
+
+    expect(await screen.findByText('没能准备试用，请稍后重试。')).toBeInTheDocument();
+    expect(openTrial).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '重试试用 →' })).toBeEnabled();
+  });
+
+  it('试用结构化启动失败 → 卡片内显示错误且不跳转', async () => {
+    const openTrial = vi.fn();
+    restoreOpenTrial = __setOpenRuntimeTrialForTests(openTrial);
+    mock = installFetchMock([
+      {
+        status: 202,
+        json: { data: { jobId: 'j1', snapshotId: 's1', status: 'queued', eventsUrl: '/x' } },
+      },
+      {
+        status: 200,
+        json: {
+          data: [candidateJson()],
+          meta: {
+            page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
+            confidenceSummary: { high: 1, med: 0, low: 0 },
+          },
+        },
+      },
+      {
+        status: 201,
+        json: {
+          data: {
+            capabilityId: 'cap1',
+            versionId: 'v1',
+            slug: 'svs',
+            version: '0.1.0',
+            manifest: {},
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 503,
+        json: {
+          error: {
+            userMessage: '生成试用能力失败，请稍后重试。',
+            retriable: true,
+            action: 'retry',
+            traceId: 't1',
+          },
+        },
+      },
+    ]);
+    renderPage();
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(1));
+    act(() => connAt(0).open());
+    act(() => connAt(0).emit('done', extractDone, { id: '1-0' }));
+    await waitFor(() => expect(screen.getByText('短视频脚本生成器')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
+
+    expect(await screen.findByText('生成试用能力失败，请稍后重试。')).toBeInTheDocument();
+    expect(openTrial).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '重试试用 →' })).toBeEnabled();
+  });
+
+  it('runtime trial session 创建失败 → 卡片内显示错误且不跳转', async () => {
+    const openTrial = vi.fn();
+    restoreOpenTrial = __setOpenRuntimeTrialForTests(openTrial);
+    mock = installFetchMock([
+      {
+        status: 202,
+        json: { data: { jobId: 'j1', snapshotId: 's1', status: 'queued', eventsUrl: '/x' } },
+      },
+      {
+        status: 200,
+        json: {
+          data: [candidateJson()],
+          meta: {
+            page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
+            confidenceSummary: { high: 1, med: 0, low: 0 },
+          },
+        },
+      },
+      {
+        status: 201,
+        json: {
+          data: {
+            capabilityId: 'cap1',
+            versionId: 'v1',
+            slug: 'svs',
+            version: '0.1.0',
+            manifest: {},
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 202,
+        json: {
+          data: {
+            jobId: 'sj1',
+            versionId: 'v1',
+            eventsUrl: '/api/v1/versions/v1/structure/events',
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 503,
+        json: {
+          error: {
+            userMessage: '没能打开试用，请稍后重试。',
+            retriable: true,
+            action: 'retry',
+            traceId: 't1',
+          },
+        },
+      },
+    ]);
+    renderPage();
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(1));
+    act(() => connAt(0).open());
+    act(() => connAt(0).emit('done', extractDone, { id: '1-0' }));
+    await waitFor(() => expect(screen.getByText('短视频脚本生成器')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
+
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(2));
+    act(() => connAt(1).open());
+    act(() => connAt(1).emit('done', { status: 'completed' }, { id: '2-0' }));
+
+    expect(await screen.findByText('没能打开试用，请稍后重试。')).toBeInTheDocument();
+    expect(openTrial).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: '重试试用 →' })).toBeEnabled();
   });
 
   it('一键发布 → createPublishBatch(每项仅 candidateId+idempotencyKey) → 批次 SSE published → 卡片 已发布 + 市集链接', async () => {

@@ -99,6 +99,7 @@ export const PublicCapabilityViewSchema = z.object({
   capabilityId: z.string(),
   slug: z.string(),
   version: z.string(),
+  status: VersionStatusSchema.optional(),
   name: z.string(),
   tagline: z.string(),
   description: z.string(),
@@ -113,6 +114,7 @@ export interface ToPublicViewArgs {
   capabilityId: string;
   slug: string;
   version: string;
+  status?: VersionStatus;
   manifest: Manifest;
 }
 export function toPublicView(args: ToPublicViewArgs): PublicCapabilityView {
@@ -121,6 +123,7 @@ export function toPublicView(args: ToPublicViewArgs): PublicCapabilityView {
     capabilityId: args.capabilityId,
     slug: args.slug,
     version: args.version,
+    ...(args.status ? { status: args.status } : {}),
     name: manifest.name,
     tagline: manifest.tagline,
     description: manifest.goal,

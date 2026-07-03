@@ -267,6 +267,13 @@ async function publishOneItem(
     if (!advancedToStructuring) return { moved: false, batchCompleted: false };
     await appendItemFrame(ctx, { ...item, state: 'structuring' });
 
+    if (!versionId) {
+      versionId = await findExistingDraftVersionForCandidate(db, {
+        candidateId,
+        ownerUserId,
+      });
+    }
+
     // b) create + structure（复用 3D；受保护落库经批 job fence）。
     //    原子回填（Codex r7 P1，方案 A）：create-capability 建版的 INSERT 与 item.version_id 受保护回填【合成同一事务】——
     //      onVersionCreatedInTx 在建版【同 tx】内 fence 校验 + 回填；命中 0 行（被接管/换 fence）→ 返回 false →
@@ -485,6 +492,25 @@ async function findBatchByJob(
 
 function countTerminal(items: BatchItemRow[]): number {
   return items.filter((i) => i.state === 'published' || i.state === 'failed').length;
+}
+
+async function findExistingDraftVersionForCandidate(
+  db: Queryable,
+  args: { candidateId: string; ownerUserId: string },
+): Promise<string | null> {
+  const res = await db.query<{ version_id: string }>(
+    `SELECT v.id AS version_id
+       FROM capability_versions v
+       JOIN capabilities c ON c.id = v.capability_id
+      WHERE v.source_candidate_id = $1
+        AND c.creator_user_id = $2
+        AND c.status = 'active'
+        AND v.status = 'draft'
+      ORDER BY v.created_at DESC
+      LIMIT 1`,
+    [args.candidateId, args.ownerUserId],
+  );
+  return res.rows[0]?.version_id ?? null;
 }
 
 /**

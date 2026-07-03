@@ -119,19 +119,20 @@ export async function createSession(
 /** 查找同 owner/capability 下尚未产生消息的 trial 空会话；用于 /try 默认入口刷新复用。 */
 export async function findEmptyTrialSession(
   pool: Pool,
-  input: { ownerId: string; capabilityId: string },
+  input: { ownerId: string; capabilityId: string; version: string },
 ): Promise<RuntimeSessionMeta | null> {
   const res = await pool.query<SessionDbRow>(
     `SELECT *
        FROM rt_chat_sessions s
       WHERE s.owner_id = $1
         AND s.capability_id = $2
+        AND s.version = $3
         AND s.mode = 'trial'
         AND s.status = 'active'
         AND NOT EXISTS (SELECT 1 FROM rt_chat_messages m WHERE m.session_id = s.id)
       ORDER BY s.updated_at DESC
       LIMIT 1`,
-    [input.ownerId, input.capabilityId],
+    [input.ownerId, input.capabilityId, input.version],
   );
   const row = res.rows[0];
   return row ? toMeta(toRow(row)) : null;

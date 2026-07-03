@@ -5,6 +5,7 @@
 import type { Pool } from 'pg';
 import {
   ManifestSchema,
+  SOFT_FIELD_KEYS,
   toPublicView,
   toRuntimeView,
   type Manifest,
@@ -12,7 +13,7 @@ import {
   type SkillPackageRuntimeView,
   type VersionStatus,
 } from '@cb/shared';
-import { verifyManifest } from './manifest-hash.js';
+import { manifestHash, verifyManifest } from './manifest-hash.js';
 
 export interface LoadedCapability {
   /** 含 instructions：仅服务端用（注入 systemPrompt）。 */
@@ -41,6 +42,38 @@ interface CapabilityRow {
   status: string;
   manifest: Manifest;
   manifest_hash: string;
+}
+
+function hasSoftFieldValue(manifest: Manifest, field: (typeof SOFT_FIELD_KEYS)[number]): boolean {
+  const value = manifest[field];
+  return Array.isArray(value)
+    ? value.length > 0
+    : typeof value === 'string' && value.trim().length > 0;
+}
+
+function toLoadedCapability(input: {
+  capabilityId: string;
+  slug: string;
+  version: string;
+  status: VersionStatus;
+  manifest: Manifest;
+  manifestHash: string;
+}): LoadedCapability {
+  const view = toRuntimeView({
+    capabilityId: input.capabilityId,
+    version: input.version,
+    status: input.status,
+    manifest: input.manifest,
+    manifestHash: input.manifestHash,
+  });
+  const publicView = toPublicView({
+    capabilityId: input.capabilityId,
+    slug: input.slug,
+    version: input.version,
+    status: input.status,
+    manifest: input.manifest,
+  });
+  return { view, publicView };
 }
 
 /**
@@ -76,19 +109,50 @@ export async function getPublishedCapability(
   const manifest = ManifestSchema.parse(row.manifest);
   const status = row.status as VersionStatus;
 
-  const view = toRuntimeView({
+  return toLoadedCapability({
     capabilityId: row.capability_id,
+    slug: row.slug,
     version: row.version,
     status,
     manifest,
     manifestHash: row.manifest_hash,
   });
-  const publicView = toPublicView({
+}
+
+/**
+ * 创作者发布前试用：按 capabilityId + versionId + creatorUserId 读取本人的 draft 能力包。
+ * 仅用于 trial session，不进公开市集、不允许 consume session 复用。
+ */
+export async function getDraftCapabilityForTrial(
+  pool: Pool,
+  input: { capabilityId: string; versionId: string; creatorUserId: string },
+): Promise<LoadedCapability | null> {
+  const res = await pool.query<Omit<CapabilityRow, 'manifest_hash'>>(
+    `SELECT v.capability_id, c.slug, v.version, v.status, v.manifest
+       FROM capability_versions v
+       JOIN capabilities c ON c.id = v.capability_id
+      WHERE c.id::text = $1
+        AND v.id::text = $2
+        AND c.creator_user_id = $3
+        AND c.status = 'active'
+        AND v.status = 'draft'
+      LIMIT 1`,
+    [input.capabilityId, input.versionId, input.creatorUserId],
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+
+  const manifest = ManifestSchema.parse(row.manifest);
+  const ready = SOFT_FIELD_KEYS.every((field) => hasSoftFieldValue(manifest, field));
+  if (!ready) return null;
+  const status = row.status as VersionStatus;
+
+  return toLoadedCapability({
     capabilityId: row.capability_id,
     slug: row.slug,
     version: row.version,
+    status,
     manifest,
+    manifestHash: manifestHash(manifest),
   });
-
-  return { view, publicView };
 }

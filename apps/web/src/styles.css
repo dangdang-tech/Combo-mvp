@@ -2509,11 +2509,15 @@ body {
   padding: 7px 12px;
   font-size: 13px;
   font-weight: 600;
-  cursor: default;
+  cursor: pointer;
   white-space: nowrap;
 }
 .cb-cap-card__trial:hover {
   border-color: var(--cb-border);
+}
+.cb-cap-card__trial:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 .cb-cap-card__status {
   display: flex;

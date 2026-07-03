@@ -18,7 +18,7 @@ import { requireCreatorIdentity, resolveRuntimeOwnerId } from '../../platform/ht
 import { startAguiStream } from '../agent/agui-emitter.js';
 import { runAgui } from '../agent/agui-run.js';
 import { composeSystemPrompt } from '../agent/compose-prompt.js';
-import { getPublishedCapability } from '../capability/loader.js';
+import { getDraftCapabilityForTrial, getPublishedCapability } from '../capability/loader.js';
 import { getArtifacts } from '../artifact/repo.js';
 import { createRun, getRun, listRunEvents, setRunStatus, appendRunEvent } from '../run/repo.js';
 import { createEventLogEmitter } from '../run/event-log-emitter.js';
@@ -144,17 +144,25 @@ export async function registerSessionRoutes(
   async function createRuntimeSession(input: {
     ownerId: string;
     slugOrId: string;
+    versionId?: string;
     title?: string;
     mode?: 'consume' | 'trial';
     reuseEmpty?: boolean;
   }) {
-    const loaded = await getPublishedCapability(ctx.pool, input.slugOrId);
+    const loaded = input.versionId
+      ? await getDraftCapabilityForTrial(ctx.pool, {
+          capabilityId: input.slugOrId,
+          versionId: input.versionId,
+          creatorUserId: input.ownerId,
+        })
+      : await getPublishedCapability(ctx.pool, input.slugOrId);
     if (!loaded) return null;
 
     if (input.mode === 'trial' && input.reuseEmpty) {
       const existing = await findEmptyTrialSession(ctx.pool, {
         ownerId: input.ownerId,
         capabilityId: loaded.view.capabilityId,
+        version: loaded.view.version,
       });
       if (existing) return { session: existing, capability: loaded.publicView };
     }
@@ -201,7 +209,10 @@ export async function registerSessionRoutes(
       if (!parsed.success) return badRequest(reply, req.id);
       const created = await createRuntimeSession({
         ownerId: identity.userId,
-        slugOrId: parsed.data.slugOrId ?? req.params.capabilityId,
+        slugOrId: parsed.data.versionId
+          ? req.params.capabilityId
+          : parsed.data.slugOrId ?? req.params.capabilityId,
+        versionId: parsed.data.versionId,
         title: parsed.data.title,
         mode: 'trial',
         reuseEmpty: true,

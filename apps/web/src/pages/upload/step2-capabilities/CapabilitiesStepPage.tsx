@@ -4,7 +4,7 @@
 //   1. extracting（过程态）：带 ?snapshotId= 进入 → 若无 extractJobId 先 createExtractJob 触发 → 订阅 job SSE，
 //      复用 step2-extract 的 ExtractLoading（圆环进度 + 指标 + 已发现列表）。job 终态 → 拉候选进 ready。
 //   2. ready：候选渲染成 PRD 单列能力行（名称 + 分类标签 + 一句话描述 + 来源 session 段数[信任背书] +
-//      复选框[默认全选] + 「试用」占位按钮 + 发布状态槽）。底部「一键发布」（≥1 选中即可点）。
+//      复选框[默认全选] + 「试用」真实入口 + 发布状态槽）。底部「一键发布」（≥1 选中即可点）。
 //   3. publishing → done：一键发布 → createPublishBatch（每项仅 candidateId + idempotencyKey；封面/档位/可见性走后端默认
 //      glyph/free/public）→ 订阅批次 job SSE，mergeBatchState 合并逐项态 → 卡片状态槽反映 发布中 / 已发布 / 失败；
 //      完成后给已发布数 + 每个已发布能力的市集链接（/a/{slug}）。
@@ -38,8 +38,25 @@ import {
   itemsFromSnapshot,
   mergeBatchState,
 } from '../step5-publish/index.js';
+import {
+  createCapabilityForTrial,
+  createRuntimeTrialSession,
+  openRuntimeTrial,
+  startStructureForTrial,
+} from './trialApi.js';
 
 type Phase = { kind: 'triggering' } | { kind: 'extracting'; jobId: string } | { kind: 'ready' };
+type TrialLaunchPhase = 'creating' | 'structuring' | 'opening' | 'error';
+
+interface TrialLaunchState {
+  candidateId: string;
+  candidateName: string;
+  phase: TrialLaunchPhase;
+  capabilityId?: string;
+  versionId?: string;
+  structureUrl?: string;
+  error?: string;
+}
 
 /** 逐项发布状态槽人话（决策⑤ 无连坐）。 */
 const ITEM_STATUS_LABEL: Record<PublishBatchItemView['state'], string> = {
@@ -48,6 +65,13 @@ const ITEM_STATUS_LABEL: Record<PublishBatchItemView['state'], string> = {
   publishing: '发布中…',
   published: '已发布',
   failed: '失败',
+};
+
+const TRIAL_PHASE_LABEL: Record<TrialLaunchPhase, string> = {
+  creating: '准备试用…',
+  structuring: '生成试用能力…',
+  opening: '打开试用…',
+  error: '重试试用 →',
 };
 
 function fallbackError(userMessage: string): ApiError {
@@ -66,6 +90,16 @@ function newKey(): string {
   return (
     globalThis.crypto?.randomUUID?.() ?? `bi-${Date.now()}-${Math.random().toString(36).slice(2)}`
   );
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.userMessage;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+}
+
+function currentReturnTo(): string {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 /** SSE 加载子组件：订阅萃取 job 流；done → 上抛 jobId 拉候选；失败上抛。key 控重订阅。 */
@@ -118,6 +152,7 @@ export function CapabilitiesStepPage(): ReactElement {
   const [batchView, setBatchView] = useState<PublishBatchView | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<ApiError | null>(null);
+  const [trialLaunch, setTrialLaunch] = useState<TrialLaunchState | null>(null);
   const batchKeyRef = useRef<string>(newKey());
   const itemKeysRef = useRef<Map<string, string>>(new Map());
 
@@ -283,9 +318,121 @@ export function CapabilitiesStepPage(): ReactElement {
     [batchView, refreshBatch],
   );
 
+  const handleTrial = useCallback(
+    (candidate: CandidateView): void => {
+      if (trialLaunch && trialLaunch.phase !== 'error') return;
+      const candidateName = nameText(candidate.name);
+      setTrialLaunch({ candidateId: candidate.id, candidateName, phase: 'creating' });
+      void (async () => {
+        try {
+          const created = await createCapabilityForTrial(candidate.id);
+          setTrialLaunch((current) =>
+            current?.candidateId === candidate.id
+              ? {
+                  ...current,
+                  phase: 'structuring',
+                  capabilityId: created.capabilityId,
+                  versionId: created.versionId,
+                }
+              : current,
+          );
+          const structure = await startStructureForTrial(created.versionId);
+          setTrialLaunch((current) =>
+            current?.candidateId === candidate.id
+              ? {
+                  ...current,
+                  phase: 'structuring',
+                  capabilityId: created.capabilityId,
+                  versionId: created.versionId,
+                  structureUrl: structure.eventsUrl,
+                }
+              : current,
+          );
+        } catch (e) {
+          setTrialLaunch((current) =>
+            current?.candidateId === candidate.id
+              ? {
+                  ...current,
+                  phase: 'error',
+                  error: errorMessage(e, '没能准备试用，请稍后重试。'),
+                }
+              : current,
+          );
+        }
+      })();
+    },
+    [trialLaunch],
+  );
+
   // —— 批次 SSE（逐项浮现 + 完成度）——
   const sseUrl = batchView ? SSE_ROUTES.jobEvents(batchView.jobId) : null;
   const batchSse = useSSE(sseUrl, 'job', { enabled: !!batchView });
+  const trialSse = useSSE(trialLaunch?.structureUrl ?? null, 'structure', {
+    enabled: Boolean(trialLaunch?.structureUrl),
+  });
+
+  useEffect(() => {
+    if (
+      !trialLaunch ||
+      trialLaunch.phase !== 'structuring' ||
+      !trialLaunch.capabilityId ||
+      !trialLaunch.versionId
+    ) {
+      return;
+    }
+    if (trialSse.status === 'error') {
+      setTrialLaunch((current) =>
+        current?.candidateId === trialLaunch.candidateId
+          ? {
+              ...current,
+              phase: 'error',
+              error: trialSse.error?.userMessage ?? '生成试用能力失败，请稍后重试。',
+            }
+          : current,
+      );
+      return;
+    }
+    if (trialSse.status !== 'done') return;
+    if (trialSse.done?.status !== 'completed') {
+      setTrialLaunch((current) =>
+        current?.candidateId === trialLaunch.candidateId
+          ? {
+              ...current,
+              phase: 'error',
+              error:
+                trialSse.done?.error?.error.userMessage ?? '生成试用能力失败，请稍后重试。',
+            }
+          : current,
+      );
+      return;
+    }
+
+    const { candidateId, candidateName, capabilityId, versionId } = trialLaunch;
+    setTrialLaunch((current) =>
+      current?.candidateId === candidateId ? { ...current, phase: 'opening' } : current,
+    );
+    void (async () => {
+      try {
+        const created = await createRuntimeTrialSession({
+          capabilityId,
+          versionId,
+          title: `${candidateName} 试用`,
+        });
+        const returnTo = encodeURIComponent(currentReturnTo());
+        openRuntimeTrial(`/try/session/${created.session.id}?returnTo=${returnTo}`);
+      } catch (e) {
+        setTrialLaunch((current) =>
+          current?.candidateId === candidateId
+            ? {
+                ...current,
+                phase: 'error',
+                error: errorMessage(e, '没能打开试用，请稍后重试。'),
+              }
+            : current,
+        );
+      }
+    })();
+  }, [trialLaunch, trialSse.done, trialSse.error, trialSse.status]);
 
   const merged = useMemo(() => {
     if (!batchView) return null;
@@ -389,6 +536,8 @@ export function CapabilitiesStepPage(): ReactElement {
               const failed = c.status === 'failed';
               const checked = selectedIds.has(c.id);
               const item = itemByCandidate.get(c.id);
+              const trialForCard = trialLaunch?.candidateId === c.id ? trialLaunch : null;
+              const trialDisabled = Boolean(trialLaunch && trialLaunch.phase !== 'error');
               return (
                 <li
                   key={c.id}
@@ -430,9 +579,19 @@ export function CapabilitiesStepPage(): ReactElement {
 
                   <div className="cb-cap-card__actions">
                     {!failed && item?.state !== 'published' && (
-                      <button type="button" className="cb-cap-card__trial">
-                        试用 →
+                      <button
+                        type="button"
+                        className="cb-cap-card__trial"
+                        onClick={() => handleTrial(c)}
+                        disabled={trialDisabled}
+                        aria-disabled={trialDisabled}
+                      >
+                        {trialForCard ? TRIAL_PHASE_LABEL[trialForCard.phase] : '试用 →'}
                       </button>
+                    )}
+
+                    {trialForCard?.phase === 'error' && trialForCard.error && (
+                      <span className="cb-cap-card__status-msg">{trialForCard.error}</span>
                     )}
 
                     {item && (

@@ -147,6 +147,7 @@ export type CreateSessionBody = z.infer<typeof CreateSessionBodySchema>;
 
 export const CreateTrialChainSessionBodySchema = z.object({
   slugOrId: z.string().min(1).optional(),
+  versionId: z.string().min(1).optional(),
   title: z.string().optional(),
   runGrant: z.string().optional(),
   intake: z.record(z.string()).optional(),

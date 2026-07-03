@@ -53,6 +53,16 @@ class BatchAtomicCreateFakeDb extends PublishBatchFakeDb {
     sql: string,
     params: unknown[] = [],
   ): Promise<QueryResultLike<R>> {
+    // findExistingDraftVersionForCandidate：本套件验证从 0 create，故没有可复用 draft。
+    if (
+      sql.includes('FROM capability_versions v') &&
+      sql.includes('JOIN capabilities c ON c.id = v.capability_id') &&
+      sql.includes('v.source_candidate_id = $1') &&
+      sql.includes("v.status = 'draft'")
+    ) {
+      return ok<R>([]);
+    }
+
     // readCandidateForCreate（SELECT id, name, slug, status FROM capability_candidates WHERE id=$1 AND owner_user_id=$2）。
     if (
       sql.includes('FROM capability_candidates') &&

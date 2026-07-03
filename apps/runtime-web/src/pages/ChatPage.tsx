@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type {
   InputField,
@@ -56,6 +56,10 @@ function upsertSessionListItem(
 ): RuntimeSessionList {
   const items = current?.items ?? [];
   return { items: [item, ...items.filter((existing) => existing.id !== item.id)] };
+}
+
+function safeReturnTo(value: string | null): string {
+  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/create/capabilities';
 }
 
 function fieldValue(values: Record<string, string>, field: InputField): string {
@@ -837,6 +841,7 @@ function FloatingChat({
 export function ChatPage() {
   const { slug, sessionId: routeSessionId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const qc = useQueryClient();
 
   const [createFailed, setCreateFailed] = useState(false);
@@ -888,10 +893,16 @@ export function ChatPage() {
   const activeSession = detail ? toSessionListItem(detail.session, detail.capability) : undefined;
   const sessionMode = detail?.session.mode ?? 'trial';
   const isTrialSession = sessionMode === 'trial';
+  const isDraftTrial = isTrialSession && capability?.status === 'draft';
   const effectiveMode: PreviewMode = isTrialSession ? mode : 'consumer';
+  const publishReturnTo = safeReturnTo(searchParams.get('returnTo'));
+
+  const backToPublish = useCallback(() => {
+    window.location.assign(publishReturnTo);
+  }, [publishReturnTo]);
 
   const enterProduction = useCallback(async () => {
-    if (!capability || productionPending) return;
+    if (!capability || capability.status === 'draft' || productionPending) return;
     setProductionPending(true);
     setProductionError(null);
     try {
@@ -962,7 +973,7 @@ export function ChatPage() {
             <h1>{toolbarTitle}</h1>
             <span className="rt-version-chip">v{toolbarVersion}</span>
             <span className={`rt-mode-chip rt-mode-chip--${sessionMode}`}>
-              {isTrialSession ? '试用' : '正式使用'}
+              {isTrialSession ? (isDraftTrial ? '草稿试用' : '试用') : '正式使用'}
             </span>
             <span className="rt-source-pill">
               @{capability.slug} · 守则 {capability.inputs.fields.length} · 案例{' '}
@@ -974,7 +985,15 @@ export function ChatPage() {
             <button type="button">EXPORT</button>
             <button type="button">SHARE</button>
             <button type="button">FULL</button>
-            {isTrialSession && hasStarted && (
+            {isTrialSession && hasStarted && isDraftTrial ? (
+              <button
+                type="button"
+                className="rt-toolbar-pill rt-toolbar-pill--accent"
+                onClick={backToPublish}
+              >
+                满意，回到发布
+              </button>
+            ) : isTrialSession && hasStarted ? (
               <button
                 type="button"
                 className="rt-toolbar-pill rt-toolbar-pill--accent"
@@ -983,7 +1002,7 @@ export function ChatPage() {
               >
                 {productionPending ? '创建中…' : '满意，进入正式使用'}
               </button>
-            )}
+            ) : null}
             {isTrialSession && (
               <>
                 <div className="rt-segment" role="group" aria-label="预览身份">

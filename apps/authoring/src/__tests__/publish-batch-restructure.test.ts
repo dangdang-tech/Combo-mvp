@@ -48,6 +48,26 @@ class BatchRestructureFakeDb extends PublishBatchFakeDb {
     sql: string,
     params: unknown[] = [],
   ): Promise<QueryResultLike<R>> {
+    // findExistingDraftVersionForCandidate（上传页先试用创建过 draft version，再一键发布需复用）。
+    if (
+      sql.includes('FROM capability_versions v') &&
+      sql.includes('JOIN capabilities c ON c.id = v.capability_id') &&
+      sql.includes('v.source_candidate_id = $1') &&
+      sql.includes("v.status = 'draft'")
+    ) {
+      const candidateId = params[0] as string;
+      const ownerUserId = params[1] as string;
+      const row = [...this.versions.values()].find((v) => {
+        const cap = this.capabilities.get(v.capability_id);
+        return (
+          this.versionSourceCandidate.get(v.id) === candidateId &&
+          cap?.creator_user_id === ownerUserId &&
+          v.status === 'draft'
+        );
+      });
+      return ok<R>(row ? ([{ version_id: row.id }] as R[]) : []);
+    }
+
     // readVersionForStructure（无 JOIN：manifest + source_candidate_id + capability_id + status）。
     if (
       sql.includes('FROM capability_versions v') &&
@@ -262,6 +282,31 @@ describe('publish_batch handler · 批量重试再结构化（P0-1，Codex r3）
     expect(b?.failedCount).toBe(0);
     expect(b?.status).toBe('completed');
     // 该版本确已 published（经发布门，非直发未结构化 draft）。
+    expect(db.versions.get(versionId)!.status).toBe('published');
+  });
+
+  it('候选已有试用创建的 draft version → 一键发布复用该版本结构化并发布，不重复建版', async () => {
+    const db = new BatchRestructureFakeDb();
+    const owner = seedUser(db, 'WAYNE');
+    const candidateId = genId('cand');
+    const { versionId } = seedUnstructuredCandidateVersion(db, owner, candidateId);
+    const versionsBefore = db.versions.size;
+
+    // item 只带 candidateId，模拟上传页「先试用」已在版本表留下 source_candidate_id draft，
+    // 但发布批次本身尚未回填 versionId。
+    const { batchId, jobId } = await setupBatch(db, owner, [
+      { candidateId, idempotencyKey: 'k-trial-draft', visibility: 'public' },
+    ]);
+
+    await handler(db).run(leased(jobId, 1), makeCtx(jobId, 1).ctx);
+
+    expect(db.versions.size).toBe(versionsBefore);
+    expect(db.manifestWritesCount).toBe(1);
+    expect(softFieldsFilled(db.versions.get(versionId)!.manifest)).toBe(true);
+
+    const rows = await readBatchItems(db, batchId);
+    expect(rows[0]!.state).toBe('published');
+    expect(rows[0]!.versionId).toBe(versionId);
     expect(db.versions.get(versionId)!.status).toBe('published');
   });
 
