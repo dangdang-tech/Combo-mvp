@@ -14,10 +14,18 @@ import {
   type MockSSEConnection,
 } from '../../../test/mockFetchEventSource.js';
 
-function renderPage(initialPath = '/create/capabilities?snapshotId=s1', draftId = 'd1') {
+function renderPage(
+  initialPath = '/create/capabilities?snapshotId=s1',
+  draftId = 'd1',
+  opts: { snapshotId?: string } = {},
+) {
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
-      <WizardProvider initialStep="capabilities" initialDraftId={draftId}>
+      <WizardProvider
+        initialStep="capabilities"
+        initialDraftId={draftId}
+        initialSnapshotId={opts.snapshotId}
+      >
         <Routes>
           <Route path="/create/capabilities" element={<CapabilitiesStepPage />} />
           <Route path="/a/:slug" element={<span data-testid="market">market</span>} />
@@ -233,8 +241,89 @@ describe('CapabilitiesStepPage', () => {
       versionId: 'v1',
       title: '短视频脚本生成器 试用',
     });
-    await waitFor(() =>
-      expect(openTrial).toHaveBeenCalledWith(expect.stringContaining('/try/session/rt1')),
+    await waitFor(() => expect(openTrial).toHaveBeenCalledOnce());
+    const trialUrl = openTrial.mock.calls[0]![0] as string;
+    expect(trialUrl).toContain('/try/session/rt1');
+    expect(new URLSearchParams(trialUrl.split('?')[1]).get('returnTo')).toBe(
+      '/create/capabilities?snapshotId=s1&draftId=d1',
+    );
+  });
+
+  it('试用回跳地址补齐向导上下文里的 snapshotId/draftId，避免回到裸能力页丢数据', async () => {
+    const openTrial = vi.fn();
+    restoreOpenTrial = __setOpenRuntimeTrialForTests(openTrial);
+    mock = installFetchMock([
+      {
+        status: 202,
+        json: { data: { jobId: 'j1', snapshotId: 's1', status: 'queued', eventsUrl: '/x' } },
+      },
+      {
+        status: 200,
+        json: {
+          data: [candidateJson()],
+          meta: {
+            page: { hasMore: false, nextCursor: null, limit: 50, order: 'asc' },
+            confidenceSummary: { high: 1, med: 0, low: 0 },
+          },
+        },
+      },
+      {
+        status: 201,
+        json: {
+          data: {
+            capabilityId: 'cap1',
+            versionId: 'v1',
+            slug: 'svs',
+            version: '0.1.0',
+            manifest: {},
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 202,
+        json: {
+          data: {
+            jobId: 'sj1',
+            versionId: 'v1',
+            eventsUrl: '/api/v1/versions/v1/structure/events',
+            structureState: { fields: [], totalCount: 0, doneCount: 0 },
+          },
+        },
+      },
+      {
+        status: 201,
+        json: {
+          session: {
+            id: 'rt1',
+            capabilityId: 'cap1',
+            slug: 'svs',
+            version: '0.1.0',
+            mode: 'trial',
+            title: '短视频脚本生成器 试用',
+            createdAt: '2026-06-10T00:00:00Z',
+            updatedAt: '2026-06-10T00:00:00Z',
+          },
+          capability: { capabilityId: 'cap1', slug: 'svs', version: '0.1.0' },
+        },
+      },
+    ]);
+    renderPage('/create/capabilities', 'd1', { snapshotId: 's1' });
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(1));
+    act(() => connAt(0).open());
+    act(() => connAt(0).emit('done', extractDone, { id: '1-0' }));
+    await waitFor(() => expect(screen.getByText('短视频脚本生成器')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
+
+    await waitFor(() => expect(MockFetchEventSource.connections.length).toBe(2));
+    act(() => connAt(1).open());
+    act(() => connAt(1).emit('done', { status: 'completed' }, { id: '2-0' }));
+
+    await waitFor(() => expect(openTrial).toHaveBeenCalledOnce());
+    const trialUrl = openTrial.mock.calls[0]![0] as string;
+    expect(new URLSearchParams(trialUrl.split('?')[1]).get('returnTo')).toBe(
+      '/create/capabilities?snapshotId=s1&draftId=d1',
     );
   });
 

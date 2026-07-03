@@ -9,7 +9,7 @@
 //      glyph/free/public）→ 订阅批次 job SSE，mergeBatchState 合并逐项态 → 卡片状态槽反映 发布中 / 已发布 / 失败；
 //      完成后给已发布数 + 每个已发布能力的市集链接（/a/{slug}）。
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import {
   SSE_ROUTES,
   type CandidateView,
@@ -98,8 +98,24 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function currentReturnTo(): string {
-  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+function capabilitiesReturnTo(input: {
+  pathname: string;
+  search: string;
+  hash: string;
+  draftId?: string;
+  snapshotId?: string;
+  extractJobId?: string;
+  batchId?: string;
+}): string {
+  const params = new URLSearchParams(input.search);
+  if (input.snapshotId && !params.has('snapshotId')) params.set('snapshotId', input.snapshotId);
+  if (input.draftId && !params.has('draftId')) params.set('draftId', input.draftId);
+  if (input.extractJobId && !params.has('extractJobId')) {
+    params.set('extractJobId', input.extractJobId);
+  }
+  if (input.batchId && !params.has('batchId')) params.set('batchId', input.batchId);
+  const query = params.toString();
+  return `${input.pathname}${query ? `?${query}` : ''}${input.hash}`;
 }
 
 /** SSE 加载子组件：订阅萃取 job 流；done → 上抛 jobId 拉候选；失败上抛。key 控重订阅。 */
@@ -129,6 +145,7 @@ function ExtractJobStream({
 
 export function CapabilitiesStepPage(): ReactElement {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { draftId: ctxDraftId, snapshotId: ctxSnapshotId } = useWizard();
 
   // 来源优先级：URL ?snapshotId= / ?extractJobId=（上传自动带入或深链）→ 向导上下文回填。
@@ -418,7 +435,17 @@ export function CapabilitiesStepPage(): ReactElement {
           versionId,
           title: `${candidateName} 试用`,
         });
-        const returnTo = encodeURIComponent(currentReturnTo());
+        const returnTo = encodeURIComponent(
+          capabilitiesReturnTo({
+            pathname: location.pathname,
+            search: location.search,
+            hash: location.hash,
+            draftId,
+            snapshotId,
+            extractJobId: urlExtractJobId,
+            batchId: urlBatchId,
+          }),
+        );
         openRuntimeTrial(`/try/session/${created.session.id}?returnTo=${returnTo}`);
       } catch (e) {
         setTrialLaunch((current) =>
@@ -432,7 +459,19 @@ export function CapabilitiesStepPage(): ReactElement {
         );
       }
     })();
-  }, [trialLaunch, trialSse.done, trialSse.error, trialSse.status]);
+  }, [
+    draftId,
+    location.hash,
+    location.pathname,
+    location.search,
+    snapshotId,
+    trialLaunch,
+    trialSse.done,
+    trialSse.error,
+    trialSse.status,
+    urlBatchId,
+    urlExtractJobId,
+  ]);
 
   const merged = useMemo(() => {
     if (!batchView) return null;
