@@ -84,10 +84,20 @@ describe('migrations', () => {
     expect(sql).toMatch(/visibility IN \('public','unlisted'\)/);
   });
 
-  it('publish_batch_items has subject column (batch-repo reads/writes it)', () => {
-    const sql = allSql();
-    // batch-repo.ts 建批/读取依赖 publish_batch_items.subject（逐项发布入参），真实 PG 必须有此列（Codex#2）。
-    expect(sql).toMatch(/subject\s+jsonb\s+NOT NULL/);
+  it('drops batch publish tables, capability_tiers and stale channels in 0018 (2026-07-04)', () => {
+    const file = files().find((f) => f.startsWith('0018'));
+    expect(file).toBeDefined();
+    const sql = readFileSync(join(MIGRATIONS_DIR, file!), 'utf-8');
+    // 先摘 drafts 的批次落点（FK + 列），再删表；jobs.type CHECK 重建后不含 publish_batch。
+    expect(sql).toContain('DROP CONSTRAINT fk_drafts_batch');
+    expect(sql).toContain('DROP COLUMN batch_id');
+    for (const t of ['publish_batch_items', 'publish_batches', 'capability_tiers']) {
+      expect(sql).toContain(`DROP TABLE ${t};`);
+    }
+    expect(sql).toMatch(/jobs_type_chk[\s\S]*'import', 'extract', 'structure', 'evaluate'/);
+    // 通知渠道收敛：只清 email/lark 存量，不动 inapp。
+    expect(sql).toContain("DELETE FROM notification_channels WHERE channel IN ('email', 'lark')");
+    expect(sql).not.toContain('DROP TABLE notification_channels');
   });
 
   it('drops all frozen placeholder tables in 0017 (zero-usage cleanup, 2026-07-04)', () => {
