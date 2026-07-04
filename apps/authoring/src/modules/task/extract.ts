@@ -31,6 +31,8 @@ export interface ExtractDeps {
   audit: LlmAuditSink;
   /** 审计记账用的模型名（网关内部已定，这里只为落库可读）。 */
   model?: string;
+  /** 诊断日志（批次降级时记原因与文本头，便于排障；缺省静默）。 */
+  log?: { warn: (o: object, m: string) => void };
 }
 
 export interface ExtractInput {
@@ -111,14 +113,26 @@ async function extractBatch(
   }
 
   await recordAudit(deps, input, result.usage, result.degraded);
-  if (result.degraded || !result.text) return null;
+  if (result.degraded || !result.text) {
+    deps.log?.warn(
+      { degraded: result.degraded, textLen: result.text?.length ?? 0 },
+      'extract batch degraded: gateway degraded or empty text',
+    );
+    return null;
+  }
 
   const parsed = parseCapabilityJson(result.text);
-  if (!parsed || parsed.length === 0) return null;
+  if (!parsed || parsed.length === 0) {
+    deps.log?.warn(
+      { textHead: result.text.slice(0, 200) },
+      'extract batch degraded: model text not parseable as capability array',
+    );
+    return null;
+  }
   return parsed;
 }
 
-function buildPrompt(segments: ExtractSegment[]): string {
+export function buildPrompt(segments: ExtractSegment[]): string {
   const body = segments
     .map((s, i) => {
       const head = `【段 ${i + 1}】标题：${s.title}${s.project ? `（项目：${s.project}）` : ''}`;
@@ -139,16 +153,14 @@ function buildPrompt(segments: ExtractSegment[]): string {
   );
 }
 
-/** 容错解析 LLM 输出的能力数组（提取首个 [...]；坏 JSON / 坏条目 → 丢弃）。 */
-function parseCapabilityJson(text: string): CapabilityDraft[] | null {
-  const m = text.match(/\[[\s\S]*\]/);
-  if (!m) return null;
-  let arr: unknown;
-  try {
-    arr = JSON.parse(m[0]);
-  } catch {
-    return null;
-  }
+/**
+ * 容错解析 LLM 输出的能力数组。模型常在数组前后加说明文字或 markdown 围栏，
+ * 且说明文字里可能含方括号——贪婪正则会抓出非法 JSON。改为括号配平扫描：
+ * 从每个 '[' 起点按字符串感知的深度计数找到配对 ']'，逐个候选尝试 JSON.parse，
+ * 取第一个合法数组。坏 JSON / 坏条目 → 丢弃。
+ */
+export function parseCapabilityJson(text: string): CapabilityDraft[] | null {
+  const arr = extractFirstJsonArray(text);
   if (!Array.isArray(arr)) return null;
   const out: CapabilityDraft[] = [];
   for (const item of arr) {
@@ -166,6 +178,43 @@ function parseCapabilityJson(text: string): CapabilityDraft[] | null {
     });
   }
   return out;
+}
+
+/** 从自由文本中提取第一个可解析的 JSON 数组（字符串感知的括号配平扫描）。 */
+function extractFirstJsonArray(text: string): unknown | null {
+  for (let start = text.indexOf('['); start !== -1; start = text.indexOf('[', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i]!;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = inString; // 反斜杠只在字符串内是转义
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === '[') depth += 1;
+      else if (ch === ']') {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, i + 1));
+          } catch {
+            break; // 本起点配平但不是合法 JSON：换下一个 '[' 起点
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /**

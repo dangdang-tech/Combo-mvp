@@ -67,6 +67,32 @@ async function setup(llm: FakeLlm, raw?: string): Promise<Setup> {
   return { deps, taskId };
 }
 
+import { parseCapabilityJson } from '../modules/task/extract.js';
+
+describe('parseCapabilityJson · 真实模型输出形态', () => {
+  const item = '{"name":"周报整理","summary":"s","kind":"写作","instructions":"步骤如下"}';
+
+  it('markdown 围栏 + 前后说明文字（含方括号）都能解析', () => {
+    const noisy =
+      '好的，[分析] 归纳如下：\n\n```json\n[' + item + ']\n```\n\n以上 [1] 个能力供参考。';
+    const parsed = parseCapabilityJson(noisy);
+    expect(parsed).toHaveLength(1);
+    expect(parsed![0]!.name).toBe('周报整理');
+  });
+
+  it('字符串值内的方括号与转义引号不干扰配平', () => {
+    const tricky =
+      '[{"name":"排查[413]","summary":"含\\"引号\\"与]括号","kind":"编码","instructions":"i"}]';
+    const parsed = parseCapabilityJson(tricky);
+    expect(parsed).toHaveLength(1);
+  });
+
+  it('空数组返回 []（由批处理层判空走兜底）；无 JSON → null', () => {
+    expect(parseCapabilityJson('[]')).toEqual([]);
+    expect(parseCapabilityJson('没有可归纳的能力。')).toBeNull();
+  });
+});
+
 describe('runPipeline · 成功路径', () => {
   it('LLM 归纳成功：能力项落库 + 定义进桶 + 原始件清除 + 任务终态 + done 帧', async () => {
     const { deps, taskId } = await setup(new FakeLlm(() => llmText(LLM_CAPABILITIES)));

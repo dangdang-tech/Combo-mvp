@@ -53,7 +53,11 @@ export interface PipelineDeps {
   leaseOwner: string;
   /** 审计记账用的模型名。 */
   model?: string;
-  log?: { info: (o: object, m: string) => void; error: (o: object, m: string) => void };
+  log?: {
+    info: (o: object, m: string) => void;
+    warn: (o: object, m: string) => void;
+    error: (o: object, m: string) => void;
+  };
 }
 
 export type PipelineOutcome = 'succeeded' | 'failed' | 'not_claimed' | 'superseded';
@@ -249,7 +253,12 @@ async function execute(
   // ⑤ extract：LLM 归纳（降级兜底在 extract.ts 内收口，不裸抛）。
   await reporter.subtask('extract', 'running', 48, '正在归纳提炼能力…');
   const extracted = await extractCapabilities(
-    { llm: deps.llm, audit: deps.audit, ...(deps.model ? { model: deps.model } : {}) },
+    {
+      llm: deps.llm,
+      audit: deps.audit,
+      ...(deps.model ? { model: deps.model } : {}),
+      ...(deps.log ? { log: deps.log } : {}),
+    },
     {
       taskId,
       ownerUserId,
