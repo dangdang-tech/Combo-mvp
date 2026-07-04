@@ -1,4 +1,4 @@
-// JobHandler 注册表（B-10）。各 STEP 的具体 handler 在 3B-3E 注册（import/extract/structure/publish_batch）。
+// JobHandler 注册表（B-10）。各 STEP 的具体 handler 在 3B-3D 注册（import/extract/structure）。
 //   runner 据 jobType 取 handler 执行。本期可空（执行框架就绪、handler 由后续模块填）。
 import type { JobType } from '@cb/shared';
 import { ACTIVE_JOB_TYPES } from '@cb/shared';

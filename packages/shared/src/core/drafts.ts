@@ -35,7 +35,6 @@ export const DraftViewSchema = z.object({
   selection: z.unknown().optional(),
   versionId: IdSchema.optional(),
   capabilityId: IdSchema.optional(),
-  batchId: IdSchema.optional(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 });

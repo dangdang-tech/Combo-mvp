@@ -1,4 +1,4 @@
-// worker 进程：BullMQ job processor（import/extract/structure/publish_batch）。
+// worker 进程：BullMQ job processor（import/extract/structure）。
 //   每个已注册 JobType 一条 BullMQ Worker（队列名=jobType + prefix=QUEUE_PREFIX，连 redis_queue）。job 触发 → runJob 通用 runner：
 //     领租约（fence）→ 跑 handler（受保护持久化 + redis_hot 推帧）→ 受保护落终态。
 //   写库铁律（脊柱 §11.A）：runner/repo 内所有写回带 WHERE id=:jobId AND fence_token=:fence AND status='running'。
@@ -16,7 +16,6 @@ const TIMEOUT_BY_TYPE: Record<JobType, number> = {
   import: 600_000, // 导入可长（拉取/抹敏/切段）；细粒度续期防 sweeper 误判
   extract: 300_000,
   structure: 300_000,
-  publish_batch: 180_000,
   evaluate: 60_000, // 冻结，不注册
   runtime_gen: 60_000, // 冻结，不注册
 };
@@ -75,7 +74,7 @@ async function main(): Promise<void> {
     import('../platform/jobs/registry.js'),
     import('../platform/jobs/runner.js'),
   ]);
-  // 副作用导入：register-handlers 在此 import 时自注册全部 JobHandler（B-19；extract/structure/publish_batch）。
+  // 副作用导入：register-handlers 在此 import 时自注册全部 JobHandler（B-19；extract/structure）。
   await import('./register-handlers.js');
 
   const { getHandler, missingActiveHandlers, registeredTypes } = registry;

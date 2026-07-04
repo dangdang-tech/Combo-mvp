@@ -424,7 +424,6 @@ interface DraftRow {
   selection: unknown;
   version_id: string | null;
   capability_id: string | null;
-  batch_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -445,7 +444,6 @@ function rowToDraftView(r: DraftRow): DraftView {
     ...(r.selection ? { selection: r.selection } : {}),
     ...(r.version_id ? { versionId: r.version_id } : {}),
     ...(r.capability_id ? { capabilityId: r.capability_id } : {}),
-    ...(r.batch_id ? { batchId: r.batch_id } : {}),
     createdAt: new Date(r.created_at).toISOString(),
     updatedAt: new Date(r.updated_at).toISOString(),
   };
@@ -491,7 +489,7 @@ export async function patchSelection(
             updated_at = now()
       WHERE id = $1 AND owner_user_id = $2
       RETURNING id, owner_user_id, status, current_step, step_progress, title,
-                snapshot_id, extract_job_id, selection, version_id, capability_id, batch_id,
+                snapshot_id, extract_job_id, selection, version_id, capability_id,
                 created_at, updated_at`,
     [args.draftId, args.ownerUserId, JSON.stringify(args.selection)],
   );

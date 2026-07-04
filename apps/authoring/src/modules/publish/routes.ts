@@ -1,10 +1,10 @@
-// 50 · 发布域路由（B-26~B-29，50-step5-publish §3）。本期 501 占位。
-//   - publish.version / publish_batch.create / publish_batch.item.retry：
-//     requireRole('creator') + requireIdempotency（批量发布每 item 独立 key，无连坐，脊柱 §4.1）。
+// 50 · 发布域路由（B-26~B-28 + B-30，50-step5-publish §3）。
+//   - publish.version：requireRole('creator') + requireIdempotency（脊柱 §4.1）。
 //   - publish.review（评审裁决，B-30 / §2.6）：requireReviewer（reviewer 角色 + 禁创作者自审，Codex#7）
 //     + requireIdempotency。评审是运营/审核侧动作，不在创作者向导内。
 //   - market-card/preview：「带请求体只读」POST，Idempotency 豁免（脊柱 §4.1）。
-//   - 批量发布 / publications 读：requireAuth + handler owner 校验。
+//   - publications 读：requireAuth + handler owner 校验。
+//   批量发布（B-29）已整体移除（2026-07-04），发布入口占位待 Task 重构。
 import type { FastifyInstance } from 'fastify';
 import { IdempotencyScope, IdempotencyOptionalScope } from '@cb/shared';
 import { requireAuth, requireRole, requireReviewer } from '../../platform/middleware/auth.js';
@@ -12,11 +12,6 @@ import { optionalIdempotency, requireIdempotency } from '../../platform/middlewa
 import { registerEndpoints, type EndpointDecl } from '../../platform/http/_helpers.js';
 import { publishVersionHandler, marketCardPreviewHandler } from './handlers.js';
 import { reviewDecisionHandler, getPublicationHandler } from './review-handlers.js';
-import {
-  createPublishBatchHandler,
-  getPublishBatchHandler,
-  retryPublishBatchItemHandler,
-} from './publish-batch-handlers.js';
 
 export const PUBLISH_ENDPOINTS: EndpointDecl[] = [
   // §2.1 · 发布单个能力（B-27/B-28，同步事务）。
@@ -35,33 +30,6 @@ export const PUBLISH_ENDPOINTS: EndpointDecl[] = [
       optionalIdempotency(IdempotencyOptionalScope.MARKET_CARD_PREVIEW),
     ],
     handler: marketCardPreviewHandler(),
-  },
-  // §2.3 · 创建批量发布（B-29 无连坐 P0，202 + SSE）。
-  {
-    method: 'POST',
-    url: '/publish-batches',
-    preHandlers: [
-      requireRole('creator'),
-      requireIdempotency(IdempotencyScope.PUBLISH_BATCH_CREATE),
-    ],
-    handler: createPublishBatchHandler(),
-  },
-  // §2.4 · 查批次（恢复/轮询兜底）。
-  {
-    method: 'GET',
-    url: '/publish-batches/:batchId',
-    preHandlers: [requireAuth()],
-    handler: getPublishBatchHandler(),
-  },
-  // §2.5 · 单 item 重试（B-29，无连坐）。
-  {
-    method: 'POST',
-    url: '/publish-batches/:batchId/items/:itemId/retry',
-    preHandlers: [
-      requireRole('creator'),
-      requireIdempotency(IdempotencyScope.PUBLISH_BATCH_ITEM_RETRY),
-    ],
-    handler: retryPublishBatchItemHandler(),
   },
   {
     method: 'POST',

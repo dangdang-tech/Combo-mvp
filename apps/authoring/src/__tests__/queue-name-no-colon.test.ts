@@ -1,6 +1,6 @@
 // live 崩溃修复 · BullMQ 队列名禁含 ':'（queue-base.js 校验 `Error: Queue name cannot contain ':'`）。
 //   旧 bug：生产端 new Queue(`cb:${type}`)、消费端 new Worker(`cb:${type}`) 队列名带冒号 → worker 进程真跑即崩，
-//   主链路所有 job（import/extract/structure/publish_batch）无人消费。单测旧 mock 不校验 name 故永远抓不到。
+//   主链路所有 job（import/extract/structure）无人消费。单测旧 mock 不校验 name 故永远抓不到。
 //   修复：命名空间走 BullMQ `prefix` 选项（共享常量 QUEUE_PREFIX），队列名只留 jobType。
 //   本测【模拟真实 BullMQ name 校验】（含 ':' 即抛），并断言：
 //     1) 生产端 Queue 名无 ':'、prefix === QUEUE_PREFIX；

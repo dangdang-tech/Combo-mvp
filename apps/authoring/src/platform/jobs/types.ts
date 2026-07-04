@@ -1,6 +1,6 @@
 // 任务执行运行时类型（B-10/B-11/B-12 执行层）。
 //   - Queryable：pg.Pool/PoolClient 的最小子集（query 返回 { rows, rowCount }），便于单测 mock，无真 PG。
-//   - JobHandler：各 STEP 具体 handler 的抽象（import/extract/structure/publish_batch 在 3B-3E 注册）。
+//   - JobHandler：各 STEP 具体 handler 的抽象（import/extract/structure 在 3B-3D 注册）。
 //   - JobContext：runner 注入给 handler 的能力（推进度/子任务/边生成边显示项/字段流 + 取消检查 + traceId）。
 //   写库铁律：所有对 jobs 及产物的写入走受保护 fence CTE（脊柱 §11.A），由 jobs/repo.ts 封装、handler 不裸写。
 import type { JobType, JobStatus, ProgressView, SubtaskStatus, SSEEventType } from '@cb/shared';
@@ -109,7 +109,7 @@ export interface JobResult {
 }
 
 /**
- * Job 执行框架抽象（B-10）。各 STEP 的具体 handler（import/extract/structure/publish_batch）实现它，
+ * Job 执行框架抽象（B-10）。各 STEP 的具体 handler（import/extract/structure）实现它，
  * 在 3B-3E 经 registry 注册。runner 负责生命周期/进度上报通道/错误归一/已生成不丢，handler 只写业务逻辑。
  */
 export interface JobHandler {

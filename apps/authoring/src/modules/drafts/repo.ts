@@ -3,8 +3,7 @@
 //     · createDraft —— 新建一行 drafts(owner, status='active', current_step='import')，返回 draftId（fresh flow 续传基线）。
 //     · backfillDraftSnapshot —— import 完成把 snapshot_id + current_step='extract' 焊到本草稿（导入产物落点）。
 //     · backfillDraftExtract  —— extract 起把 extract_job_id + current_step='extract' 焊到本草稿（萃取落点）。
-//     · backfillDraftBatch    —— 批量发布建批把 batch_id + current_step='publish' 焊到本草稿（批量发布落点）。
-//     · readDraftView        —— 读完整 DraftView（step/selection/snapshot/extract/version/capability/batch + stepProgress）。
+//     · readDraftView        —— 读完整 DraftView（step/selection/snapshot/extract/version/capability + stepProgress）。
 //   structure 步推进（version_id + capability_id + current_step='structure'）复用既有
 //     structure-repo.backfillDraftInTx（建版同事务回填，§4.A）——本仓储不重复实现，关注点单一。
 //   铁律：
@@ -47,7 +46,6 @@ interface DraftRow {
   selection: unknown;
   version_id: string | null;
   capability_id: string | null;
-  batch_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -72,12 +70,11 @@ export function rowToDraftView(r: DraftRow): DraftView {
   if (r.selection !== null && r.selection !== undefined) view.selection = r.selection;
   if (r.version_id !== null) view.versionId = r.version_id;
   if (r.capability_id !== null) view.capabilityId = r.capability_id;
-  if (r.batch_id !== null) view.batchId = r.batch_id;
   return view;
 }
 
 const DRAFT_SELECT_COLS = `id, status, current_step, step_progress, title,
-            snapshot_id, extract_job_id, selection, version_id, capability_id, batch_id,
+            snapshot_id, extract_job_id, selection, version_id, capability_id,
             created_at::text AS created_at, updated_at::text AS updated_at`;
 
 // ===========================================================================
@@ -193,21 +190,5 @@ export async function backfillDraftExtract(
     ownerUserId: args.ownerUserId,
     setClause: `extract_job_id = $3, current_step = ${advanceStepSql('extract', "'extract'")}`,
     setParams: [args.extractJobId],
-  });
-}
-
-/**
- * 批量发布建批：把 batch_id 焊到本草稿 + 推进 current_step → 'publish'（批量发布落点，续传回批进度）。
- *   owner 守卫 + 单次写；current_step 永不倒退。
- */
-export async function backfillDraftBatch(
-  db: DraftDb,
-  args: { draftId: string; ownerUserId: string; batchId: string },
-): Promise<boolean> {
-  return backfillStep(db, {
-    draftId: args.draftId,
-    ownerUserId: args.ownerUserId,
-    setClause: `batch_id = $3, current_step = ${advanceStepSql('publish', "'publish'")}`,
-    setParams: [args.batchId],
   });
 }

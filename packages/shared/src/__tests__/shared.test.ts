@@ -19,7 +19,6 @@ import {
   CandidateItemSchema,
   CandidateViewSchema,
   CreateCapabilityBodySchema,
-  CreatePublishBatchItemSchema,
   SelectionDraftSchema,
   selectionCandidateIds,
   isSubsetSelection,
@@ -273,9 +272,9 @@ describe('sanitizeErrorBody / sanitizeErrorEnvelope (Codex r2 P1 #2: 白名单�
 });
 
 describe('constants', () => {
-  it('exposes 23 required idempotency scopes（含草稿 bootstrap draft.create）', () => {
-    expect(REQUIRED_IDEMPOTENCY_SCOPES.length).toBe(23);
-    expect(new Set(REQUIRED_IDEMPOTENCY_SCOPES).size).toBe(23);
+  it('exposes 20 required idempotency scopes（含草稿 bootstrap draft.create；批量发布 3 个 scope 已随功能移除）', () => {
+    expect(REQUIRED_IDEMPOTENCY_SCOPES.length).toBe(20);
+    expect(new Set(REQUIRED_IDEMPOTENCY_SCOPES).size).toBe(20);
   });
 
   it('exposes exactly 12 SSE event types', () => {
@@ -336,22 +335,6 @@ describe('zod DTOs', () => {
         capabilityId: 'cap1',
         fromVersionId: 'v1',
       }).success,
-    ).toBe(false);
-  });
-
-  it('CreatePublishBatchItem enforces EXACTLY-one of candidateId/versionId (B-29 单一真源 refine)', () => {
-    const key = { idempotencyKey: 'k' };
-    // 恰好一个 → 通过（candidate-only / version-only 两正常路径）。
-    expect(CreatePublishBatchItemSchema.safeParse({ ...key, candidateId: 'c1' }).success).toBe(
-      true,
-    );
-    expect(CreatePublishBatchItemSchema.safeParse({ ...key, versionId: 'v1' }).success).toBe(true);
-    // 零个（都缺）→ 拒（原行为保持）。
-    expect(CreatePublishBatchItemSchema.safeParse({ ...key }).success).toBe(false);
-    // 两者都给 → 拒（反向破坏守门：旧 `!(candidateId ?? versionId)` 会放行此形态、错配版本）。
-    expect(
-      CreatePublishBatchItemSchema.safeParse({ ...key, candidateId: 'c1', versionId: 'v1' })
-        .success,
     ).toBe(false);
   });
 

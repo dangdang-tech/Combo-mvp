@@ -22,11 +22,8 @@ export const IdempotencyScope = {
   STRUCTURE_START: 'structure.start',
   MANIFEST_PATCH: 'manifest.patch',
   MANIFEST_REGENERATE_FIELD: 'manifest.regenerate_field',
-  // —— 发布 50 ——
+  // —— 发布 50（批量发布 scope 已随功能移除，2026-07-04）——
   PUBLISH_VERSION: 'publish.version',
-  PUBLISH_BATCH_CREATE: 'publish_batch.create',
-  PUBLISH_BATCH_ITEM: 'publish_batch.item',
-  PUBLISH_BATCH_ITEM_RETRY: 'publish_batch.item.retry',
   PUBLISH_REVIEW: 'publish.review',
   // —— 社交 60（§11.F：POST/DELETE 都带 key）——
   SOCIAL_FOLLOW: 'social.follow',
@@ -50,7 +47,7 @@ export const IdempotencyOptionalScope = {
 export type IdempotencyOptionalScopeValue =
   (typeof IdempotencyOptionalScope)[keyof typeof IdempotencyOptionalScope];
 
-/** 全部必带 scope 列表（23 项，供守门核验「无写端点遗漏 scope」；含草稿 bootstrap draft.create）。 */
+/** 全部必带 scope 列表（20 项，供守门核验「无写端点遗漏 scope」；含草稿 bootstrap draft.create）。 */
 export const REQUIRED_IDEMPOTENCY_SCOPES: IdempotencyScopeValue[] = Object.values(IdempotencyScope);
 
 /** idempotency_keys.status（脊柱 §4 行为矩阵）。 */

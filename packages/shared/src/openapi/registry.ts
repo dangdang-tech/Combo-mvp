@@ -66,8 +66,6 @@ import {
   PublishResultSchema,
   MarketCardSchema,
   PublicationViewSchema,
-  CreatePublishBatchBodySchema,
-  PublishBatchViewSchema,
   ReviewBodySchema,
 } from '../domains/publish.js';
 import {
@@ -146,8 +144,6 @@ const NAMED_SCHEMAS: Array<[string, z.ZodTypeAny]> = [
   ['PublishResult', PublishResultSchema],
   ['MarketCard', MarketCardSchema],
   ['PublicationView', PublicationViewSchema],
-  ['CreatePublishBatchBody', CreatePublishBatchBodySchema],
-  ['PublishBatchView', PublishBatchViewSchema],
   ['ReviewBody', ReviewBodySchema],
   // —— 工作台/主页 60 ——
   ['DashboardSummary', DashboardSummarySchema],

@@ -11,7 +11,7 @@ export interface OutboxEmit<P = unknown> {
   /** 业务幂等键（§2.3 模板，如 `published:{versionId}:{manifestHash}`）。同一事件只一行。 */
   eventId: string;
   topic: OutboxTopic;
-  /** 聚合根 id（capabilityId/jobId/versionId/batchId）。 */
+  /** 聚合根 id（capabilityId/jobId/versionId）。 */
   aggregateId: string;
   payload: P;
   traceId?: string;

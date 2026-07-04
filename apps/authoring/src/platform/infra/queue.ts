@@ -53,7 +53,7 @@ function connectionFor(env: Env): ConnectionOptions {
 /** 仅四类有 processor（脊柱 §6.3）。用 string[] 视角做成员判定（避免 tuple 收窄参数类型）。 */
 const ACTIVE_TYPES: readonly string[] = ACTIVE_JOB_TYPES;
 
-/** 每个 JobType 一条队列（本期注册 import/extract/structure/publish_batch；后两类不注册）。 */
+/** 每个 JobType 一条队列（本期注册 import/extract/structure；冻结两类不注册）。 */
 const queues = new Map<JobType, Queue>();
 
 function queueFor(env: Env, jobType: JobType): Queue {

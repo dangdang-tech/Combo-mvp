@@ -4,19 +4,13 @@ import { IdSchema, IsoDateTimeSchema } from './ids.js';
 import { ErrorBodySchema } from './errors.js';
 import { ProgressViewSchema } from './progress.js';
 
-/** 任务类型。后两类（evaluate/runtime_gen）本期 schema 冻结、不注册 processor（脊柱 §6.3）。 */
-export const JobTypeSchema = z.enum([
-  'import',
-  'extract',
-  'structure',
-  'publish_batch',
-  'evaluate',
-  'runtime_gen',
-]);
+/** 任务类型。后两类（evaluate/runtime_gen）本期 schema 冻结、不注册 processor（脊柱 §6.3）。
+ *  publish_batch 已随批量发布功能整体移除（2026-07-04，发布入口占位待 Task 重构）。 */
+export const JobTypeSchema = z.enum(['import', 'extract', 'structure', 'evaluate', 'runtime_gen']);
 export type JobType = z.infer<typeof JobTypeSchema>;
 
-/** 本期实际注册 processor 的四类（脊柱 §6.3）。 */
-export const ACTIVE_JOB_TYPES = ['import', 'extract', 'structure', 'publish_batch'] as const;
+/** 本期实际注册 processor 的三类（脊柱 §6.3）。 */
+export const ACTIVE_JOB_TYPES = ['import', 'extract', 'structure'] as const;
 
 /**
  * BullMQ 队列命名空间前缀（生产端 Queue 与消费端 Worker 必须用同一值，否则 job 入队但 worker 收不到）。

@@ -103,9 +103,7 @@ describe('remove 跨全部 job 类型清理触发（Codex P1-r4：冷 map 也清
     // 不相干 job 不动。
     expect(importQ.jobs.has(bullJobId('other' as never, 1))).toBe(true);
     // 证明确实按【全部活动类型】惰性补建了队列（而非只扫进程内已建的；旧实现这里一条都不会 new）。
-    expect(newQueueCalls).toEqual(
-      expect.arrayContaining(['import', 'extract', 'structure', 'publish_batch']),
-    );
+    expect(newQueueCalls).toEqual(expect.arrayContaining(['import', 'extract', 'structure']));
   });
 
   it('业务 job 属某一类型，其它类型空队列被扫但无害（不抛、不误删）', async () => {
@@ -119,8 +117,6 @@ describe('remove 跨全部 job 类型清理触发（Codex P1-r4：冷 map 也清
 
     expect(structureQ.jobs.has(bullJobId('job-s' as never, 7))).toBe(false);
     // 其余三类型队列被惰性补建、扫了空队列、无异常。
-    expect(newQueueCalls).toEqual(
-      expect.arrayContaining(['import', 'extract', 'structure', 'publish_batch']),
-    );
+    expect(newQueueCalls).toEqual(expect.arrayContaining(['import', 'extract', 'structure']));
   });
 });

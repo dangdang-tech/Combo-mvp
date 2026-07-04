@@ -1,9 +1,9 @@
 // 00 · 草稿生命周期仓储自检（脊柱 §8，开工总纲 §5.0；Codex phase4c P0-2）。忠实假 PG，无真 PG。
 //   重点（铁律）：
 //     · createDraft —— 建 active/import 行，返回完整 DraftView（含 draftId）。
-//     · 逐步推进回填（snapshot/extract/batch）—— owner 守卫（非本人/不存在/非 active → 0 行不命中）、单次写、
+//     · 逐步推进回填（snapshot/extract）—— owner 守卫（非本人/不存在/非 active → 0 行不命中）、单次写、
 //       current_step 永不倒退（已到更后步不被早步打回）、幂等（重投同值安全）。
-//     · readDraftView —— 完整读（step/selection/snapshot/extract/version/capability/batch + stepProgress）；
+//     · readDraftView —— 完整读（step/selection/snapshot/extract/version/capability + stepProgress）；
 //       owner 守卫（非本人/非 active → null）。
 //   反向破坏：非本人回填 → 0 行（不命中、不串台）；structure 步后再 import 回填 → current_step 不退回 import。
 import { describe, it, expect } from 'vitest';
@@ -12,7 +12,6 @@ import {
   readDraftView,
   backfillDraftSnapshot,
   backfillDraftExtract,
-  backfillDraftBatch,
 } from '../modules/drafts/repo.js';
 
 interface DraftRowF {
@@ -27,7 +26,6 @@ interface DraftRowF {
   selection: unknown;
   version_id: string | null;
   capability_id: string | null;
-  batch_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,7 +67,6 @@ class DraftsFakeDb {
         selection: null,
         version_id: null,
         capability_id: null,
-        batch_id: null,
         created_at: now,
         updated_at: now,
       };
@@ -111,9 +108,6 @@ class DraftsFakeDb {
       } else if (sql.includes('extract_job_id = $3')) {
         r.extract_job_id = p3 as string;
         this.advanceStep(r, 'extract');
-      } else if (sql.includes('batch_id = $3')) {
-        r.batch_id = p3 as string;
-        this.advanceStep(r, 'publish');
       }
       r.updated_at = new Date(Date.now()).toISOString();
       this.updateRowCounts.push(1);
@@ -140,7 +134,6 @@ class DraftsFakeDb {
       selection: r.selection,
       version_id: r.version_id,
       capability_id: r.capability_id,
-      batch_id: r.batch_id,
       created_at: r.created_at,
       updated_at: r.updated_at,
     };
@@ -179,7 +172,6 @@ describe('drafts-repo · bootstrap createDraft（§8）', () => {
     expect(view.snapshotId).toBeUndefined();
     expect(view.extractJobId).toBeUndefined();
     expect(view.versionId).toBeUndefined();
-    expect(view.batchId).toBeUndefined();
   });
 
   it('title 缺省 → NULL（DraftView 不带 title 键）', async () => {
@@ -222,20 +214,6 @@ describe('drafts-repo · 逐步推进回填（owner 守卫 + 单次写 + current
     const view = await readDraftView(db, { draftId: draft.id, ownerUserId: OWNER });
     expect(view?.extractJobId).toBe('job-extract-1');
     expect(view?.currentStep).toBe('extract');
-  });
-
-  it('batch 回填：batchId 焊上 + current_step 进 publish', async () => {
-    const db = new DraftsFakeDb();
-    const draft = await createDraft(db, { ownerUserId: OWNER });
-    const ok = await backfillDraftBatch(db, {
-      draftId: draft.id,
-      ownerUserId: OWNER,
-      batchId: 'batch-1',
-    });
-    expect(ok).toBe(true);
-    const view = await readDraftView(db, { draftId: draft.id, ownerUserId: OWNER });
-    expect(view?.batchId).toBe('batch-1');
-    expect(view?.currentStep).toBe('publish');
   });
 
   it('owner 守卫（反向破坏）：非本人回填 → 0 行不命中、不串台（草稿 current_step/落点不变）', async () => {
@@ -289,7 +267,7 @@ describe('drafts-repo · 逐步推进回填（owner 守卫 + 单次写 + current
 });
 
 describe('drafts-repo · readDraftView 完整读（续传 hydrate）', () => {
-  it('完整落点全读出（snapshot/extract/version/capability/batch + selection + step）', async () => {
+  it('完整落点全读出（snapshot/extract/version/capability + selection + step）', async () => {
     const db = new DraftsFakeDb();
     const draft = await createDraft(db, { ownerUserId: OWNER });
     await backfillDraftSnapshot(db, {
@@ -303,18 +281,16 @@ describe('drafts-repo · readDraftView 完整读（续传 hydrate）', () => {
       extractJobId: 'job-x',
     });
     db.setStructure(draft.id, 'ver-1', 'cap-1'); // structure 步产物（create-capability 已回填）。
-    await backfillDraftBatch(db, { draftId: draft.id, ownerUserId: OWNER, batchId: 'batch-1' });
 
     const view = await readDraftView(db, { draftId: draft.id, ownerUserId: OWNER });
     expect(view).toMatchObject({
       id: draft.id,
       status: 'active',
-      currentStep: 'publish',
+      currentStep: 'structure',
       snapshotId: 'snap-1',
       extractJobId: 'job-x',
       versionId: 'ver-1',
       capabilityId: 'cap-1',
-      batchId: 'batch-1',
     });
     expect(view?.selection).toEqual({ mode: 'single', candidateId: 'cand-x' });
   });

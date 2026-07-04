@@ -5,13 +5,14 @@ import { ALL_ENDPOINTS } from '../bootstrap/routes.js';
 import { requireIdempotency } from '../platform/middleware/idempotency.js';
 
 describe('route registry self-check', () => {
-  it('registers the full contract endpoint set (57 in-scope callable endpoints)', () => {
+  it('registers the full contract endpoint set (54 in-scope callable endpoints)', () => {
     // contracts/_index.md §2.1–§2.8 全端点一览：52 + 草稿生命周期 2（POST /drafts bootstrap、
     //   GET /drafts/:draftId 续传 hydrate，脊柱 §8 / Codex phase4c P0-2）+ B-21 引导二进制下发 1
     //   （GET /import/connect/bin/:asset，公开匿名引导产物、与 /connect/script 同级）
-    //   + issue #5 导入恢复读端点 2（GET /import/jobs/active、GET /import/jobs/:jobId）= 57 个本期可调用端点
+    //   + issue #5 导入恢复读端点 2（GET /import/jobs/active、GET /import/jobs/:jobId）
+    //   - 批量发布 3 端点（B-29 已随功能移除，2026-07-04）= 54 个本期可调用端点
     // （§2.9 的 3 个消费链路读端点本期范围外、仅冻结、不计入）。
-    expect(ALL_ENDPOINTS).toHaveLength(57);
+    expect(ALL_ENDPOINTS).toHaveLength(54);
   });
 
   it('every endpoint has a method and an absolute url path', () => {
@@ -31,9 +32,9 @@ describe('route registry self-check', () => {
     }
   });
 
-  it('all 23 required idempotency scopes are valid scope values', () => {
-    // 守门：23 写端点 scope 表完整（脊柱 §4.1；含草稿 bootstrap draft.create）。requireIdempotency 接受每个 scope 不抛。
-    expect(REQUIRED_IDEMPOTENCY_SCOPES).toHaveLength(23);
+  it('all 20 required idempotency scopes are valid scope values', () => {
+    // 守门：20 写端点 scope 表完整（脊柱 §4.1；含草稿 bootstrap draft.create；批量发布 3 scope 已随功能移除）。
+    expect(REQUIRED_IDEMPOTENCY_SCOPES).toHaveLength(20);
     for (const scope of REQUIRED_IDEMPOTENCY_SCOPES as IdempotencyScopeValue[]) {
       expect(() => requireIdempotency(scope)).not.toThrow();
     }
