@@ -1,23 +1,27 @@
-// B-12 · worker→api 进度桥（redis_hot Streams，70 §8.1 / 脊柱 §5）。
-//   worker 进程 XADD 帧到 events:{kind}:{id}；api 进程 SSE 端点把它按 12 帧协议下发。
+// worker→api 进度桥（redis_hot Streams）。
+//   worker 进程 XADD 帧到 events:task:{taskId}；api 进程 SSE 端点把它按帧协议下发。
 //   - publish：XADD（MAXLEN ~ 上限裁剪窗口），entry id = SSE id（Last-Event-ID 续传锚点）。
 //   - replaySince：XRANGE (lastId, +]，判定是否仍在窗口内（超窗 = 该 id 已被 MAXLEN 裁掉 → 走 snapshot 重置）。
-//   stream key 形如 events:job:{jobId}；XADD 用「* 」自动生成单调 entry id（ms-seq，时间有序）。
-// redis_hot 用 allkeys-lru：流条目尽力而为、超窗即重置（snapshot 是真源），不影响断点续传正确性（脊柱 §5.4）。
+// redis_hot 用 allkeys-lru：流条目尽力而为、超窗即重置（tasks.meta.progress 快照是真源），不影响断点续传正确性。
 import type { Redis } from 'ioredis';
 import type { EventStreamPort, SSEEventType, SSEFrame } from '@cb/shared';
 import type { ReplayResult } from './sse.js';
-import type { JobEventBridge } from '../jobs/types.js';
 
-/** 每条 job 流保留的最大条目数（MAXLEN ~ 近似裁剪；超窗的旧 id 重连走 snapshot，脊柱 §5.4）。 */
+/** 任务事件桥：worker 产出的帧经此进 redis_hot Streams（→ api SSE 端点下发）。 */
+export interface TaskEventBridge {
+  /** XADD 一帧到任务流，返回 entry id（= SSE id）。失败不抛（推流尽力而为）。 */
+  publish(taskId: string, frame: { event: SSEEventType; payload: unknown }): Promise<string | null>;
+}
+
+/** 每条任务流保留的最大条目数（MAXLEN ~ 近似裁剪；超窗的旧 id 重连走 snapshot 重置）。 */
 export const STREAM_MAXLEN = 1_000;
 
-/** 流条目 TTL（秒）：任务完成后流不必长留（snapshot/jobs.progress 才是恢复真源）。 */
+/** 流条目 TTL（秒）：任务完成后流不必长留（tasks.meta.progress 才是恢复真源）。 */
 export const STREAM_TTL_SEC = 3_600;
 
-/** job 流 key（kind=job，脊柱 §9 流类型）。structure 流另走 events:structure:{versionId}（Phase 3 结构化接）。 */
-export function jobStreamKey(jobId: string): string {
-  return `events:job:${jobId}`;
+/** 任务流 key。 */
+export function taskStreamKey(taskId: string): string {
+  return `events:task:${taskId}`;
 }
 
 /** 把 ioredis XRANGE 的返回 [id, [f1,v1,f2,v2,...]] 解析成 SSEFrame。 */
@@ -41,11 +45,11 @@ function parseEntry(id: string, fields: string[]): SSEFrame | null {
 }
 
 /**
- * redis_hot Streams 事件桥。同时实现 EventStreamPort（端口契约，70 §8.1）与 JobEventBridge（worker 侧）。
+ * redis_hot Streams 事件桥。同时实现 EventStreamPort（端口契约）与 TaskEventBridge（worker 侧）。
  *   - api 进程：用 replaySince 做 Last-Event-ID 窗口补发（SSE 端点 opts.replaySince 注入）。
- *   - worker 进程：用 publish 把 progress/subtask/item/field/done/error 帧推上来。
+ *   - worker 进程：用 publish 把 state_snapshot/progress/item-appended/error/done 帧推上来。
  */
-export class RedisEventStream implements EventStreamPort, JobEventBridge {
+export class RedisEventStream implements EventStreamPort, TaskEventBridge {
   constructor(private readonly redis: Redis) {}
 
   /** XADD 一帧到任意流 key（EventStreamPort）。返回 entry id（= SSE id）。 */
@@ -66,15 +70,15 @@ export class RedisEventStream implements EventStreamPort, JobEventBridge {
     return id ?? '';
   }
 
-  /** worker 推一帧到 job 流（JobEventBridge）。失败吞掉不抛（推流尽力而为，jobs.progress 才是真源）。 */
+  /** worker 推一帧到任务流（TaskEventBridge）。失败吞掉不抛（推流尽力而为，tasks.meta.progress 才是真源）。 */
   async publish(
-    jobId: string,
+    taskId: string,
     frame: { event: SSEEventType; payload: unknown },
   ): Promise<string | null> {
     try {
-      return await this.xadd(jobStreamKey(jobId), { event: frame.event, data: frame.payload });
+      return await this.xadd(taskStreamKey(taskId), { event: frame.event, data: frame.payload });
     } catch {
-      return null; // 推流失败不阻断 worker（已落 jobs.progress；前端可靠靠 snapshot）。
+      return null; // 推流失败不阻断 worker（快照已落库；前端可靠靠 snapshot）。
     }
   }
 
@@ -83,11 +87,15 @@ export class RedisEventStream implements EventStreamPort, JobEventBridge {
    *   SSE 建流走 snapshot 路径时，先取此 id，再 loadSnapshot，再从此 id 起 XREAD BLOCK 持续订阅——
    *   gap-free：此 id 之后 XADD 的帧必被订阅捕获；snapshot 与订阅间可能重叠一两帧（前端按 percent/状态幂等吸收，不漏即可）。
    */
-  async latestId(jobId: string): Promise<string> {
+  async latestId(taskId: string): Promise<string> {
     try {
-      const raw = (await this.redis.xrevrange(jobStreamKey(jobId), '+', '-', 'COUNT', 1)) as Array<
-        [string, string[]]
-      >;
+      const raw = (await this.redis.xrevrange(
+        taskStreamKey(taskId),
+        '+',
+        '-',
+        'COUNT',
+        1,
+      )) as Array<[string, string[]]>;
       return raw[0]?.[0] ?? '0-0';
     } catch {
       return '0-0'; // 拿不到 → 从头订阅（保守，宁可重叠不漏，绝不裸转圈）。
@@ -103,14 +111,14 @@ export class RedisEventStream implements EventStreamPort, JobEventBridge {
    *   返回的 Promise 在订阅结束（abort）后 resolve。
    */
   async subscribe(
-    jobId: string,
+    taskId: string,
     fromId: string,
     onFrame: (frame: SSEFrame) => void,
     signal: AbortSignal,
     blockMs = 15_000,
   ): Promise<void> {
     if (signal.aborted) return;
-    const key = jobStreamKey(jobId);
+    const key = taskStreamKey(taskId);
     // 独立阻塞连接：XREAD BLOCK 独占，不碰共享 redisHot（否则会阻塞别的 redisHot 调用）。
     const conn = this.redis.duplicate();
     let lastId = fromId;
@@ -158,8 +166,8 @@ export class RedisEventStream implements EventStreamPort, JobEventBridge {
    *     - 流为空 / 最小 id 已 > lastEventId（被 MAXLEN 裁掉）→ 超窗 → inWindow=false → 调用方走 snapshot 重置。
    *     - 否则 inWindow=true，返回 (lastEventId, +] 增量帧（exclusive 用 '(' 前缀）。
    */
-  async replaySince(jobId: string, lastEventId: string): Promise<ReplayResult> {
-    const key = jobStreamKey(jobId);
+  async replaySince(taskId: string, lastEventId: string): Promise<ReplayResult> {
+    const key = taskStreamKey(taskId);
     try {
       // 流最早条目：判超窗。XINFO STREAM → first-entry。
       const info = (await this.redis.xinfo('STREAM', key)) as unknown[];

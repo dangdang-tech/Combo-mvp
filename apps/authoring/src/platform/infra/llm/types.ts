@@ -82,6 +82,8 @@ export interface NormalizedLlmError {
 /** 一次审计记账(落 audit_llm_calls；非计费真源，70 §8.3)。 */
 export interface LlmAuditRecord {
   ownerUserId?: string;
+  /** 归属任务（audit_llm_calls.task_id，松引用）；网关内部降级记账可空。 */
+  taskId?: string;
   anonKey?: string;
   taskClass: string;
   model: string;

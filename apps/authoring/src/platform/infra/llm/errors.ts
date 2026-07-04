@@ -65,7 +65,8 @@ export function normalizeLlmError(err: unknown): NormalizedLlmError {
     err instanceof Anthropic.APIUserAbortError ||
     (err instanceof Error && err.name === 'AbortError')
   ) {
-    return { kind: 'fatal', code: ErrorCode.CLIENT_CANCELLED, internalMessage };
+    // 取消是控制流不是上游故障；内部 code 归 INTERNAL（仅日志），fatal 不重试。
+    return { kind: 'fatal', code: ErrorCode.INTERNAL, internalMessage };
   }
 
   // 429：限流，可重试，带 retry-after。

@@ -27,7 +27,7 @@ export interface QueryableDb {
 
 const INSERT_AUDIT_SQL = `
   INSERT INTO audit_llm_calls
-    (owner_user_id, anon_key, task_class, model,
+    (owner_user_id, task_id, task_class, model,
      prompt_tokens, completion_tokens, cost_micros, degraded, retries, trace_id)
   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `;
@@ -45,7 +45,7 @@ export function createPgAuditSink(
       try {
         await db.query(INSERT_AUDIT_SQL, [
           entry.ownerUserId ?? null,
-          entry.anonKey ?? null,
+          entry.taskId ?? null,
           entry.taskClass,
           entry.model,
           entry.promptTokens,
