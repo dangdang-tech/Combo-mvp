@@ -1,11 +1,10 @@
-// B-04 · Redis 双实例端口（70 §8.1）。redis_queue（BullMQ）/ redis_hot（streams/lock/限流）。
-import type { JobId, TraceId } from '../core/ids.js';
-import type { JobType } from '../core/jobs.js';
+// Redis 双实例端口。redis_queue（BullMQ）/ redis_hot（streams/lock/限流）。
+import type { TraceId } from '../core/ids.js';
 
-/** redis_queue：BullMQ 抽象（app 层用）。jobId 去重 + 带 fence。 */
+/** redis_queue：队列抽象。queue 是队列名（如 'task-pipeline'），taskId 去重。 */
 export interface QueuePort {
-  enqueue(jobType: JobType, jobId: JobId, fenceToken: number, traceId?: TraceId): Promise<void>;
-  remove(jobId: JobId): Promise<void>;
+  enqueue(queue: string, taskId: string, traceId?: TraceId): Promise<void>;
+  remove(queue: string, taskId: string): Promise<void>;
 }
 
 /** redis_hot streams：SSE 源 + outbox 桥接不冲突。 */
