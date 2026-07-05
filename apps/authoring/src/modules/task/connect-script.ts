@@ -168,10 +168,13 @@ for i, content in enumerate(parts):
     except Exception as e:
         fail('网络异常：%s。重跑本命令续传。' % e)
     landed = data['data']['landed']
+    remote_total = data['data'].get('total', total)
     if IS_TTY:
-        draw_bar('上传', landed, total, '%d / %d 片' % (landed, total), landed == total)
+        draw_bar('上传', landed, remote_total, '%d / %d 片' % (landed, remote_total), data['data'].get('complete') or landed == remote_total)
     else:
-        log('已上传 %d / %d 片' % (landed, total))
+        log('已上传 %d / %d 片' % (landed, remote_total))
+    if data['data'].get('complete'):
+        break
 end_bar()
 
 if IS_TTY:

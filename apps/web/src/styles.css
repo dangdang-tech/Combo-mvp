@@ -93,6 +93,12 @@ body {
   font-family: var(--cb-font-brand);
   font-weight: 900;
   line-height: 1;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+
+.cb-brand-mark__letter {
+  display: inline-block;
+  letter-spacing: 0;
 }
 
 .cb-brand-mark__dot {
@@ -149,11 +155,11 @@ body {
 /* 展开态隐去徽标，仅留 Combo 字标；收起态再现身做品牌锚。底色/字体来自 cb-brand-mark。 */
 .cb-shell__brand-mark {
   display: none;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: 9px;
+  font-size: 14px;
 }
 
 .cb-shell__brand-word {
@@ -304,7 +310,16 @@ body {
 .cb-shell__content {
   padding: 24px;
   flex: 1;
+  width: 100%;
   max-width: 1200px;
+}
+
+.cb-section-kicker {
+  margin: 0 0 6px;
+  color: var(--cb-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 /* 窄屏响应式：自动收窄为图标态宽度的栅格（结构不变）。 */
@@ -665,10 +680,74 @@ body {
 }
 
 /* ---------- 任务列表 ---------- */
+.cb-tasks-panel {
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius-card);
+  background: var(--cb-surface);
+  overflow: hidden;
+}
+
+.cb-tasks-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--cb-border);
+}
+
+.cb-tasks-panel__title {
+  margin: 0;
+  font-family: var(--cb-font-serif);
+  font-size: 18px;
+}
+
+.cb-tasks-panel__hint {
+  margin: 6px 0 0;
+  color: var(--cb-muted);
+  font-size: 13px;
+}
+
+.cb-tasks-panel__body {
+  padding: 0 20px 18px;
+}
+
+.cb-tasks-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.cb-tasks-stats div {
+  min-width: 72px;
+  border: 1px solid var(--cb-border);
+  border-radius: 6px;
+  background: var(--cb-surface-raised);
+  padding: 8px 10px;
+}
+
+.cb-tasks-stats dt {
+  color: var(--cb-muted);
+  font-size: 12px;
+}
+
+.cb-tasks-stats dd {
+  margin: 3px 0 0;
+  color: var(--cb-fg);
+  font-family: var(--cb-font-serif);
+  font-size: 20px;
+  line-height: 1;
+}
+
 .cb-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+.cb-tasks-table {
+  margin-top: 4px;
 }
 
 .cb-table th {
@@ -684,6 +763,87 @@ body {
   border-bottom: 1px solid var(--cb-border);
   padding: 12px;
   vertical-align: top;
+}
+
+.cb-table tbody tr:hover {
+  background: var(--cb-surface-raised);
+}
+
+.cb-upload-card {
+  padding: 18px 20px;
+}
+
+.cb-upload-card--waiting {
+  border-color: color-mix(in srgb, var(--cb-accent) 26%, var(--cb-border));
+  background: linear-gradient(90deg, var(--cb-accent-soft), var(--cb-surface) 34%);
+}
+
+.cb-upload-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cb-upload-card__top .cb-section-kicker {
+  margin: 0;
+}
+
+.cb-upload-card__meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--cb-skeleton);
+  margin: 10px 0 8px;
+}
+
+.cb-upload-card__meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cb-accent);
+  transition: width 0.18s ease;
+}
+
+.cb-upload-card__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.cb-upload-card__steps span {
+  position: relative;
+  border: 1px solid var(--cb-border);
+  border-radius: 6px;
+  background: var(--cb-surface);
+  color: var(--cb-muted);
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 8px 10px 8px 24px;
+}
+
+.cb-upload-card__steps span::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cb-muted);
+  transform: translateY(-50%);
+}
+
+.cb-upload-card__steps span.is-active {
+  border-color: color-mix(in srgb, var(--cb-accent) 38%, var(--cb-border));
+  color: var(--cb-fg);
+  background: var(--cb-surface-raised);
+}
+
+.cb-upload-card__steps span.is-active::before {
+  background: var(--cb-accent);
 }
 
 .cb-task-link {

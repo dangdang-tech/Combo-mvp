@@ -37,6 +37,9 @@ export function TasksPage(): ReactElement {
   });
 
   const tasks = tasksQuery.data?.pages.flatMap((p) => p.items) ?? [];
+  const runningCount = tasks.filter((task) => task.status === 'running').length;
+  const completedCount = tasks.filter((task) => task.status === 'succeeded').length;
+  const capabilityCount = tasks.reduce((sum, task) => sum + task.capabilityCount, 0);
 
   let listBody: ReactNode;
   if (tasksQuery.isPending) {
@@ -61,7 +64,7 @@ export function TasksPage(): ReactElement {
   } else {
     listBody = (
       <>
-        <table className="cb-table">
+        <table className="cb-table cb-tasks-table">
           <thead>
             <tr>
               <th scope="col">任务</th>
@@ -121,7 +124,32 @@ export function TasksPage(): ReactElement {
       )}
       {created && <PairingCard created={created} onDismiss={() => setCreated(null)} />}
 
-      {listBody}
+      <div className="cb-tasks-panel">
+        <div className="cb-tasks-panel__header">
+          <div>
+            <p className="cb-section-kicker">任务列表</p>
+            <h3 className="cb-tasks-panel__title">上传与提取队列</h3>
+            <p className="cb-tasks-panel__hint">
+              每个任务都会保留上传进度、提取状态和生成的能力数量。
+            </p>
+          </div>
+          <dl className="cb-tasks-stats" aria-label="任务概览">
+            <div>
+              <dt>运行中</dt>
+              <dd>{runningCount}</dd>
+            </div>
+            <div>
+              <dt>已完成</dt>
+              <dd>{completedCount}</dd>
+            </div>
+            <div>
+              <dt>能力项</dt>
+              <dd>{capabilityCount}</dd>
+            </div>
+          </dl>
+        </div>
+        <div className="cb-tasks-panel__body">{listBody}</div>
+      </div>
     </section>
   );
 }

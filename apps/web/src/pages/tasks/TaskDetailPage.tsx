@@ -145,19 +145,61 @@ export function TaskDetailPage(): ReactElement {
 /** 上传阶段卡：分片进度 + 配对提示。 */
 function UploadCard({ task }: { task: TaskView }): ReactElement {
   const waiting = task.currentStep === 'upload' && task.status === 'running';
+  const hasProgress = task.upload.partsExpected != null && task.upload.partsExpected > 0;
+  const progressRatio = hasProgress
+    ? Math.min(1, task.upload.partsLanded / task.upload.partsExpected!)
+    : 0;
+  const detailLine = uploadDetailLine(task);
   return (
-    <div className="cb-card">
-      <h3 className="cb-card__title">上传</h3>
-      <p className="cb-card__line">{uploadProgressLabel(task)}</p>
+    <div className={`cb-card cb-upload-card${waiting ? ' cb-upload-card--waiting' : ''}`}>
+      <div className="cb-upload-card__top">
+        <p className="cb-section-kicker">上传</p>
+        <span className={`cb-status-badge is-${taskStatusVariant(task)}`}>
+          {uploadProgressLabel(task)}
+        </span>
+      </div>
+      <h3 className="cb-card__title">
+        {waiting && !hasProgress ? '等待本机助手连接' : '正在接收对话历史'}
+      </h3>
+      {hasProgress && (
+        <div
+          className="cb-upload-card__meter"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progressRatio * 100)}
+        >
+          <span style={{ width: `${progressRatio * 100}%` }} />
+        </div>
+      )}
+      <p className="cb-card__line">{detailLine}</p>
       {waiting && (
-        <p className="cb-card__hint">
-          在本机运行建任务时给出的连接命令即可开始上传（配对码有效期至{' '}
-          {formatTime(task.upload.pairingExpiresAt)}
-          ）；配对码过期或丢失时，回任务列表重新建一个任务。
-        </p>
+        <>
+          <div className="cb-upload-card__steps" aria-label="上传步骤">
+            <span className="is-active">连接助手</span>
+            <span>上传分片</span>
+            <span>进入提取</span>
+          </div>
+          <p className="cb-card__hint">
+            在本机运行建任务时给出的连接命令即可开始上传（配对码有效期至{' '}
+            {formatTime(task.upload.pairingExpiresAt)}
+            ）；配对码过期或丢失时，回任务列表重新建一个任务。
+          </p>
+        </>
       )}
     </div>
   );
+}
+
+function uploadDetailLine(task: TaskView): string {
+  const { partsExpected, partsLanded, status } = task.upload;
+  if (status === 'processed') {
+    if (partsExpected != null) return `已接收 ${partsLanded} / ${partsExpected} 片，进入提取阶段`;
+    return '上传内容已接收，进入提取阶段';
+  }
+  if (partsExpected != null) return `本机助手正在上传 ${partsLanded} / ${partsExpected} 片`;
+  if (partsLanded > 0) return `本机助手已上传 ${partsLanded} 片`;
+  return '运行连接命令后，这里会显示实时分片进度';
 }
 
 /** 提取阶段卡：SSE 实时进度（进度条 + 子任务点亮 + 慢提示 + 重连安抚）。 */
