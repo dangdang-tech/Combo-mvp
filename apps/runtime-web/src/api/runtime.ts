@@ -22,10 +22,16 @@ export function useCapabilities() {
   });
 }
 
-export function useSessions() {
+/** 我的会话列表；给 capabilityId 时只取该能力下的会话（对话页侧栏按能力隔离）。 */
+export function useSessions(capabilityId?: string) {
   return useQuery({
-    queryKey: ['sessions'],
-    queryFn: () => apiGet<SessionView[]>('/runtime/sessions'),
+    queryKey: ['sessions', capabilityId ?? null],
+    queryFn: () =>
+      apiGet<SessionView[]>(
+        capabilityId
+          ? `/runtime/sessions?capabilityId=${encodeURIComponent(capabilityId)}`
+          : '/runtime/sessions',
+      ),
   });
 }
 

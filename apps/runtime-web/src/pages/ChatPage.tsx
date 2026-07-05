@@ -35,7 +35,12 @@ export function ChatPage() {
 
   return (
     <div className="rt-app">
-      <SessionSidebar activeSessionId={sessionId} returnTo={returnTo} />
+      <SessionSidebar
+        activeSessionId={sessionId}
+        capabilityId={detail?.capability.id}
+        capabilityName={detail?.capability.name}
+        returnTo={returnTo}
+      />
       <div className="rt-main">
         <section className="rt-conversation">
           {detail && (
