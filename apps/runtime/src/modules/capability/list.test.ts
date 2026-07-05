@@ -59,68 +59,74 @@ function poolReturning(rows: unknown[]): Pool {
 
 describe('listPublishedCapabilities', () => {
   it('dedupes repeated publishes from the same creator snapshot and candidate slug', async () => {
-    const items = await listPublishedCapabilities(poolReturning([
-      row({
-        capabilityId: 'cap-new',
-        slug: 'cap-new',
-        name: '融资材料深度审查',
-        sourceSlug: 'goal',
-      }),
-      row({
-        capabilityId: 'cap-old',
-        slug: 'cap-old',
-        name: '融资文档深度审查',
-        sourceSlug: 'goal',
-      }),
-      row({
-        capabilityId: 'cap-md',
-        slug: 'cap-md',
-        name: '文档与代码一致性核查',
-        sourceSlug: 'md',
-      }),
-    ]));
+    const items = await listPublishedCapabilities(
+      poolReturning([
+        row({
+          capabilityId: 'cap-new',
+          slug: 'cap-new',
+          name: '融资材料深度审查',
+          sourceSlug: 'goal',
+        }),
+        row({
+          capabilityId: 'cap-old',
+          slug: 'cap-old',
+          name: '融资文档深度审查',
+          sourceSlug: 'goal',
+        }),
+        row({
+          capabilityId: 'cap-md',
+          slug: 'cap-md',
+          name: '文档与代码一致性核查',
+          sourceSlug: 'md',
+        }),
+      ]),
+    );
 
     expect(items.map((item) => item.capabilityId)).toEqual(['cap-new', 'cap-md']);
   });
 
   it('keeps same candidate slug from different snapshots separate', async () => {
-    const items = await listPublishedCapabilities(poolReturning([
-      row({
-        capabilityId: 'cap-new',
-        slug: 'cap-new',
-        name: '融资材料深度审查',
-        snapshotId: 'snapshot-2',
-        sourceSlug: 'goal',
-      }),
-      row({
-        capabilityId: 'cap-old',
-        slug: 'cap-old',
-        name: '融资文档深度审查',
-        snapshotId: 'snapshot-1',
-        sourceSlug: 'goal',
-      }),
-    ]));
+    const items = await listPublishedCapabilities(
+      poolReturning([
+        row({
+          capabilityId: 'cap-new',
+          slug: 'cap-new',
+          name: '融资材料深度审查',
+          snapshotId: 'snapshot-2',
+          sourceSlug: 'goal',
+        }),
+        row({
+          capabilityId: 'cap-old',
+          slug: 'cap-old',
+          name: '融资文档深度审查',
+          snapshotId: 'snapshot-1',
+          sourceSlug: 'goal',
+        }),
+      ]),
+    );
 
     expect(items.map((item) => item.capabilityId)).toEqual(['cap-new', 'cap-old']);
   });
 
   it('falls back to creator and normalized card name when source lineage is unavailable', async () => {
-    const items = await listPublishedCapabilities(poolReturning([
-      row({
-        capabilityId: 'cap-new',
-        slug: 'cap-new',
-        name: ' 文档与代码一致性核查 ',
-        snapshotId: null,
-        sourceSlug: null,
-      }),
-      row({
-        capabilityId: 'cap-old',
-        slug: 'cap-old',
-        name: '文档与代码一致性核查',
-        snapshotId: null,
-        sourceSlug: null,
-      }),
-    ]));
+    const items = await listPublishedCapabilities(
+      poolReturning([
+        row({
+          capabilityId: 'cap-new',
+          slug: 'cap-new',
+          name: ' 文档与代码一致性核查 ',
+          snapshotId: null,
+          sourceSlug: null,
+        }),
+        row({
+          capabilityId: 'cap-old',
+          slug: 'cap-old',
+          name: '文档与代码一致性核查',
+          snapshotId: null,
+          sourceSlug: null,
+        }),
+      ]),
+    );
 
     expect(items.map((item) => item.capabilityId)).toEqual(['cap-new']);
   });

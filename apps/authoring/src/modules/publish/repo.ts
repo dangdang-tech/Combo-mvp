@@ -181,7 +181,10 @@ export function profileSlugForAccount(account: string, ownerUserId: string): str
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   if (normalized.length > 0) return normalized;
-  return `creator-${ownerUserId.replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase()}`;
+  return `creator-${ownerUserId
+    .replace(/[^a-z0-9]/gi, '')
+    .slice(0, 12)
+    .toLowerCase()}`;
 }
 
 async function ensureCreatorProfileInTx(tx: Tx, args: PublishGateArgs): Promise<void> {

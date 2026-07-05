@@ -293,13 +293,16 @@ export function CapabilitiesStepPage(): ReactElement {
     setAttempt((a) => a + 1);
   }, []);
 
-  const handleToggle = useCallback((candidateId: string): void => {
-    const next = new Set(selectedIds);
-    if (next.has(candidateId)) next.delete(candidateId);
-    else next.add(candidateId);
-    setSelectedIds(next);
-    setSelection(selectionFromIds(next));
-  }, [selectedIds, selectionFromIds, setSelection]);
+  const handleToggle = useCallback(
+    (candidateId: string): void => {
+      const next = new Set(selectedIds);
+      if (next.has(candidateId)) next.delete(candidateId);
+      else next.add(candidateId);
+      setSelectedIds(next);
+      setSelection(selectionFromIds(next));
+    },
+    [selectedIds, selectionFromIds, setSelection],
+  );
 
   const handleToggleAll = useCallback((): void => {
     const readyIds = candidates.filter((c) => c.status === 'ready').map((c) => c.id);
@@ -503,8 +506,7 @@ export function CapabilitiesStepPage(): ReactElement {
           ? {
               ...current,
               phase: 'error',
-              error:
-                trialSse.done?.error?.error.userMessage ?? '生成试用能力失败，请稍后重试。',
+              error: trialSse.done?.error?.error.userMessage ?? '生成试用能力失败，请稍后重试。',
             }
           : current,
       );

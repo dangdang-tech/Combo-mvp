@@ -79,7 +79,11 @@ export async function prepareCandidateDraft(
           });
         } catch (err) {
           if (err instanceof CreateCapabilityFencedError) return { kind: 'fencedOut' };
-          return { kind: 'failed', error: createCapabilityErrorBody(err, args.traceId), missingFields: null };
+          return {
+            kind: 'failed',
+            error: createCapabilityErrorBody(err, args.traceId),
+            missingFields: null,
+          };
         }
       }
     } else {
@@ -136,7 +140,11 @@ export async function prepareCandidateDraft(
       versionId = created.versionId;
     } catch (err) {
       if (err instanceof CreateCapabilityFencedError) return { kind: 'fencedOut' };
-      return { kind: 'failed', error: createCapabilityErrorBody(err, args.traceId), missingFields: null };
+      return {
+        kind: 'failed',
+        error: createCapabilityErrorBody(err, args.traceId),
+        missingFields: null,
+      };
     }
   }
 

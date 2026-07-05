@@ -264,9 +264,9 @@ describe('CapabilitiesStepPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '试用 →' }));
 
     await waitFor(() =>
-      expect(
-        mock.calls.some((c) => c.url === '/api/v1/runtime/trial-chains/cap1/sessions'),
-      ).toBe(true),
+      expect(mock.calls.some((c) => c.url === '/api/v1/runtime/trial-chains/cap1/sessions')).toBe(
+        true,
+      ),
     );
     expect(mock.calls.some((c) => c.url === '/api/v1/capabilities')).toBe(false);
     expect(mock.calls.some((c) => c.url.includes('/versions/v1/structure'))).toBe(false);

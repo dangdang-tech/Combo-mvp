@@ -75,9 +75,7 @@ describe('公开创作者主页 /c/:slug', () => {
       'href',
       '/a/cap-1wyyplq',
     );
-    expect(fm.calls.map((c) => c.url)).toEqual([
-      '/api/v1/creators/by-slug/gw61jgf0fij4/profile',
-    ]);
+    expect(fm.calls.map((c) => c.url)).toEqual(['/api/v1/creators/by-slug/gw61jgf0fij4/profile']);
   });
 
   it('加载失败时出人话错误态，不把 slug 当创作者名伪造', async () => {

@@ -47,9 +47,7 @@ import {
   CandidateLandingFencedOut,
   type CandidateRowForFinal,
 } from './repo.js';
-import {
-  prepareCandidateDraft as defaultPrepareCandidateDraft,
-} from '../structure/index.js';
+import { prepareCandidateDraft as defaultPrepareCandidateDraft } from '../structure/index.js';
 import {
   clusterSegments,
   scoreCandidates,

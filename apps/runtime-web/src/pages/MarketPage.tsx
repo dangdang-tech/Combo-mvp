@@ -115,7 +115,9 @@ export function MarketPage() {
         <h2 className="rt-market__section-title">能力市集</h2>
         {caps.isLoading && <div className="rt-empty">加载中…</div>}
         {caps.isError && <div className="rt-empty rt-empty--error">能力列表加载失败，请刷新。</div>}
-        {caps.data && caps.data.items.length === 0 && <EmptyMarket mode={emptyMode} onModeChange={setEmptyMode} />}
+        {caps.data && caps.data.items.length === 0 && (
+          <EmptyMarket mode={emptyMode} onModeChange={setEmptyMode} />
+        )}
         <div className="rt-card-grid">
           {caps.data?.items.map((c) => {
             const linked = sessionsBySlug.get(c.slug);
@@ -131,11 +133,7 @@ export function MarketPage() {
                 <div className="rt-card__meta">
                   <span className="rt-card__byline">{c.byline}</span>
                   <span>
-                    {linked?.consume
-                      ? '已有正式会话'
-                      : linked?.trial
-                        ? '已有试用会话'
-                        : '尚未运行'}
+                    {linked?.consume ? '已有正式会话' : linked?.trial ? '已有试用会话' : '尚未运行'}
                   </span>
                 </div>
                 <div className="rt-card__foot">
@@ -181,7 +179,8 @@ function EmptyMarket({ mode, onModeChange }: EmptyMarketProps) {
         <div className="rt-market-empty__kicker">当前没有公开发布的能力</div>
         <h3 className="rt-market-empty__title">市集还在等第一个真实能力上架</h3>
         <p className="rt-market-empty__copy">
-          能力只会在创作者确认发布后出现在这里。未发布的候选、原始 session 和证据不会进入外部用户视角。
+          能力只会在创作者确认发布后出现在这里。未发布的候选、原始 session
+          和证据不会进入外部用户视角。
         </p>
         <div className="rt-market-empty__actions" aria-label="空市集操作">
           <a className="rt-btn rt-btn--accent" href="/create/import">

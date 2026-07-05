@@ -442,9 +442,7 @@ describe('selectPublishableCandidates — 发布准备质量门槛', () => {
     expect(founderQuality.externalValue).toBeGreaterThanOrEqual(0.25);
     expect(feeQuality.oneOffPenalty).toBeGreaterThan(0);
 
-    expect(selectPublishableCandidates([oneOffFeeQuery, founderReview])).toEqual([
-      founderReview,
-    ]);
+    expect(selectPublishableCandidates([oneOffFeeQuery, founderReview])).toEqual([founderReview]);
   });
 
   it('保留高证据的长期维护类 creator 工作流，避免真实长 snapshot 候选归零', () => {

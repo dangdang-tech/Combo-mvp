@@ -42,7 +42,11 @@ export function PublicCreatorPage(): ReactElement {
       <HeroSection hero={profile.hero} />
       {profile.metrics ? <MetricsBandSection metrics={profile.metrics} meta={meta} /> : null}
       {profile.density ? (
-        <DensitySection density={profile.density} loadingMore={false} onLoadMore={() => undefined} />
+        <DensitySection
+          density={profile.density}
+          loadingMore={false}
+          onLoadMore={() => undefined}
+        />
       ) : null}
       {profile.heatmapEnabled && profile.heatmap ? (
         <HeatmapSection heatmap={profile.heatmap} />

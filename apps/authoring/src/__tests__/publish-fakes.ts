@@ -114,7 +114,9 @@ export class PublishFakeDb implements Queryable {
       versions: new Map([...this.versions].map(([k, v]) => [k, { ...v }])),
       tiers: this.tiers.map((t) => ({ ...t })),
       publications: new Map([...this.publications].map(([k, v]) => [k, { ...v }])),
-      profiles: new Map([...this.profiles].map(([k, v]) => [k, { ...v, identity_tags: [...v.identity_tags] }])),
+      profiles: new Map(
+        [...this.profiles].map(([k, v]) => [k, { ...v, identity_tags: [...v.identity_tags] }]),
+      ),
       outbox: this.outbox.map((o) => ({ ...o })),
     };
   }

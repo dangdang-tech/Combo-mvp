@@ -55,7 +55,9 @@ describe('公开能力页 /a/:slug', () => {
 
     renderAt('/a/doc-check');
 
-    expect(await screen.findByRole('heading', { name: '文档与代码一致性核查' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: '文档与代码一致性核查' }),
+    ).toBeInTheDocument();
     expect(screen.getByText('对照真实代码逐条验证技术文档')).toBeInTheDocument();
     expect(screen.getByText('把要核查的技术文档全文粘贴在这里')).toBeInTheDocument();
     expect(screen.getByText('把这份 API 文档和源码一起粘进来。')).toBeInTheDocument();

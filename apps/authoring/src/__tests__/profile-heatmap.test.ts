@@ -101,10 +101,7 @@ describe('aggregateHeatmap（从 happened_at 聚合，不依赖 usage）', () =>
 
   it('兼容真实 pg 返回的 Date 对象，不把公开主页主聚合打成 500', () => {
     const hm = aggregateHeatmap({
-      happenedAt: [
-        new Date('2026-06-15T01:00:00.000Z'),
-        new Date('2026-06-15T09:00:00.000Z'),
-      ],
+      happenedAt: [new Date('2026-06-15T01:00:00.000Z'), new Date('2026-06-15T09:00:00.000Z')],
       today: TODAY,
       range: 'half_year',
       enabled: true,

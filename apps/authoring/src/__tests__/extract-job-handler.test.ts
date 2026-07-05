@@ -242,9 +242,7 @@ describe('extract handler — 正常链路（B-22）', () => {
     expect(cap.items).toHaveLength(2);
     expect(db.candidates.size).toBe(2);
     expect([...db.candidates.values()].map((c) => c.segment_count).sort()).toEqual([2, 6]);
-    expect(
-      cap.progress.some((p) => p.phrase.includes('已筛选出 2 / 22 个可发布候选')),
-    ).toBe(true);
+    expect(cap.progress.some((p) => p.phrase.includes('已筛选出 2 / 22 个可发布候选'))).toBe(true);
     expect((res.result as { candidateCount: number }).candidateCount).toBe(2);
   });
 

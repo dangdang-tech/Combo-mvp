@@ -42,16 +42,19 @@ function poolCapturing(rows: unknown[], seen: { sql?: string; params?: unknown[]
 
 describe('getPublishedCapability', () => {
   it('loads only the public view for a published capability', async () => {
-    const loaded = await getPublishedCapability(poolReturning([
-      {
-        capability_id: 'cap-1',
-        slug: 'short-video-script',
-        version: '0.1.0',
-        status: 'published',
-        manifest: MANIFEST,
-        manifest_hash: manifestHash(MANIFEST),
-      },
-    ]), 'short-video-script');
+    const loaded = await getPublishedCapability(
+      poolReturning([
+        {
+          capability_id: 'cap-1',
+          slug: 'short-video-script',
+          version: '0.1.0',
+          status: 'published',
+          manifest: MANIFEST,
+          manifest_hash: manifestHash(MANIFEST),
+        },
+      ]),
+      'short-video-script',
+    );
 
     expect(loaded?.view.instructions).toBe(MANIFEST.instructions);
     expect(loaded?.view.manifestHash).toBe(manifestHash(MANIFEST));
@@ -73,25 +76,30 @@ describe('getPublishedCapability', () => {
     expect(seen.sql).toContain('c2.creator_user_id = c.creator_user_id');
     expect(seen.sql).toContain('cc2.snapshot_id = cc.snapshot_id');
     expect(seen.sql).toContain('cc2.slug = cc.slug');
-    expect(seen.sql).toContain('COALESCE(ml2.updated_at, v2.updated_at) > COALESCE(ml.updated_at, v.updated_at)');
+    expect(seen.sql).toContain(
+      'COALESCE(ml2.updated_at, v2.updated_at) > COALESCE(ml.updated_at, v.updated_at)',
+    );
   });
 });
 
 describe('getDraftCapabilityForTrial', () => {
   it('loads an owned complete draft version for creator trial', async () => {
-    const loaded = await getDraftCapabilityForTrial(poolReturning([
+    const loaded = await getDraftCapabilityForTrial(
+      poolReturning([
+        {
+          capability_id: 'cap-1',
+          slug: 'short-video-script',
+          version: '0.1.0',
+          status: 'draft',
+          manifest: MANIFEST,
+        },
+      ]),
       {
-        capability_id: 'cap-1',
-        slug: 'short-video-script',
-        version: '0.1.0',
-        status: 'draft',
-        manifest: MANIFEST,
+        capabilityId: 'cap-1',
+        versionId: 'ver-1',
+        creatorUserId: 'user-1',
       },
-    ]), {
-      capabilityId: 'cap-1',
-      versionId: 'ver-1',
-      creatorUserId: 'user-1',
-    });
+    );
 
     expect(loaded?.view.status).toBe('draft');
     expect(loaded?.view.manifestHash).toBe(manifestHash(MANIFEST));
@@ -100,19 +108,22 @@ describe('getDraftCapabilityForTrial', () => {
   });
 
   it('rejects incomplete draft manifests', async () => {
-    const loaded = await getDraftCapabilityForTrial(poolReturning([
+    const loaded = await getDraftCapabilityForTrial(
+      poolReturning([
+        {
+          capability_id: 'cap-1',
+          slug: 'short-video-script',
+          version: '0.1.0',
+          status: 'draft',
+          manifest: { ...MANIFEST, name: '' },
+        },
+      ]),
       {
-        capability_id: 'cap-1',
-        slug: 'short-video-script',
-        version: '0.1.0',
-        status: 'draft',
-        manifest: { ...MANIFEST, name: '' },
+        capabilityId: 'cap-1',
+        versionId: 'ver-1',
+        creatorUserId: 'user-1',
       },
-    ]), {
-      capabilityId: 'cap-1',
-      versionId: 'ver-1',
-      creatorUserId: 'user-1',
-    });
+    );
 
     expect(loaded).toBeNull();
   });

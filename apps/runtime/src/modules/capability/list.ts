@@ -16,12 +16,9 @@ function normalizeCardName(name: string): string {
 
 function dedupeKey(row: MarketListingRow, card: MarketCard): string {
   if (row.source_snapshot_id && row.source_candidate_slug) {
-    return [
-      'source',
-      row.creator_user_id,
-      row.source_snapshot_id,
-      row.source_candidate_slug,
-    ].join(':');
+    return ['source', row.creator_user_id, row.source_snapshot_id, row.source_candidate_slug].join(
+      ':',
+    );
   }
   const normalizedName = normalizeCardName(card.name);
   if (normalizedName) {
