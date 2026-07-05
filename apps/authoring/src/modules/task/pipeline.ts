@@ -288,6 +288,8 @@ async function execute(
       summary: draft.summary,
       kind: draft.kind,
       instructions: draft.instructions,
+      inputs: draft.inputs,
+      starterPrompts: draft.starterPrompts,
       meta: draft.meta,
     });
     const storageKey = capabilityDefinitionKey(capabilityId);

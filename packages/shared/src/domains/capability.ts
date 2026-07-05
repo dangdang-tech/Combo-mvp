@@ -20,6 +20,20 @@ export type CapabilityView = z.infer<typeof CapabilityViewSchema>;
 
 // ---------- 可运行定义（MinIO 里的完整对象）----------
 /**
+ * 试用开场表单的一个输入字段（提取时由 LLM 建议）。
+ * type：string 单行文本 / text 多行文本 / number 数字 / enum 从 options 里单选。
+ */
+export const CapabilityInputFieldSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  type: z.enum(['string', 'text', 'number', 'enum']),
+  required: z.boolean().default(false),
+  /** 仅 type=enum 时使用的候选项。 */
+  options: z.array(z.string().min(1)).optional(),
+});
+export type CapabilityInputField = z.infer<typeof CapabilityInputFieldSchema>;
+
+/**
  * 能力项的完整可运行定义。version 字段留给格式演进：试用端遇到不认识的版本
  * 直接报「能力格式过新，请升级」而不是猜着解析。
  */
@@ -30,6 +44,10 @@ export const CapabilityDefinitionSchema = z.object({
   kind: z.string(),
   /** 注入试用 agent 的系统提示词：这个能力「怎么干活」的全部知识。 */
   instructions: z.string().min(1),
+  /** 试用开场表单字段（可为空：表单退化为只有一个自由输入框）。 */
+  inputs: z.array(CapabilityInputFieldSchema).default([]),
+  /** 开场提示语（试用页一键填入的起手句）。 */
+  starterPrompts: z.array(z.string().min(1)).default([]),
   /** 附加元信息（提取时的统计、示例等），结构随需要演进。 */
   meta: z.record(z.string(), z.unknown()).default({}),
 });

@@ -3,6 +3,7 @@
 // （runtime 依赖 pi 包，对齐其类型），共享层只做「是数组」的形状约束透传。
 import { z } from 'zod';
 import { IdSchema, IsoDateTimeSchema } from '../core/ids.js';
+import { CapabilityInputFieldSchema } from './capability.js';
 
 export const SessionStatusSchema = z.enum(['active', 'closed']);
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
@@ -58,6 +59,9 @@ export const SessionDetailSchema = z.object({
     name: z.string(),
     summary: z.string(),
     kind: z.string(),
+    /** 开场表单字段与提示语，来自 MinIO 里的能力定义（定义读不出时为空数组，页面退化为自由输入）。 */
+    inputs: z.array(CapabilityInputFieldSchema),
+    starterPrompts: z.array(z.string()),
   }),
   messages: z.array(MessageViewSchema),
   artifacts: z.array(ArtifactViewSchema),

@@ -48,8 +48,8 @@ pi 是执行层，事件翻成标准 AG-UI 事件：`RUN_STARTED → TEXT_MESSAG
 全部在 `/api/v1` 前缀下、全部要求登录态（SSE 仅同源 Cookie）：
 
 - `GET  /runtime/capabilities` 试用入口列表（我的全部 + 已发布的）
-- `POST /runtime/sessions` 开会话 · `GET /runtime/sessions` 我的会话列表
-- `GET  /runtime/sessions/:id` 详情（消息按 seq + 产物 + 能力摘要）
+- `POST /runtime/sessions` 开会话 · `GET /runtime/sessions` 我的会话列表（可带 `?capabilityId=` 只列某个能力下的会话）
+- `GET  /runtime/sessions/:id` 详情（消息按 seq + 产物 + 能力摘要，含定义里的开场表单字段与提示语）
 - `POST /runtime/sessions/:id/messages` 发消息（异步生成立即返回；生成中再发 → 409 SESSION_BUSY）
 - `POST /runtime/sessions/:id/interrupt` 打断当前轮
 - `GET  /runtime/sessions/:id/stream` 流式生成事件（SSE，心跳 15s，Last-Event-ID 续传）

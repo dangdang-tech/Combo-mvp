@@ -12,7 +12,7 @@
 - `pairing.ts` 实现配对上传：verifyPairingCode 验码验期验状态；landPart 把分片写进 MinIO、登记进 uploads.parts，收齐时拼接完整原始件、流转任务到 extract 步并入队，并发收齐由乐观锁收敛为恰好入队一次。
 - `connect-script.ts` 渲染助手脚本：外层 shell 守门，内嵌 python3 上传器扫描本机 ~/.claude/projects 和 ~/.codex/sessions 的会话文件，打包切片后逐片上传，终端画进度条。
 - `session-parse.ts` 是纯函数解析器：把 Claude / Codex 两种对话历史格式（JSONL，一行一个 JSON 对象）解析成标准「段」，含来源嗅探、坏行容错、按内容哈希去重、打包文本按分隔行拆回各文件。
-- `extract.ts` 做大模型归纳：把去敏段落分批喂给 LLM 网关，用括号配平扫描容错解析模型输出的 JSON 数组，跨批按名去重；上游降级或全空时落确定性兜底能力，并逐次调用记审计。
+- `extract.ts` 做大模型归纳：把去敏段落分批喂给 LLM 网关，用括号配平扫描容错解析模型输出的 JSON 数组（每个能力项除名字、摘要、系统提示词外还让模型建议试用开场表单字段和开场提示语，坏条目单独丢弃），跨批按名去重；上游降级或全空时落确定性兜底能力，并逐次调用记审计。
 - `pipeline.ts` 是 worker 执行体：领租约防双跑，依次执行拉原文、解析切段、脱敏、大模型归纳、逐项落库、清理原始件，进度同时写 tasks.meta.progress 和推 Redis 流，成败终态都经 transition 写回。
 - `sse.ts` 是任务进度 SSE handler：建流前做 owner 校验，先取流锚点再读库里的进度快照发首帧，断线重连在窗口内补增量，建流瞬间已终态则补终态帧后立即关流。
 

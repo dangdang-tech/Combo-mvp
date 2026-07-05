@@ -1,7 +1,7 @@
 // LLM 提取：把切好的去敏段落分批喂 LLM 网关，归纳出结构化能力列表（name/summary/kind/instructions）。
 //   - 上游降级/坏输出/无 key：落到确定性兜底（按段落标题生成占位能力），保证链路可跑、不裸抛。
 //   - 每次 LLM 调用记 audit_llm_calls（经注入的 LlmAuditSink，归属 task_id）。
-import type { LlmGatewayPort } from '@cb/shared';
+import type { CapabilityInputField, LlmGatewayPort } from '@cb/shared';
 import type { LlmAuditSink } from '../../platform/infra/llm/types.js';
 import {
   firstNonEmptyLine,
@@ -23,6 +23,10 @@ export interface CapabilityDraft {
   summary: string;
   kind: string;
   instructions: string;
+  /** 试用开场表单字段（LLM 建议；坏条目在解析时丢弃，可为空）。 */
+  inputs: CapabilityInputField[];
+  /** 开场提示语（试用页一键填入）。 */
+  starterPrompts: string[];
   meta: Record<string, unknown>;
 }
 
@@ -142,13 +146,18 @@ export function buildPrompt(segments: ExtractSegment[]): string {
   return (
     `下面是一位用户与 coding agent 的若干段去敏工作会话。请从中归纳出可复用的「能力项」——` +
     `每个能力项是一类可以反复交给 AI 执行的工作流（不是复述单次会话）。\n` +
-    `每个能力项输出四个字段：\n` +
+    `每个能力项输出六个字段：\n` +
     `  name：中文能力名，≤12 字，像一个 mini 应用的名字；\n` +
     `  summary：一句话说明这个能力帮用户完成什么；\n` +
     `  kind：能力类型，从「写作 / 编码 / 分析 / 结构化文档 / 工作流」中选一个；\n` +
     `  instructions：给执行这个能力的 AI 的系统提示词（怎么干活的完整知识，含步骤与输出要求），200-800 字。\n` +
+    `  inputs：使用者开始前需要填的输入字段，1-4 个，每个是 ` +
+    `{"key":"英文小写下划线","label":"中文名","type":"string|text|number|enum","required":true|false,"options":["仅 enum 给候选"]}；` +
+    `只列真正影响产出的字段，没有就给空数组。\n` +
+    `  starterPrompts：1-3 条开场提示语，替使用者说出第一句需求（中文完整句子）。\n` +
     `只归纳确有支撑的能力，最多 4 个；没有可归纳的就输出空数组。\n` +
-    `严格输出 JSON 数组：[{"name":"...","summary":"...","kind":"...","instructions":"..."}]，不要其它内容。\n\n` +
+    `严格输出 JSON 数组：[{"name":"...","summary":"...","kind":"...","instructions":"...",` +
+    `"inputs":[...],"starterPrompts":["..."]}]，不要其它内容。\n\n` +
     body
   );
 }
@@ -174,10 +183,52 @@ export function parseCapabilityJson(text: string): CapabilityDraft[] | null {
       summary: typeof o.summary === 'string' ? o.summary.trim().slice(0, 200) : '',
       kind: typeof o.kind === 'string' ? o.kind.trim().slice(0, 20) : '工作流',
       instructions,
+      inputs: coerceInputFields(o.inputs),
+      starterPrompts: coerceStarterPrompts(o.starterPrompts),
       meta: { origin: 'llm' },
     });
   }
   return out;
+}
+
+const INPUT_FIELD_TYPES = new Set(['string', 'text', 'number', 'enum']);
+
+/** 容错收敛 LLM 给的开场表单字段：坏条目丢弃、enum 无候选降级为 string、最多 4 个。 */
+export function coerceInputFields(raw: unknown): CapabilityInputField[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CapabilityInputField[] = [];
+  const seenKeys = new Set<string>();
+  for (const item of raw) {
+    if (out.length >= 4) break;
+    if (typeof item !== 'object' || item === null) continue;
+    const o = item as Record<string, unknown>;
+    const key = typeof o.key === 'string' ? o.key.trim().slice(0, 40) : '';
+    const label = typeof o.label === 'string' ? o.label.trim().slice(0, 40) : '';
+    if (!key || !label || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const options = Array.isArray(o.options)
+      ? o.options.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      : [];
+    let type = typeof o.type === 'string' && INPUT_FIELD_TYPES.has(o.type) ? o.type : 'string';
+    if (type === 'enum' && options.length === 0) type = 'string';
+    out.push({
+      key,
+      label,
+      type: type as CapabilityInputField['type'],
+      required: o.required === true,
+      ...(type === 'enum' ? { options: options.slice(0, 8) } : {}),
+    });
+  }
+  return out;
+}
+
+/** 容错收敛开场提示语：非字符串/空串丢弃，最多 3 条。 */
+export function coerceStarterPrompts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .map((v) => v.trim().slice(0, 200))
+    .slice(0, 3);
 }
 
 /** 从自由文本中提取第一个可解析的 JSON 数组（字符串感知的括号配平扫描）。 */
@@ -240,6 +291,8 @@ export function buildFallbackCapabilities(segments: ExtractSegment[]): Capabilit
         `你是执行「${title}」这类工作的助手。参考下面这段真实工作记录的做法，` +
         `按同样的思路完成用户交给你的同类任务，先澄清目标，再分步执行，最后给出结果核对清单。\n\n` +
         `参考记录（已去敏，节选）：\n${s.content.slice(0, 2000)}`,
+      inputs: [],
+      starterPrompts: [`帮我完成一个「${title}」类型的任务。`],
       meta: { origin: 'fallback' },
     };
   });

@@ -73,15 +73,20 @@ export async function createSession(
   return toSessionRow(row);
 }
 
-/** 我的会话列表，按 updated_at 降序。 */
-export async function listSessions(db: Queryable, ownerUserId: string): Promise<SessionRow[]> {
+/** 我的会话列表，按 updated_at 降序；给 capabilityId 时只列该能力下的会话（侧栏按能力隔离）。 */
+export async function listSessions(
+  db: Queryable,
+  ownerUserId: string,
+  capabilityId?: string,
+): Promise<SessionRow[]> {
   const res = await db.query<SessionDbRow>(
     `SELECT ${SESSION_COLUMNS}
        FROM sessions
       WHERE owner_user_id = $1
+        AND ($2::uuid IS NULL OR capability_id = $2)
       ORDER BY updated_at DESC
       LIMIT 100`,
-    [ownerUserId],
+    [ownerUserId, capabilityId ?? null],
   );
   return res.rows.map(toSessionRow);
 }

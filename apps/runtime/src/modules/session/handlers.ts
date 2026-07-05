@@ -1,10 +1,12 @@
 // 会话域 HTTP handler：薄壳——校验入参、owner 校验、调 repo/runner、包响应信封。
 // 非本人与不存在同样 404（不暴露存在性）。
 import type { FastifyReply, FastifyRequest, RouteHandlerMethod } from 'fastify';
+import { z } from 'zod';
 import {
   CreateSessionBodySchema,
   ErrorCode,
   SendMessageBodySchema,
+  type CapabilityInputField,
   type Envelope,
   type MessageView,
   type SessionDetail,
@@ -91,10 +93,15 @@ export function listSessionsHandler(): RouteHandlerMethod {
   return async function (req: FastifyRequest, reply: FastifyReply) {
     const userId = req.auth?.userId;
     if (!userId) return sendError(req, reply, ErrorCode.UNAUTHENTICATED);
+    // 可选按能力过滤（侧栏只列当前能力下的会话）；非 UUID 直接拒（防 SQL uuid cast 报 500）。
+    const { capabilityId } = req.query as { capabilityId?: string };
+    if (capabilityId !== undefined && !z.string().uuid().safeParse(capabilityId).success) {
+      return sendError(req, reply, ErrorCode.VALIDATION_FAILED);
+    }
 
     let sessions: SessionRow[];
     try {
-      sessions = await listSessions(req.server.infra.db, userId);
+      sessions = await listSessions(req.server.infra.db, userId, capabilityId);
     } catch (err) {
       req.log.error({ err, traceId: req.id }, 'list sessions failed');
       return sendError(req, reply, ErrorCode.INTERNAL);
@@ -114,7 +121,7 @@ export function getSessionDetailHandler(): RouteHandlerMethod {
   return async function (req: FastifyRequest, reply: FastifyReply) {
     const session = await requireOwnedSession(req, reply);
     if (!session) return reply;
-    const { db } = req.server.infra;
+    const { db, objectStore } = req.server.infra;
 
     try {
       const [capability, messages, artifacts] = await Promise.all([
@@ -130,9 +137,26 @@ export function getSessionDetailHandler(): RouteHandlerMethod {
         );
         return sendError(req, reply, ErrorCode.INTERNAL);
       }
+      // 开场表单字段与提示语在 MinIO 定义里；定义读不出不阻塞详情（退化为空数组，自由输入仍可用）。
+      let inputs: CapabilityInputField[] = [];
+      let starterPrompts: string[] = [];
+      try {
+        const loaded = await loadCapability(
+          db,
+          objectStore,
+          session.capabilityId,
+          session.ownerUserId,
+        );
+        if (loaded.kind === 'ok') {
+          inputs = loaded.definition.inputs;
+          starterPrompts = loaded.definition.starterPrompts;
+        }
+      } catch (err) {
+        req.log.warn({ err, traceId: req.id }, 'load definition for detail failed, degrading');
+      }
       const detail: SessionDetail = {
         session: toSessionView(session),
-        capability,
+        capability: { ...capability, inputs, starterPrompts },
         messages: messages.map((m) => ({
           id: m.id,
           seq: m.seq,

@@ -151,10 +151,16 @@ export class FakeDb implements Queryable, TxPool {
       this.sessions.set(row.id, row);
       return { rows: [{ ...row }] as R[], rowCount: 1 };
     }
-    if (s.includes('FROM sessions WHERE owner_user_id = $1 ORDER BY updated_at DESC')) {
+    if (
+      s.includes('FROM sessions WHERE owner_user_id = $1') &&
+      s.includes('ORDER BY updated_at DESC')
+    ) {
+      // 对齐真 SQL：$2 为 null 不过滤，否则只留该能力下的会话。
       const owner = params[0] as string;
+      const capabilityId = (params[1] ?? null) as string | null;
       const rows = [...this.sessions.values()]
         .filter((x) => x.owner_user_id === owner)
+        .filter((x) => capabilityId === null || x.capability_id === capabilityId)
         .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
         .slice(0, 100)
         .map((x) => ({ ...x }));

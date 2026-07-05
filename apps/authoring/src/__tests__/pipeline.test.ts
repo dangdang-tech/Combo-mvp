@@ -91,6 +91,33 @@ describe('parseCapabilityJson · 真实模型输出形态', () => {
     expect(parseCapabilityJson('[]')).toEqual([]);
     expect(parseCapabilityJson('没有可归纳的能力。')).toBeNull();
   });
+
+  it('开场表单字段与提示语：合法条目收下，坏条目丢弃不整批失败', () => {
+    const withExtras =
+      '[{"name":"竞品对比","summary":"s","kind":"分析","instructions":"i",' +
+      '"inputs":[' +
+      '{"key":"competitor","label":"竞品名","type":"string","required":true},' +
+      '{"key":"dims","label":"维度","type":"enum","options":["产品力","生态"]},' +
+      '{"key":"","label":"缺 key 丢弃","type":"string"},' +
+      '{"key":"bad_enum","label":"enum 无候选降级","type":"enum"},' +
+      '{"key":"weird","label":"未知类型当 string","type":"markdown"}' +
+      '],"starterPrompts":["帮我对比 Cursor。",42,""]}]';
+    const parsed = parseCapabilityJson(withExtras);
+    expect(parsed).toHaveLength(1);
+    expect(parsed![0]!.inputs).toEqual([
+      { key: 'competitor', label: '竞品名', type: 'string', required: true },
+      { key: 'dims', label: '维度', type: 'enum', required: false, options: ['产品力', '生态'] },
+      { key: 'bad_enum', label: 'enum 无候选降级', type: 'string', required: false },
+      { key: 'weird', label: '未知类型当 string', type: 'string', required: false },
+    ]);
+    expect(parsed![0]!.starterPrompts).toEqual(['帮我对比 Cursor。']);
+  });
+
+  it('缺 inputs/starterPrompts 的旧形态输出：两字段收敛为空数组', () => {
+    const parsed = parseCapabilityJson('[' + item + ']');
+    expect(parsed![0]!.inputs).toEqual([]);
+    expect(parsed![0]!.starterPrompts).toEqual([]);
+  });
 });
 
 describe('runPipeline · 成功路径', () => {
