@@ -1,7 +1,8 @@
-// 提取流水线自检：成功 / 降级兜底 / 失败 / 未认领四条路径。忠实假 PG + 假对象存储/LLM/事件流。
+// 提取流水线自检：成功 / 逐片与跨片去重 / 降级兜底 / 失败 / 未认领。忠实假 PG + 假对象存储/LLM/事件流。
 import { describe, it, expect } from 'vitest';
 import { createTask, transition } from '../modules/task/service.js';
-import { RAW_BUCKET, rawObjectKey } from '../modules/task/pairing.js';
+import { RAW_BUCKET, partObjectKey } from '../modules/task/pairing.js';
+import { BUNDLE_SENTINEL } from '../modules/task/session-parse.js';
 import { CAPABILITY_BUCKET, runPipeline, type PipelineDeps } from '../modules/task/pipeline.js';
 import { FakeDb, FakeLlm, FakeObjectStore, FakeStream, llmText } from './fakes.js';
 
@@ -33,8 +34,8 @@ interface Setup {
   taskId: string;
 }
 
-/** 造一个已收齐、停在 extract/running 的任务（raw.txt 已在桶里）。 */
-async function setup(llm: FakeLlm, raw?: string): Promise<Setup> {
+/** 造一个已收齐、停在 extract/running 的任务（分片已在桶里，不拼接完整原始件）。 */
+async function setup(llm: FakeLlm, partContents?: string[]): Promise<Setup> {
   const db = new FakeDb();
   const objectStore = new FakeObjectStore();
   const stream = new FakeStream();
@@ -42,17 +43,21 @@ async function setup(llm: FakeLlm, raw?: string): Promise<Setup> {
   if (out.kind !== 'ok') throw new Error('seed failed');
   const taskId = out.taskId;
 
-  const content =
-    raw ??
+  const parts = partContents ?? [
     claudeJsonl([
       { role: 'user', text: '帮我把这周的工作记录整理成周报' },
       { role: 'assistant', text: '好的，先列出本周完成事项……' },
-    ]);
-  await objectStore.putObject(RAW_BUCKET, rawObjectKey(taskId), new TextEncoder().encode(content));
+    ]),
+  ];
+  const landed: Record<string, string> = {};
+  for (let i = 0; i < parts.length; i++) {
+    const key = partObjectKey(taskId, i);
+    await objectStore.putObject(RAW_BUCKET, key, new TextEncoder().encode(parts[i]!));
+    landed[String(i)] = key;
+  }
   const upload = db.uploads.get(taskId)!;
   upload.status = 'raw';
-  upload.storage_key = rawObjectKey(taskId);
-  upload.parts = { total: 1, landed: { '0': `uploads/${taskId}/part-0` } };
+  upload.parts = { total: parts.length, landed };
   await transition(db, taskId, { step: 'upload', status: 'running' }, { step: 'extract' });
 
   const deps: Setup['deps'] = {
@@ -136,7 +141,7 @@ describe('runPipeline · 成功路径', () => {
     expect(def.version).toBe(1);
     expect(def.instructions).toContain('周报整理助手');
 
-    // 任务终态 + 上传合规态：原始件已删、打了清除戳。
+    // 任务终态 + 上传合规态：分片已删、打了清除戳。
     const task = deps.db.tasks.get(taskId)!;
     expect(task.status).toBe('succeeded');
     expect(task.retry_count).toBe(0);
@@ -144,7 +149,7 @@ describe('runPipeline · 成功路径', () => {
     expect(upload.status).toBe('processed');
     expect(upload.raw_purged_at).not.toBeNull();
     await expect(
-      deps.objectStore.getObjectText(RAW_BUCKET, rawObjectKey(taskId)),
+      deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0)),
     ).rejects.toThrow();
 
     // 帧序：快照/进度若干 + item-appended + 最后一帧 done(succeeded)。
@@ -165,6 +170,47 @@ describe('runPipeline · 成功路径', () => {
   });
 });
 
+describe('runPipeline · 逐片消费', () => {
+  it('多分片 + 打包多文件：全部解析，跨片重复会话只算一次', async () => {
+    // 分片 0：打包了会话 A、B 两个文件；分片 1：打包了 B（跨片重复）和 C。
+    const sessionA = claudeJsonl([
+      { role: 'user', text: '帮我把这周的工作记录整理成周报' },
+      { role: 'assistant', text: '好的，先列出本周完成事项……' },
+    ]);
+    const sessionB = claudeJsonl([
+      { role: 'user', text: '排查一下部署脚本为什么失败' },
+      { role: 'assistant', text: '先看退出码……' },
+    ]);
+    const sessionC = claudeJsonl([
+      { role: 'user', text: '给新同事写一份环境搭建指南' },
+      { role: 'assistant', text: '从依赖安装开始……' },
+    ]);
+    const bundle = (files: string[]) =>
+      files.map((f) => `${BUNDLE_SENTINEL}\n${f}\n`).join('');
+    const { deps, taskId } = await setup(new FakeLlm(() => llmText(LLM_CAPABILITIES)), [
+      bundle([sessionA, sessionB]),
+      bundle([sessionB, sessionC]),
+    ]);
+
+    expect(await runPipeline(deps, taskId, 'trace-1')).toBe('succeeded');
+
+    // 跨片去重后 3 段（A/B/C），重复 1 段；统计聚合落在上传 meta 里。
+    const meta = deps.db.uploads.get(taskId)!.meta as {
+      parseStats: { segmentCount: number; duplicateSegmentCount: number; messageCount: number };
+    };
+    expect(meta.parseStats.segmentCount).toBe(3);
+    expect(meta.parseStats.duplicateSegmentCount).toBe(1);
+    expect(meta.parseStats.messageCount).toBe(6);
+
+    // 两个分片都被清理。
+    for (const i of [0, 1]) {
+      await expect(
+        deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, i)),
+      ).rejects.toThrow();
+    }
+  });
+});
+
 describe('runPipeline · 降级兜底', () => {
   it('LLM 全程降级：走确定性兜底，仍产出可试用的能力项并成功终态', async () => {
     const { deps, taskId } = await setup(new FakeLlm()); // 缺省脚本恒 degraded
@@ -176,9 +222,9 @@ describe('runPipeline · 降级兜底', () => {
 });
 
 describe('runPipeline · 失败与竞态', () => {
-  it('原始件缺失：failed 终态 + last_error 人话 + done 帧带错误信封', async () => {
+  it('分片登记为空：failed 终态 + last_error 人话 + done 帧带错误信封', async () => {
     const { deps, taskId } = await setup(new FakeLlm(() => llmText(LLM_CAPABILITIES)));
-    deps.db.uploads.get(taskId)!.storage_key = null;
+    deps.db.uploads.get(taskId)!.parts = { total: 1, landed: {} };
     expect(await runPipeline(deps, taskId, 'trace-1')).toBe('failed');
 
     const task = deps.db.tasks.get(taskId)!;

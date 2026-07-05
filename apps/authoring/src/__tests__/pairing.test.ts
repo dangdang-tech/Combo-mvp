@@ -4,7 +4,7 @@ import { createTask } from '../modules/task/service.js';
 import {
   RAW_BUCKET,
   landPart,
-  rawObjectKey,
+  partObjectKey,
   verifyPairingCode,
   type LandPartDeps,
 } from '../modules/task/pairing.js';
@@ -43,7 +43,7 @@ describe('verifyPairingCode', () => {
 });
 
 describe('landPart', () => {
-  it('单片即收齐：拼出 raw.txt、uploads 置 raw、任务流转 extract、恰好入队一次', async () => {
+  it('单片即收齐：分片留在桶里不拼接、uploads 置 raw、任务流转 extract、恰好入队一次', async () => {
     const { deps, taskId, code } = await setup();
     const out = await landPart(deps, {
       pairingCode: code,
@@ -53,10 +53,16 @@ describe('landPart', () => {
       traceId: 'tr',
     });
     expect(out).toEqual({ kind: 'ok', result: { landed: 1, total: 1, complete: true } });
-    expect(await deps.objectStore.getObjectText(RAW_BUCKET, rawObjectKey(taskId))).toBe(
+    expect(await deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0))).toBe(
       'hello world',
     );
-    expect(deps.db.uploads.get(taskId)!.status).toBe('raw');
+    // 收齐不再产出拼接后的完整原始件（issue #25：全量拼接曾把 api 进程内存撑爆）。
+    await expect(
+      deps.objectStore.getObjectText(RAW_BUCKET, `uploads/${taskId}/raw.txt`),
+    ).rejects.toThrow();
+    const upload = deps.db.uploads.get(taskId)!;
+    expect(upload.status).toBe('raw');
+    expect(upload.storage_key).toBeNull();
     const task = deps.db.tasks.get(taskId)!;
     expect(task.current_step).toBe('extract');
     expect(task.status).toBe('running');
@@ -81,10 +87,12 @@ describe('landPart', () => {
     await send(0);
     const last = await send(1);
     expect(last).toMatchObject({ kind: 'ok', result: { landed: 3, total: 3, complete: true } });
-    // 按 index 序拼接。
-    expect(await deps.objectStore.getObjectText(RAW_BUCKET, rawObjectKey(taskId))).toBe(
-      'p0\np1\np2',
-    );
+    // 三个分片各自留在桶里，worker 逐片消费，不做拼接。
+    for (const i of [0, 1, 2]) {
+      expect(await deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, i))).toBe(
+        `p${i}`,
+      );
+    }
     expect(deps.queue.enqueued).toHaveLength(1); // 只入队一次
   });
 

@@ -366,9 +366,11 @@ services:
       OTEL_SERVICE_NAME: cb-authoring-worker
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
-    # OOM 护栏：worker 硬内存上限 + 崩溃自动重启。超限时是容器内可恢复的 OOM
-    # （任务失败 → 自动重启 → 开机 reconcile 重排失联任务），而非无上限撑爆 Docker VM /
-    # 拖垮宿主（曾致整机冻结 + 队列永久卡死）。
+      # 堆上限设在容器限额之下：逼近限额时 Node 先做激进 GC / 可控抛错，而不是被内核 OOM kill。
+      NODE_OPTIONS: --max-old-space-size=768
+    # OOM 护栏（issue #25）：流水线已逐片处理、内存有界，这里再设容器硬上限 + 崩溃自动重启，
+    # 防病态输入撑爆 Docker VM / 拖垮宿主；真被杀也自动重启，配合租约过期对账重排失联任务，
+    # 不再永久卡死。上限保留 2g 余量（非堆的缓冲/原生占用），堆本身由上面 NODE_OPTIONS 兜住。
     mem_limit: 2g
     mem_reservation: 1g
     restart: unless-stopped

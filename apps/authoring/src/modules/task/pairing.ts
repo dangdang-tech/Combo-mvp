@@ -1,7 +1,9 @@
 // 配对上传：助手凭配对码分片传输，收齐自动流转提取。
 //   - verifyPairingCode：验码 + 验期 + 验上传态（库里只有哈希，明文只在建任务响应出现过一次）。
-//   - landPart：分片内容写 MinIO → parts 登记（重复分片幂等覆盖）→ 收齐时拼接完整原始件、
-//     uploads 置 raw、transition 任务到 extract 步、入队。并发收齐由 transition 乐观锁保证只入队一次。
+//   - landPart：分片内容写 MinIO → parts 登记（重复分片幂等覆盖）→ 收齐时 uploads 置 raw、
+//     transition 任务到 extract 步、入队。并发收齐由 transition 乐观锁保证只入队一次。
+//   - 收齐时【不】把分片拼接成完整原始件：真实规模（上百分片、数百 MB）把全部分片读回
+//     内存 join 曾把 api 进程撑爆（issue #25）。worker 直接按 parts 登记表逐片消费。
 import type { ConnectUploadResult, ObjectStorePort, QueuePort } from '@cb/shared';
 import type { Queryable } from '../../platform/infra/db.js';
 import { TASK_PIPELINE_QUEUE } from '../../platform/infra/queue.js';
@@ -15,11 +17,6 @@ export const RAW_BUCKET = 'combo-raw' as const;
 /** 分片对象键。 */
 export function partObjectKey(taskId: string, partIndex: number): string {
   return `uploads/${taskId}/part-${partIndex}`;
-}
-
-/** 收齐后完整原始件对象键。 */
-export function rawObjectKey(taskId: string): string {
-  return `uploads/${taskId}/raw.txt`;
 }
 
 export type PairingVerification =
@@ -64,8 +61,8 @@ export type LandPartOutcome =
 
 /**
  * 落一片分片。重复分片幂等覆盖（同 index 再传只是重写同一个对象 + 重登记）。
- * 全部收齐时：按序拼接分片为完整原始件 raw.txt → uploads 置 raw → 任务流转 extract → 入队。
- * 两个分片并发「同时收齐」时拼接是幂等重写，流转与入队由 transition 乐观锁收敛为恰好一次。
+ * 全部收齐时：uploads 置 raw → 任务流转 extract → 入队；分片留在桶里由 worker 逐片消费。
+ * 两个分片并发「同时收齐」时置 raw 是幂等更新，流转与入队由 transition 乐观锁收敛为恰好一次。
  */
 export async function landPart(deps: LandPartDeps, input: LandPartInput): Promise<LandPartOutcome> {
   const verified = await verifyPairingCode(deps.db, input.pairingCode);
@@ -99,18 +96,9 @@ export async function landPart(deps: LandPartDeps, input: LandPartInput): Promis
     };
   }
 
-  // ③ 收齐：按序拼接分片 → 完整原始件（分片是按整文件打包的文本，换行拼接对 JSONL 无损）。
-  const pieces: string[] = [];
-  for (const partKey of state.orderedKeys) {
-    pieces.push(await deps.objectStore.getObjectText(RAW_BUCKET, partKey));
-  }
-  await deps.objectStore.putObject(
-    RAW_BUCKET,
-    rawObjectKey(taskId),
-    new TextEncoder().encode(pieces.join('\n')),
-    { contentType: 'text/plain; charset=utf-8' },
-  );
-  await markUploadRaw(deps.db, taskId, rawObjectKey(taskId));
+  // ③ 收齐：只置状态，不拼接。分片本身就是「整文件打包」的合法文本单元，
+  //    worker 按 parts 登记表逐片读取处理，api 进程不再持有全量内容。
+  await markUploadRaw(deps.db, taskId);
 
   // ④ 流转 upload→extract 并入队。乐观锁 0 行 = 另一并发分片已流转过，本次不重复入队。
   const flipped = await transition(

@@ -58,6 +58,12 @@ export interface ExtractOutput {
 const BATCH_SIZE = 8;
 /** 单段正文喂给 LLM 的截断长度。 */
 const SEGMENT_SAMPLE_CHARS = 1500;
+/**
+ * 本模块消费段正文的最长字符数（归纳采样 1500、兜底节选 2000，取两者最大值）。
+ * 流水线据此在去敏后立刻把段正文截断——超出部分任何下游都不会用到，提前丢弃是
+ * 逐片处理内存不涨的前提（真实规模上千段时全文驻留曾把 worker 撑爆，见 issue #25）。
+ */
+export const SEGMENT_CONTENT_MAX_CHARS = 2000;
 /** 全任务能力项上限（防 LLM 发散刷屏）。 */
 const MAX_CAPABILITIES = 12;
 /**
@@ -330,7 +336,7 @@ export function buildFallbackCapabilities(segments: ExtractSegment[]): Capabilit
       instructions:
         `你是执行「${title}」这类工作的助手。参考下面这段真实工作记录的做法，` +
         `按同样的思路完成用户交给你的同类任务，先澄清目标，再分步执行，最后给出结果核对清单。\n\n` +
-        `参考记录（已去敏，节选）：\n${s.content.slice(0, 2000)}`,
+        `参考记录（已去敏，节选）：\n${s.content.slice(0, SEGMENT_CONTENT_MAX_CHARS)}`,
       inputs: [],
       starterPrompts: [`帮我完成一个「${title}」类型的任务。`],
       meta: { origin: 'fallback' },

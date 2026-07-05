@@ -282,17 +282,17 @@ export async function registerPart(
   return res.rows[0]?.parts ?? null;
 }
 
-/** 分片收齐：登记完整原始件对象键、置 status='raw'（仅 pending 可置，并发收齐只有一个赢家）。 */
-export async function markUploadRaw(
-  db: Queryable,
-  taskId: string,
-  storageKey: string,
-): Promise<boolean> {
+/**
+ * 分片收齐：置 status='raw'（仅 pending 可置，并发收齐只有一个赢家）。
+ * 不写 storage_key：收齐后不再拼接完整原始件，worker 直接按 parts 登记表逐片消费；
+ * storage_key 列保留只为兼容历史行（清理时若非空仍会删它指向的对象）。
+ */
+export async function markUploadRaw(db: Queryable, taskId: string): Promise<boolean> {
   const res = await db.query(
     `UPDATE uploads
-        SET status = 'raw', storage_key = $2, updated_at = now()
+        SET status = 'raw', updated_at = now()
       WHERE task_id = $1 AND status = 'pending'`,
-    [taskId, storageKey],
+    [taskId],
   );
   return (res.rowCount ?? 0) > 0;
 }

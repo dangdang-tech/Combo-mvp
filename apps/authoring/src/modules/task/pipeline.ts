@@ -1,4 +1,7 @@
-// 提取流水线（worker 执行体）：拉原文 → 解析 → 脱敏 → 切段 → LLM 归纳 → 逐项落能力项 → 清理原始件 → 终态。
+// 提取流水线（worker 执行体）：逐片拉分片 → 解析 → 脱敏 → 截断成紧凑段 → LLM 归纳 → 逐项落能力项 → 清理分片 → 终态。
+//   - 逐片消费：一次只读一个分片进内存，解析去敏后立刻截断到 extract 会消费的长度并释放原文，
+//     跨片按内容哈希去重。真实规模（上百分片、上千段）下内存峰值 = 单片大小 + 紧凑段列表，
+//     不再随上传总量线性增长（全量拼接曾把 worker 撑爆，见 issue #25）。
 //   - claimTask 领租约防双跑（0 行 = 已被认领，直接跳过；对账循环重投的重复触发在这里被吸收）。
 //   - 进度真源是 tasks.meta.progress（SSE state_snapshot 从它读全量）；每步同时把帧推 redis_hot 流。
 //   - 失败：last_error 写人话错误体（errorBodyFor 组装）、status=failed、done 帧带 error。
@@ -9,12 +12,14 @@ import {
   ErrorCode,
   PIPELINE_SUBTASKS,
   errorBodyFor,
+  mergeReports,
   redactBatch,
   type ErrorBody,
   type ErrorCodeValue,
   type LlmGatewayPort,
   type ObjectStorePort,
   type ProgressView,
+  type RedactionReportView,
   type SubtaskStatus,
 } from '@cb/shared';
 import type { Queryable } from '../../platform/infra/db.js';
@@ -31,8 +36,18 @@ import {
   saveTaskProgress,
 } from './repo.js';
 import { RAW_BUCKET } from './pairing.js';
-import { detectSessionSource, parseSessions, splitBundle } from './session-parse.js';
-import { extractCapabilities, type ExtractSegment } from './extract.js';
+import {
+  detectSessionSource,
+  parseSessions,
+  splitBundle,
+  type ParseStats,
+  type SessionSource,
+} from './session-parse.js';
+import {
+  SEGMENT_CONTENT_MAX_CHARS,
+  extractCapabilities,
+  type ExtractSegment,
+} from './extract.js';
 import { insertCapability } from '../capability/repo.js';
 
 /** 能力项可运行定义所在桶（长期保留，与会被清除的原始件分桶）。 */
@@ -42,6 +57,9 @@ export const CAPABILITY_BUCKET = 'combo-artifacts' as const;
 export function capabilityDefinitionKey(capabilityId: string): string {
   return `capabilities/${capabilityId}/definition.json`;
 }
+
+/** 逐片循环里每处理这么多分片续一次租约（真实规模上百分片，处理时长会超过单次租期）。 */
+const LEASE_RENEW_EVERY_PARTS = 20;
 
 export interface PipelineDeps {
   db: Queryable;
@@ -205,69 +223,126 @@ async function execute(
     stepStartedAt = now;
   };
 
-  // ① fetch：拉收齐的完整原始件。
+  // ① fetch：读上传行，取分片键清单。收齐后不存在拼接好的完整原始件，
+  //    分片本身是「整文件打包」的合法文本单元，可以独立解析。
   await reporter.subtask('fetch', 'running', 2, '正在读取上传内容…');
   const upload = await readUploadForPipeline(deps.db, taskId);
-  if (!upload?.storageKey) {
-    throw new PipelineFailure(ErrorCode.UPLOAD_NO_CONTENT, 'upload storage_key missing');
+  const partKeys = upload ? partsState(upload.parts).orderedKeys : [];
+  if (partKeys.length === 0) {
+    throw new PipelineFailure(ErrorCode.UPLOAD_NO_CONTENT, 'no landed parts');
   }
-  let raw: string;
-  try {
-    raw = await deps.objectStore.getObjectText(RAW_BUCKET, upload.storageKey);
-  } catch (err) {
-    throw new PipelineFailure(
-      ErrorCode.DEPENDENCY_UNAVAILABLE,
-      `raw object unreadable: ${String(err)}`,
-    );
-  }
-  if (!raw.trim()) throw new PipelineFailure(ErrorCode.UPLOAD_NO_CONTENT, 'raw object empty');
-  await reporter.subtask('fetch', 'done', 10, '上传内容读取完成');
+  await reporter.subtask('fetch', 'done', 6, `待处理 ${partKeys.length} 个分片`);
   markStep('fetch');
 
-  // ② 解析 + 切段（先切段再脱敏：脱敏作用在段正文上，报告聚合到上传级）。
-  const files = splitBundle(raw);
-  const inputs = (files.length > 0 ? files : [raw]).map((text, i) => ({
-    source: detectSessionSource(text),
-    raw: text,
-    sessionRef: `file-${i}`,
-  }));
-  const parsed = parseSessions(inputs);
-  if (parsed.segments.length === 0) {
+  // ②③ 逐片：解析 → 跨片去重 → 去敏 → 截断成紧凑段。每轮循环结束该片原文即可被回收，
+  //    任意时刻内存里只有一个分片的全文加已积累的紧凑段（每段 ≤ SEGMENT_CONTENT_MAX_CHARS）。
+  //    去敏在截断之前：截断可能把敏感串切成识别不出的半截，先抹干净再丢弃尾部。
+  await reporter.subtask('redact', 'running', 8, '正在解析并抹掉隐私信息…');
+  type CompactSegment = ExtractSegment & { happenedAt: string | null };
+  const segments: CompactSegment[] = [];
+  const seenHashes = new Set<string>();
+  const redactionReports: RedactionReportView[] = [];
+  const projects = new Set<string>();
+  const sources = new Set<SessionSource>();
+  let messageCount = 0;
+  let badLineCount = 0;
+  let duplicateSegmentCount = 0;
+  let minTime: string | null = null;
+  let maxTime: string | null = null;
+
+  for (let p = 0; p < partKeys.length; p++) {
+    let text: string;
+    try {
+      text = await deps.objectStore.getObjectText(RAW_BUCKET, partKeys[p]!);
+    } catch (err) {
+      throw new PipelineFailure(
+        ErrorCode.DEPENDENCY_UNAVAILABLE,
+        `part object unreadable: ${String(err)}`,
+      );
+    }
+    const files = splitBundle(text);
+    const inputs = (files.length > 0 ? files : [text]).map((fileText, i) => ({
+      source: detectSessionSource(fileText),
+      raw: fileText,
+      sessionRef: `part-${p}-file-${i}`,
+    }));
+    const parsed = parseSessions(inputs);
+    badLineCount += parsed.stats.badLineCount;
+    duplicateSegmentCount += parsed.stats.duplicateSegmentCount;
+
+    // 跨片去重：同一会话文件重传或跨片重复时只保留首次出现。
+    const fresh = parsed.segments.filter((s) => !seenHashes.has(s.contentHash));
+    duplicateSegmentCount += parsed.segments.length - fresh.length;
+    const redacted = redactBatch(fresh.map((s) => s.content));
+    redactionReports.push(redacted.report);
+    fresh.forEach((s, i) => {
+      seenHashes.add(s.contentHash);
+      segments.push({
+        title: s.title,
+        content: redacted.texts[i]!.slice(0, SEGMENT_CONTENT_MAX_CHARS),
+        ...(s.project ? { project: s.project } : {}),
+        messageCount: s.messageCount,
+        happenedAt: s.happenedAt,
+      });
+      messageCount += s.messageCount;
+      sources.add(s.source);
+      if (s.project) projects.add(s.project);
+      if (s.happenedAt) {
+        if (minTime === null || s.happenedAt < minTime) minTime = s.happenedAt;
+        if (maxTime === null || s.happenedAt > maxTime) maxTime = s.happenedAt;
+      }
+    });
+
+    if ((p + 1) % LEASE_RENEW_EVERY_PARTS === 0) {
+      await renewLease(deps.db, { taskId, leaseOwner: deps.leaseOwner });
+    }
+    await reporter.progress(
+      8 + Math.round(((p + 1) / partKeys.length) * 20),
+      `已处理 ${p + 1} / ${partKeys.length} 个分片`,
+      { done: p + 1, total: partKeys.length, unit: '片' },
+    );
+  }
+  if (segments.length === 0) {
     throw new PipelineFailure(ErrorCode.UPLOAD_NO_CONTENT, 'no parseable segments');
   }
   markStep('parse');
 
-  // ③ redact：合规硬要求，先抹隐私再进任何 LLM/落库路径。
-  await reporter.subtask('redact', 'running', 15, '正在抹掉隐私信息…');
-  // 内存护栏：段正文下游只被提取阶段采样前 SEGMENT_SAMPLE_CHARS(1500) 字符，从不整份落库/展示；
-  // 而 redactBatch 会把全部段正文整份驻留并产出等量副本 —— 海量历史下这正是 OOM 主现场。
-  // 进 redact 前把每段截到 REDACT_INPUT_CAP，对下游无损，却把峰值从 O(全量语料) 压到 O(段数×cap)。
-  const REDACT_INPUT_CAP = 4000;
-  const redacted = redactBatch(
-    parsed.segments.map((s) =>
-      s.content.length > REDACT_INPUT_CAP ? s.content.slice(0, REDACT_INPUT_CAP) : s.content,
-    ),
+  // ③ redact：已在上面逐片循环里按片完成（每片 redactBatch 后立刻截断到 SEGMENT_CONTENT_MAX_CHARS
+  //    并释放原文）。main 的「全量 redactBatch 前先截到 REDACT_INPUT_CAP」内存护栏在逐片架构下
+  //    不再需要——任意时刻内存里只有一个分片的去敏产物，不存在全量语料驻留。这里只聚合统计与报告。
+  const parseStats: ParseStats = {
+    segmentCount: segments.length,
+    messageCount,
+    projectCount: projects.size,
+    timeSpan: minTime !== null && maxTime !== null ? { from: minTime, to: maxTime } : null,
+    sources: [...sources],
+    badLineCount,
+    duplicateSegmentCount,
+  };
+  const redactionReport = mergeReports(
+    redactionReports,
+    redactionReports[0]!.rulesetVersion,
   );
   await mergeUploadMeta(deps.db, taskId, {
-    parseStats: parsed.stats,
-    redaction: redacted.report,
+    parseStats,
+    redaction: redactionReport,
   });
   await reporter.subtask(
     'redact',
     'done',
     30,
-    `已抹除 ${redacted.report.totalRedactions} 处隐私信息`,
+    `已抹除 ${redactionReport.totalRedactions} 处隐私信息`,
   );
   markStep('redact');
 
-  // ④ segment：段清单成型（一段 = 一会话，正文换成去敏后文本）。
+  // ④ segment：段清单成型（按会话时间从新到旧，与整包解析时代的顺序一致）。
   await reporter.subtask('segment', 'running', 35, '正在切分会话段落…');
-  const segments: ExtractSegment[] = parsed.segments.map((s, i) => ({
-    title: s.title,
-    content: redacted.texts[i]!,
-    ...(s.project ? { project: s.project } : {}),
-    messageCount: s.messageCount,
-  }));
+  segments.sort((a, b) => {
+    if (a.happenedAt === b.happenedAt) return 0;
+    if (a.happenedAt === null) return 1;
+    if (b.happenedAt === null) return -1;
+    return a.happenedAt < b.happenedAt ? 1 : -1;
+  });
   await reporter.subtask('segment', 'done', 45, `已切出 ${segments.length} 段会话`);
   await renewLease(deps.db, { taskId, leaseOwner: deps.leaseOwner });
   markStep('segment');
@@ -341,12 +416,13 @@ async function execute(
     );
   }
 
-  // ⑦ 清理原始件与分片（合规：处理完按期清除，raw_purged_at 只在真删成功时打戳）。
+  // ⑦ 清理分片（合规：处理完按期清除，raw_purged_at 只在真删成功时打戳）。
+  //    历史行可能还有拼接时代写下的 storage_key，非空时一并删。
   //    清理失败不翻整个任务，只记日志、留空戳等补清。
   let purged = false;
   try {
-    const partKeys = partsState(upload.parts).orderedKeys;
-    for (const key of [upload.storageKey, ...partKeys]) {
+    const legacyRaw = upload?.storageKey ? [upload.storageKey] : [];
+    for (const key of [...legacyRaw, ...partKeys]) {
       await deps.objectStore.delete(RAW_BUCKET, key);
     }
     purged = true;

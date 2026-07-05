@@ -343,16 +343,15 @@ export class FakeDb implements TxPool {
       return { rows: [{ parts: u.parts }] as R[], rowCount: 1 };
     }
 
-    // markUploadRaw
+    // markUploadRaw（只置状态；storage_key 不再写入，收齐后不拼接完整原始件）
     if (s.includes('UPDATE uploads') && s.includes("SET status = 'raw'")) {
-      const [taskId, storageKey] = params as [string, string];
+      const [taskId] = params as [string];
       const u = this.uploads.get(taskId);
       if (!u || u.status !== 'pending') {
         this.updateRowCounts.push(0);
         return { rows: [], rowCount: 0 };
       }
       u.status = 'raw';
-      u.storage_key = storageKey;
       this.updateRowCounts.push(1);
       return { rows: [], rowCount: 1 };
     }
