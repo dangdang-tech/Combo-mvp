@@ -1,11 +1,22 @@
+// 登录闸门 + 会话身份上下文。试用端所有 runtime 接口都要登录，所以这里仍是硬闸门：
+// 未登录/未知态不放行子树。放行后把 MeView 灌进 context，侧栏账号区经 useRuntimeMe 读真身。
+// 视觉是 Combo 网格纸底 + 居中面板（rt-auth-gate__panel）。
 import { useQuery } from '@tanstack/react-query';
 import { MeViewSchema, envelopeSchema, type MeView } from '@cb/shared';
-import { useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
+import { ComboMark, ComboWordmark } from '../components/ComboBrand.js';
 import { loginUrl } from '../navigation/login.js';
 
 const MeEnvelopeSchema = envelopeSchema(MeViewSchema);
 const DEV_LOGIN_PATH = '/api/v1/auth/dev-login';
 const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+
+const RuntimeMeContext = createContext<MeView | null>(null);
+
+/** 当前登录身份（AuthGate 放行后必有值；组件树在闸门内时 null 只是理论兜底）。 */
+export function useRuntimeMe(): MeView | null {
+  return useContext(RuntimeMeContext);
+}
 
 async function fetchMe(
   signal?: AbortSignal,
@@ -33,6 +44,22 @@ async function fetchMe(
 
 function canUseLocalDevLogin(): boolean {
   return LOCAL_DEV_HOSTS.has(window.location.hostname);
+}
+
+/** 闸门裸页外壳：网格纸底 + 居中 Combo 面板，三态（加载/错误/未登录）共用。 */
+function GatePanel({ role, children }: { role: 'status' | 'alert'; children: ReactNode }) {
+  return (
+    <div className="rt-auth-gate" role={role} aria-live={role === 'status' ? 'polite' : undefined}>
+      <div className="rt-auth-gate__panel">
+        <span className="rt-auth-gate__brand">
+          <ComboMark className="rt-auth-gate__brand-mark" />
+          <ComboWordmark className="rt-auth-gate__brand-word" />
+        </span>
+        <p className="rt-auth-gate__eyebrow">CAPABILITY RUNTIME</p>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -66,31 +93,30 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (q.isPending) {
     return (
-      <div className="rt-auth-gate" role="status" aria-live="polite">
-        <div className="rt-auth-gate__brand">Agora</div>
-        <p>正在确认登录状态…</p>
-      </div>
+      <GatePanel role="status">
+        <p className="rt-auth-gate__msg">正在确认登录状态…</p>
+      </GatePanel>
     );
   }
 
   if (q.isError || !q.data || q.data.status === 'error') {
     return (
-      <div className="rt-auth-gate" role="alert">
-        <div className="rt-auth-gate__brand">Agora</div>
-        <p>暂时无法确认登录状态，请稍后重试。</p>
-        <button type="button" className="rt-btn rt-btn--accent" onClick={() => void q.refetch()}>
-          重试
-        </button>
-      </div>
+      <GatePanel role="alert">
+        <p className="rt-auth-gate__msg">暂时无法确认登录状态，请稍后重试。</p>
+        <div className="rt-auth-gate__actions">
+          <button type="button" className="rt-btn rt-btn--accent" onClick={() => void q.refetch()}>
+            重试
+          </button>
+        </div>
+      </GatePanel>
     );
   }
 
   if (q.data.status === 'anon') {
     const showDevLogin = canUseLocalDevLogin();
     return (
-      <div className="rt-auth-gate" role="alert">
-        <div className="rt-auth-gate__brand">Agora</div>
-        <p>请先登录后进入试用模式。</p>
+      <GatePanel role="alert">
+        <p className="rt-auth-gate__msg">请先登录后进入试用模式。</p>
         <div className="rt-auth-gate__actions">
           <button
             type="button"
@@ -109,11 +135,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
               {devLoginPending ? '登录中…' : '本地开发登录'}
             </button>
           ) : null}
+          {devLoginError ? <p className="rt-auth-gate__error">{devLoginError}</p> : null}
         </div>
-        {devLoginError ? <p className="rt-auth-gate__error">{devLoginError}</p> : null}
-      </div>
+      </GatePanel>
     );
   }
 
-  return <>{children}</>;
+  return <RuntimeMeContext.Provider value={q.data.me}>{children}</RuntimeMeContext.Provider>;
 }

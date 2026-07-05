@@ -15,6 +15,7 @@ import { createContext, useContext, type ReactElement, type ReactNode } from 're
 import { Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { API_PREFIX, MeViewSchema, envelopeSchema, type MeView } from '@cb/shared';
+import { ComboMark, ComboWordmark } from './brand.js';
 
 /** /me 200 包络 schema：与后端一致返回 Envelope<MeView>（{ data, meta? }），解析后读 .data。 */
 const MeEnvelopeSchema = envelopeSchema(MeViewSchema);
@@ -128,34 +129,52 @@ export function useAuth(): AuthState {
   return useContext(AuthContext);
 }
 
+/** 闸门裸页外壳：网格纸底 + 居中 Combo 面板，三态（加载/匿名/错误）共用。 */
+function GatePanel({
+  role,
+  children,
+}: {
+  role: 'status' | 'alert';
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <div className="cb-auth-gate" role={role} aria-live={role === 'status' ? 'polite' : undefined}>
+      <div className="cb-auth-gate__panel">
+        <span className="cb-auth-gate__brand" aria-hidden="true">
+          <ComboMark />
+          <ComboWordmark className="cb-auth-gate__brand-word" />
+        </span>
+        <p className="cb-auth-gate__eyebrow">CREATOR STUDIO</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /** 加载态：诚实文案（非工作台骨架、非 Wayne 外壳），有限态、不裸转圈。 */
 function AuthLoading(): ReactElement {
   return (
-    <div className="cb-auth-gate" role="status" aria-live="polite">
-      <span className="cb-auth-gate__brand" aria-hidden="true">
-        Agora
-      </span>
+    <GatePanel role="status">
       <p className="cb-auth-gate__msg">正在确认登录状态…</p>
-    </div>
+    </GatePanel>
   );
 }
 
 /** 匿名闸门：裸页（无创作者外壳/侧栏/账号），人话 + 「去登录」（带 returnTo 回当前页）。 */
 function AuthLoginGate(): ReactElement {
   return (
-    <div className="cb-auth-gate" role="alert">
-      <span className="cb-auth-gate__brand" aria-hidden="true">
-        Agora
-      </span>
+    <GatePanel role="alert">
       <p className="cb-auth-gate__msg">请先登录后进入创作者中心。</p>
-      <button
-        type="button"
-        className="cb-auth-gate__action"
-        onClick={() => goToLogin(currentReturnTo())}
-      >
-        去登录
-      </button>
-    </div>
+      <div className="cb-auth-gate__actions">
+        <button
+          type="button"
+          className="cb-auth-gate__action"
+          onClick={() => goToLogin(currentReturnTo())}
+        >
+          去登录
+        </button>
+      </div>
+    </GatePanel>
   );
 }
 
@@ -165,15 +184,14 @@ function AuthLoginGate(): ReactElement {
  */
 function AuthErrorGate({ onRetry }: { onRetry: () => void }): ReactElement {
   return (
-    <div className="cb-auth-gate" role="alert">
-      <span className="cb-auth-gate__brand" aria-hidden="true">
-        Agora
-      </span>
+    <GatePanel role="alert">
       <p className="cb-auth-gate__msg">暂时无法确认登录状态，请稍后重试。</p>
-      <button type="button" className="cb-auth-gate__action" onClick={onRetry}>
-        重试
-      </button>
-    </div>
+      <div className="cb-auth-gate__actions">
+        <button type="button" className="cb-auth-gate__action" onClick={onRetry}>
+          重试
+        </button>
+      </div>
+    </GatePanel>
   );
 }
 

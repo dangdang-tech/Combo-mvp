@@ -17,11 +17,3 @@ export const CREATOR_NAV: NavItem[] = [
   { path: '/tasks', label: '上传任务', icon: IconTasks },
   { path: '/capabilities', label: '我的能力', icon: IconCapabilities },
 ];
-
-/** 顶栏字标的当前页名：取最长命中的导航项。 */
-export function pageTitleFor(pathname: string): string {
-  const hit = CREATOR_NAV.filter(
-    (n) => pathname === n.path || pathname.startsWith(n.path + '/'),
-  ).sort((a, b) => b.path.length - a.path.length)[0];
-  return hit?.label ?? '上传任务';
-}

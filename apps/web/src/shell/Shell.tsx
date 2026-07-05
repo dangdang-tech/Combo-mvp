@@ -1,30 +1,27 @@
-// 导航外壳 Shell：左侧固定侧栏 + 顶栏 + 主内容区，全流程恒定结构。
+// 导航外壳 Shell：左侧固定侧栏 + 主内容区，全流程恒定结构（无顶栏，内容直接从主区顶部开始）。
 //
-// 侧栏：顶部品牌字标 + 收起/展开开关；中段两项导航（任务 / 能力）；底部当前账号常驻区。
-// 顶栏：居中字标（AGORA · CREATOR · 当前页）+ 右上账号头像。子页经 <Outlet> 渲染。
+// 侧栏：顶部 Combo 品牌字标 + 收起/展开开关；中段两项导航（任务 / 能力）；底部当前账号常驻区。
+// 子页经 <Outlet> 渲染。
 import type { ReactElement } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { CREATOR_NAV, pageTitleFor, type NavItem } from './routes.js';
+import { Link, NavLink, Outlet } from 'react-router-dom';
+import { CREATOR_NAV, type NavItem } from './routes.js';
 import { useCollapse } from './useCollapse.js';
 import { useAccount, avatarInitial, type ShellAccount } from './account.js';
+import { ComboMark, ComboWordmark } from './brand.js';
 import { IconChevrons } from './icons.js';
 
 export function Shell(): ReactElement {
-  const location = useLocation();
   const { collapsed, toggle: toggleCollapse } = useCollapse();
   const account = useAccount();
-  const pageTitle = pageTitleFor(location.pathname);
 
   return (
     <div className="cb-shell" data-collapsed={collapsed ? 'true' : 'false'}>
       {/* 左侧栏：恒定结构。收起时整体收窄为纯图标态。 */}
       <aside className="cb-shell__sidebar" aria-label="侧边导航">
         <div className="cb-shell__brand">
-          <Link to="/tasks" className="cb-shell__brand-link" aria-label="Agora 创作者中心 首页">
-            <span className="cb-shell__brand-mark" aria-hidden="true">
-              A
-            </span>
-            <span className="cb-shell__brand-word">Agora</span>
+          <Link to="/tasks" className="cb-shell__brand-link" aria-label="Combo 创作者中心 首页">
+            <ComboMark className="cb-shell__brand-mark" />
+            <ComboWordmark className="cb-shell__brand-word" />
           </Link>
           <button
             type="button"
@@ -59,16 +56,8 @@ export function Shell(): ReactElement {
         </div>
       </aside>
 
-      {/* 主区：顶栏字标 + 右上头像 + 内容 Outlet。 */}
+      {/* 主区：仅内容 Outlet（无顶栏，账号常驻区在侧栏底部）。 */}
       <div className="cb-shell__main">
-        <header className="cb-shell__topbar">
-          <span className="cb-shell__topbar-spacer" aria-hidden="true" />
-          <p className="cb-shell__eyebrow" aria-label={`当前页面：${pageTitle}`}>
-            {`AGORA · CREATOR · ${pageTitle}`}
-          </p>
-          <AccountAvatar account={account} className="cb-shell__topbar-avatar" />
-        </header>
-
         <main className="cb-shell__content">
           <Outlet />
         </main>

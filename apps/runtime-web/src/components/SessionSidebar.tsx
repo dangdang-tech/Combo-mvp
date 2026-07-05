@@ -1,15 +1,26 @@
 // 左侧会话栏：按能力隔离——给了 capabilityId 只列该能力下的会话，「新会话」也在
 // 该能力下直接开（GET /runtime/sessions?capabilityId= + POST /runtime/sessions）；
-// 换能力走底部的市集入口。头部保留回创作端 / 回入口页按钮。
+// 换能力走底部的市集入口。头部是 Combo 字标 + 返回按钮，底部常驻当前登录账号。
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { SessionView } from '@cb/shared';
+import type { Role, SessionView } from '@cb/shared';
 import { useCreateSession, useSessions } from '../api/runtime.js';
+import { useRuntimeMe } from '../shell/AuthGate.js';
+import { ComboWordmark } from './ComboBrand.js';
 import {
   runtimeBackLabel,
   runtimeBackTarget,
   safeRuntimeReturnTo,
 } from '../navigation/runtimeReturn.js';
+
+const ROLE_LABEL: Record<Role, string> = {
+  creator: '创作者',
+};
+
+function avatarInitial(name: string): string {
+  const ch = Array.from(name.trim())[0] ?? '?';
+  return ch.toUpperCase();
+}
 
 export function SessionSidebar({
   activeSessionId,
@@ -25,6 +36,10 @@ export function SessionSidebar({
 }) {
   const safeReturnTo = safeRuntimeReturnTo(returnTo);
   const navigate = useNavigate();
+  const me = useRuntimeMe();
+  const accountName = me?.account ?? '当前账号';
+  const role = me?.roles[0];
+  const accountTitle = role ? ROLE_LABEL[role] : '创作者';
   const hasCapability = Boolean(capabilityId);
   const sessions = useSessions(capabilityId, { enabled: hasCapability });
   const createSession = useCreateSession();
@@ -49,13 +64,17 @@ export function SessionSidebar({
   return (
     <nav className="rt-sidebar">
       <div className="rt-sidebar__head">
-        <div className="rt-sidebar__brand">Agora</div>
+        <a href="/creator" className="rt-sidebar__brand" aria-label="Combo 创作者中心 首页">
+          <ComboWordmark className="rt-sidebar__brand-word" />
+        </a>
         <button
           type="button"
-          className="rt-sidebar__inbox"
+          className="rt-sidebar__back"
+          aria-label={runtimeBackLabel(safeReturnTo)}
+          title={runtimeBackLabel(safeReturnTo)}
           onClick={() => window.location.assign(runtimeBackTarget(safeReturnTo))}
         >
-          {runtimeBackLabel(safeReturnTo)}
+          <span aria-hidden="true">←</span>
         </button>
       </div>
       <div className="rt-sidebar__label">{capabilityName ?? '会话'}</div>
@@ -89,6 +108,14 @@ export function SessionSidebar({
         <Link to="/market" className="rt-sidebar__market">
           换个能力 · 去市集
         </Link>
+      </div>
+      <div className="rt-sidebar__user">
+        <span className="rt-sidebar__user-avatar" aria-hidden="true">
+          {avatarInitial(accountName)}
+        </span>
+        <span>
+          {accountName} · {accountTitle}
+        </span>
       </div>
     </nav>
   );

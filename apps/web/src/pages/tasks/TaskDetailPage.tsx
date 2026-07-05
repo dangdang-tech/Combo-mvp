@@ -1,7 +1,10 @@
 // 任务详情：GET /tasks/:id + SSE GET /tasks/:id/events 实时进度。
+//   - 进行中 / 失败：任务头 + 上传进度卡 + 提取进度卡（SSE）+（有产出时）能力挑选区 + 失败重试卡；
+//   - 提取完成（succeeded）：整页切换成成果形态——eyebrow + 衬线大标题 + 引导句 + 能力挑选区
+//     （统计工具条 / 勾选行卡 / 一键发布），上传与进度卡不再渲染。
 //   - state_snapshot 全量 progress（subtasks 逐条点亮）+ progress 增量帧；
-//   - item-appended 帧触发能力项列表刷新（边提取边出现，每项带试用/发布动作，刷新页面不丢）；
-//   - done 帧终态 → 重拉任务定格视图；失败显示 lastError 人话 + 重试。
+//   - item-appended 帧触发能力项列表刷新（边提取边出现，刷新页面不丢）；
+//   - done 帧终态 → 重拉任务定格视图。
 import { useEffect, type ReactElement } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,10 +12,8 @@ import type { CapabilityView, TaskView } from '@cb/shared';
 import {
   getTask,
   listCapabilities,
-  publishCapability,
   retryTask,
   taskEventsUrl,
-  unpublishCapability,
   useTaskEvents,
   type Page,
 } from '../../api/index.js';
@@ -23,7 +24,7 @@ import {
   SlowHint,
   SubtaskChecklist,
 } from '../../components/index.js';
-import { CapabilityRow } from '../capabilities/CapabilityRow.js';
+import { CapabilityPicker } from './CapabilityPicker.js';
 import {
   formatTime,
   taskStatusLabel,
@@ -54,7 +55,7 @@ export function TaskDetailPage(): ReactElement {
     if (sseTerminal) void qc.invalidateQueries({ queryKey: ['task', taskId] });
   }, [sseTerminal, qc, taskId]);
 
-  // 本任务提取出的能力项（就地展示，带试用/发布动作）。SSE 每推一个 item-appended
+  // 本任务提取出的能力项（就地展示挑选发布）。SSE 每推一个 item-appended
   // 就触发一次重拉——列表以库为真源，刷新页面不丢。
   const extracting = task?.status === 'running' && task.currentStep === 'extract';
   const capsQuery = useQuery({
@@ -81,6 +82,30 @@ export function TaskDetailPage(): ReactElement {
   }
   if (!task) return <ErrorState error={undefined} />;
 
+  // —— 提取完成：整页成果形态（eyebrow + 大标题 + 引导 + 挑选发布区）——
+  if (task.status === 'succeeded') {
+    return (
+      <section className="cb-page cb-capabilities" aria-labelledby="cb-task-detail-title">
+        <p className="cb-page__back">
+          <Link to="/tasks">← 返回任务列表</Link>
+        </p>
+        <header className="cb-capabilities__header">
+          <p className="cb-capabilities__eyebrow">提取完成 · 能力</p>
+          <h2 className="cb-capabilities__title" id="cb-task-detail-title">
+            你的能力，挑选后一键发布
+          </h2>
+          <p className="cb-capabilities__lead">
+            这次上传共提取出 {task.capabilityCount}{' '}
+            个能力项。点任意一项可直接打开「试用」跑一遍，确认后勾选、一键发布到市集；历史全部能力项在{' '}
+            <Link to="/capabilities">能力页</Link>。
+          </p>
+        </header>
+        <TaskCapabilitiesArea taskId={taskId} task={task} query={capsQuery} extracting={false} />
+      </section>
+    );
+  }
+
+  // —— 进行中 / 失败：任务头 + 进度卡（+ 已浮现的能力挑选区）+ 失败重试卡 ——
   return (
     <section className="cb-page" aria-labelledby="cb-task-detail-title">
       <p className="cb-page__back">
@@ -99,14 +124,18 @@ export function TaskDetailPage(): ReactElement {
       </div>
 
       <UploadCard task={task} />
-      {task.status === 'running' && task.currentStep === 'extract' && <ExtractCard sse={sse} />}
-      <TaskCapabilitiesCard taskId={taskId} query={capsQuery} extracting={extracting} />
-      <OutcomeCard
-        task={task}
-        onRetry={() => retryMutation.mutate()}
-        retryPending={retryMutation.isPending}
-        retryError={retryMutation.isError ? retryMutation.error : null}
-      />
+      {extracting && <ExtractCard sse={sse} />}
+      {extracting && (
+        <TaskCapabilitiesArea taskId={taskId} task={task} query={capsQuery} extracting />
+      )}
+      {task.status === 'failed' && (
+        <FailedCard
+          task={task}
+          onRetry={() => retryMutation.mutate()}
+          retryPending={retryMutation.isPending}
+          retryError={retryMutation.isError ? retryMutation.error : null}
+        />
+      )}
     </section>
   );
 }
@@ -154,83 +183,39 @@ function ExtractCard({ sse }: { sse: ReturnType<typeof useTaskEvents> }): ReactE
   );
 }
 
-/**
- * 本任务的能力项就地展示：提取中逐个出现，完成后定格；每项直接可试用/发布，
- * 不用先跳能力页。
- */
-function TaskCapabilitiesCard({
+/** 能力挑选区的查询三态收口：错误给人话重试、空给引导、有货交给 CapabilityPicker。 */
+function TaskCapabilitiesArea({
   taskId,
+  task,
   query,
   extracting,
 }: {
   taskId: string;
+  task: TaskView;
   query: ReturnType<typeof useQuery<Page<CapabilityView>>>;
   extracting: boolean;
 }): ReactElement | null {
-  const qc = useQueryClient();
-  const toggleMutation = useMutation({
-    mutationFn: (input: { id: string; publish: boolean }) =>
-      input.publish ? publishCapability(input.id) : unpublishCapability(input.id),
-    onSuccess: (result) => {
-      qc.setQueryData<Page<CapabilityView>>(['task-capabilities', taskId], (data) =>
-        data
-          ? {
-              ...data,
-              items: data.items.map((item) =>
-                item.id === result.id
-                  ? {
-                      ...item,
-                      published: result.published,
-                      ...(result.publishedAt !== undefined
-                        ? { publishedAt: result.publishedAt }
-                        : {}),
-                      ...(result.shareToken !== undefined
-                        ? { shareToken: result.shareToken }
-                        : {}),
-                    }
-                  : item,
-              ),
-            }
-          : data,
-      );
-      // 能力页的列表缓存直接失效重拉（键结构不同，不做跨页就地合并）。
-      void qc.invalidateQueries({ queryKey: ['capabilities'] });
-    },
-  });
-
-  const items = query.data?.items ?? [];
-  if (!query.isSuccess && !query.isError) return null; // 未启用/加载中：不占版面
   if (query.isError) {
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
+  if (!query.isSuccess) {
+    // 提取中列表还没到，不占版面；完成态给骨架（避免大标题下空一块）。
+    return extracting ? null : <Skeleton rows={3} label="正在加载能力项" />;
+  }
+  const items = query.data.items;
+  if (items.length === 0) {
+    if (extracting) return null; // 还在提取、暂无产出：进度卡已经在讲话
     return (
-      <div className="cb-card">
-        <h3 className="cb-card__title">提取出的能力项</h3>
-        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-      </div>
+      <p className="cb-capabilities__empty">
+        没识别出可复用的能力。可以回任务列表换一批会话再上传试试。
+      </p>
     );
   }
-  if (items.length === 0) return null;
-
-  return (
-    <div className="cb-card">
-      <h3 className="cb-card__title">提取出的能力项</h3>
-      {extracting && <p className="cb-card__hint">还在提取中，新的能力项会陆续出现在这里。</p>}
-      {toggleMutation.isError && <ErrorState error={toggleMutation.error} />}
-      <ul className="cb-caps">
-        {items.map((cap) => (
-          <CapabilityRow
-            key={cap.id}
-            cap={cap}
-            pending={toggleMutation.isPending && toggleMutation.variables?.id === cap.id}
-            onToggle={(publish) => toggleMutation.mutate({ id: cap.id, publish })}
-          />
-        ))}
-      </ul>
-    </div>
-  );
+  return <CapabilityPicker taskId={taskId} task={task} items={items} extracting={extracting} />;
 }
 
-/** 终态区：失败给人话 + 重试；成功引导跳能力页。 */
-function OutcomeCard({
+/** 失败卡：人话 lastError + 重试。 */
+function FailedCard({
   task,
   onRetry,
   retryPending,
@@ -240,34 +225,20 @@ function OutcomeCard({
   onRetry: () => void;
   retryPending: boolean;
   retryError: unknown;
-}): ReactElement | null {
-  if (task.status === 'failed') {
-    return (
-      <div className="cb-card cb-card--failed">
-        <h3 className="cb-card__title">这次没成功</h3>
-        {task.lastError ? (
-          <p className="cb-card__line cb-task-error">{task.lastError.userMessage}</p>
-        ) : (
-          <p className="cb-card__line cb-task-error">任务失败了，可以重试一次。</p>
-        )}
-        {task.retryCount > 0 && <p className="cb-card__hint">已重试 {task.retryCount} 次。</p>}
-        <button type="button" className="cb-primary-btn" onClick={onRetry} disabled={retryPending}>
-          {retryPending ? '正在重试…' : '重试'}
-        </button>
-        {retryError != null && <ErrorState error={retryError} onRetry={onRetry} />}
-      </div>
-    );
-  }
-  if (task.status === 'succeeded') {
-    return (
-      <div className="cb-card cb-card--succeeded">
-        <h3 className="cb-card__title">提取完成</h3>
-        <p className="cb-card__line">
-          共提取出 {task.capabilityCount} 个能力项，上面每一项都可以直接试用或发布；也可以在{' '}
-          <Link to="/capabilities">能力页</Link> 查看历史全部能力项。
-        </p>
-      </div>
-    );
-  }
-  return null;
+}): ReactElement {
+  return (
+    <div className="cb-card cb-card--failed">
+      <h3 className="cb-card__title">这次没成功</h3>
+      {task.lastError ? (
+        <p className="cb-card__line cb-task-error">{task.lastError.userMessage}</p>
+      ) : (
+        <p className="cb-card__line cb-task-error">任务失败了，可以重试一次。</p>
+      )}
+      {task.retryCount > 0 && <p className="cb-card__hint">已重试 {task.retryCount} 次。</p>}
+      <button type="button" className="cb-primary-btn" onClick={onRetry} disabled={retryPending}>
+        {retryPending ? '正在重试…' : '重试'}
+      </button>
+      {retryError != null && <ErrorState error={retryError} onRetry={onRetry} />}
+    </div>
+  );
 }
