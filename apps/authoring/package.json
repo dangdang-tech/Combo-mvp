@@ -2,7 +2,7 @@
   "name": "@cb/authoring",
   "version": "0.0.0",
   "private": true,
-  "description": "Fastify API（多进程入口：api/worker/consumer/sweeper）骨架；业务路由 Phase 3 填，本期 501 占位",
+  "description": "创作端服务（双进程：api = Fastify HTTP+SSE，worker = BullMQ 提取流水线 + 租约对账）",
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
@@ -12,8 +12,6 @@
     "start": "node dist/index.js",
     "start:api": "node dist/processes/api.js",
     "start:worker": "node dist/processes/worker.js",
-    "start:consumer": "node dist/processes/consumer.js",
-    "start:sweeper": "node dist/processes/sweeper.js",
     "test": "vitest run",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },

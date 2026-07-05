@@ -106,7 +106,6 @@ declare -a WRITE_ENDPOINTS=(
   "POST /api/v1/versions/VER/structure         # STEP④ 结构化·发起 Job"
   "PATCH /api/v1/versions/VER/manifest         # STEP④ 结构化·改软字段"
   "POST /api/v1/versions/VER/publish           # STEP⑤ 发布·单个"
-  "POST /api/v1/publish-batches                # STEP⑤ 发布·批量"
 )
 for entry in "${WRITE_ENDPOINTS[@]}"; do
   method="${entry%% *}"
@@ -129,7 +128,6 @@ declare -a READ_ENDPOINTS=(
   "/api/v1/snapshots/SNAP/segments"         # STEP① 会话段
   "/api/v1/extract-jobs/JID/candidates"     # STEP② 候选列表
   "/api/v1/candidates/CAND"                 # STEP② 候选详情
-  "/api/v1/publish-batches/BID"             # STEP⑤ 批次详情
 )
 for path in "${READ_ENDPOINTS[@]}"; do
   c="$(http_code "${API_BASE}${path}")"

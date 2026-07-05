@@ -1,6 +1,6 @@
-// 极简类型化 fetch 封装。credentials:'include' 携带匿名身份 cookie（rt_uid）。
-//   后端路由在 /api/v1/runtime/*；错误统一 ErrorEnvelope（只读 userMessage，绝不暴露 code/状态码给用户）。
-import { TRACE_ID_HEADER, TRACEPARENT_HEADER } from '@cb/shared';
+// 类型化 fetch 封装（API 面唯一入口）。同源 Cookie（cb_session，与创作端共享）鉴权。
+//   成功响应统一轻包络 { data, meta } → 此处解包直接返回 data；
+//   失败响应统一 ErrorEnvelope → 只读 userMessage（绝不暴露内部 code/状态码给用户）。
 import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
 
 const API_PREFIX = '/api/v1';
@@ -16,12 +16,18 @@ export class ApiError extends Error {
   }
 }
 
+/** 401 = 登录态失效：调用方据此跳创作端登录。 */
+export function isUnauthenticated(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 401;
+}
+
 function buildUrl(path: string): string {
   if (path.startsWith('/api/')) return path;
   return `${API_PREFIX}${path}`;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/** 发请求 + 错误收口：非 2xx 解 ErrorEnvelope 后抛 ApiError；网络失败也归一成 ApiError。 */
+async function doFetch(method: string, path: string, body?: unknown): Promise<Response> {
   const trace = clientTraceHeaders();
   const url = buildUrl(path);
   let res: Response;
@@ -32,11 +38,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       headers:
         body === undefined
           ? trace.headers
-          : {
-              'content-type': 'application/json',
-              [TRACE_ID_HEADER]: trace.traceId,
-              [TRACEPARENT_HEADER]: trace.headers[TRACEPARENT_HEADER]!,
-            },
+          : { 'content-type': 'application/json', ...trace.headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (cause) {
@@ -49,17 +51,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError('网络好像不太稳，检查连接后重试。', 0, trace.traceId);
   }
   if (!res.ok) {
-    let userMessage = '请求失败，请稍后重试。';
+    let userMessage = res.status === 401 ? '请先登录。' : '请求失败，请稍后重试。';
     let traceId: string | undefined;
     try {
-      const env = (await res.json()) as {
-        userMessage?: string;
-        traceId?: string;
-        error?: { userMessage?: string; traceId?: string };
-      };
+      const env = (await res.json()) as { error?: { userMessage?: string; traceId?: string } };
       if (env.error?.userMessage) userMessage = env.error.userMessage;
-      else if (env.userMessage) userMessage = env.userMessage;
-      traceId = env.error?.traceId ?? env.traceId;
+      traceId = env.error?.traceId;
     } catch {
       /* 非 JSON 错误体：用兜底文案 */
     }
@@ -70,10 +67,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     });
     throw new ApiError(userMessage, res.status, traceId);
   }
+  return res;
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await doFetch(method, path, body);
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  // 全部业务端点都是 { data, meta } 轻包络：解包只回 data。
+  return ((await res.json()) as { data: T }).data;
 }
 
 export const apiGet = <T>(path: string): Promise<T> => request<T>('GET', path);
 export const apiPost = <T>(path: string, body?: unknown): Promise<T> =>
   request<T>('POST', path, body);
+
+/** 非包络的原文回读（产物内容端点：带 Content-Type 的裸文本）。 */
+export const apiGetText = async (path: string): Promise<string> =>
+  (await doFetch('GET', path)).text();

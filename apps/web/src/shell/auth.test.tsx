@@ -19,13 +19,9 @@ afterEach(() => {
 
 const ME: MeView = {
   id: 'user-1',
-  logtoUserId: 'sub-1',
   account: 'Wayne',
   email: 'wayne@example.com',
   roles: ['creator'],
-  status: 'active',
-  hasProfile: true,
-  creatorId: 'user-1',
   createdAt: '2026-01-01T00:00:00.000Z',
   lastLoginAt: null,
 };

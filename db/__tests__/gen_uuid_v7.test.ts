@@ -15,7 +15,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SQL_0000 = resolve(__dirname, '..', 'migrations', '0000_extensions_and_helpers.sql');
+const SQL_0000 = resolve(__dirname, '..', 'migrations', '0000_baseline_schema.sql');
 
 // 提取 gen_uuid_v7() 函数体内的所有 set_byte(...) 调用（按行抓，足够稳）。
 function setByteCalls(sql: string): string[] {
@@ -112,27 +112,4 @@ describe('gen_uuid_v7 · 默认插入逻辑 smoke（B，无 PG 复刻）', () =>
   });
 });
 
-// (C) candidate_evidence 复合 FK 在 session_segments 单表 UNIQUE(id,snapshot_id) 下成立
-//     —— D2 36 表单表方案的血缘 FK 静态核对（Codex#8/D2）。
-describe('§11.E 复合血缘 FK · 单表方案静态核对（C）', () => {
-  const seg = readFileSync(
-    resolve(__dirname, '..', 'migrations', '0002_import_tables.sql'),
-    'utf-8',
-  );
-  const ext = readFileSync(
-    resolve(__dirname, '..', 'migrations', '0003_extract_tables.sql'),
-    'utf-8',
-  );
-
-  it('session_segments 携 UNIQUE(id, snapshot_id) 作复合 FK 目标', () => {
-    expect(seg).toContain('CREATE TABLE session_segments (');
-    expect(seg).toMatch(/uq_session_segments_id_snapshot\s+UNIQUE\s*\(id,\s*snapshot_id\)/);
-  });
-
-  it('candidate_evidence 复合 FK 指向 session_segments(id, snapshot_id)', () => {
-    expect(ext).toContain('fk_evidence_segment_snapshot');
-    expect(ext).toMatch(
-      /FOREIGN KEY \(segment_id, snapshot_id\)\s*REFERENCES session_segments \(id, snapshot_id\)/,
-    );
-  });
-});
+// （原「§11.E 复合血缘 FK 静态核对」随旧表结构一起移除，2026-07-04 重设计后不再适用。）

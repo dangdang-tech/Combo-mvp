@@ -17,7 +17,33 @@
 // 规则集可迭代：每条规则带 category；ruleset 带 version 字符串，便于回溯哪版规则跑的快照
 // （落 raw_snapshots.redaction_ruleset_ver）。
 
-import type { RedactionCategory, RedactionReportView } from './import.js';
+import { z } from 'zod';
+
+// ---------- 去敏报告（对外口径；类型与其生产逻辑同文件）----------
+export const RedactionCategorySchema = z.enum([
+  'phone',
+  'api_key',
+  'email',
+  'id_card',
+  'bank_card',
+  'ip',
+  'secret_other',
+]);
+export type RedactionCategory = z.infer<typeof RedactionCategorySchema>;
+
+export const RedactionReportViewSchema = z.object({
+  applied: z.literal(true),
+  totalRedactions: z.number().int(),
+  byCategory: z.array(
+    z.object({
+      category: RedactionCategorySchema,
+      count: z.number().int(),
+      label: z.string(),
+    }),
+  ),
+  rulesetVersion: z.string(),
+});
+export type RedactionReportView = z.infer<typeof RedactionReportViewSchema>;
 
 // ---------- 对外人话类别名（byCategory.label，§5.4「人话类别名」）----------
 

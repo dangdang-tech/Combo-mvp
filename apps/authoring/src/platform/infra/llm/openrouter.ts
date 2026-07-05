@@ -13,7 +13,8 @@ import { OpenRouterApiError } from './openrouter-errors.js';
 export const OPENROUTER_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 // 必须是 OpenRouter 上真实存在的 slug(实测 /api/v1/models 校过)。
 //   旧默认 'anthropic/claude-3.7-sonnet' 在 OpenRouter 上不存在 → 不设 LLM_MODEL 跑 OpenRouter
-//   会拿不到模型 → 全程 degraded。改为有效 slug,与 .env(LLM_MODEL=anthropic/claude-sonnet-4.6)一致。
+//   会拿不到模型 → 全程 degraded。此处仅是「未设 LLM_MODEL」时的兜底;
+//   生产 .env 显式设 LLM_MODEL(现为 deepseek/deepseek-v4-flash,取其便宜快速)。
 export const OPENROUTER_DEFAULT_MODEL = 'anthropic/claude-sonnet-4.6';
 
 /** 注入(单测可替换 fetch);生产用全局 fetch(Node ≥18)。 */
@@ -155,6 +156,9 @@ export function createOpenRouterClient(opts: OpenRouterClientOptions): LlmSdkCli
       model: opts.model,
       max_tokens: body.max_tokens,
       messages,
+      // 吞吐优先路由。实测(2026-07-05,deepseek-v4-flash 同 prompt 各 3 次):默认路由被分到
+      // 21-90 tok/s 不等的供应商(尾延迟主因),sort:throughput 后稳定 105+ tok/s 且方差 <1s。
+      provider: { sort: 'throughput' },
     };
     if (stream) {
       chatBody.stream = true;

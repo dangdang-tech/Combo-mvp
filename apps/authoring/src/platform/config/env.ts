@@ -19,8 +19,8 @@ const emptyToUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  // 一镜像四入口分叉（compose 注入；本地直跑默认 api）。决定生产必填密钥集（见 PRODUCTION_REQUIRED_BY_PROCESS）。
-  PROCESS: z.enum(['api', 'worker', 'consumer', 'sweeper']).default('api'),
+  // 一镜像两入口分叉（compose 注入；本地直跑默认 api）。决定生产必填密钥集（见 PRODUCTION_REQUIRED_BY_PROCESS）。
+  PROCESS: z.enum(['api', 'worker']).default('api'),
   PORT: z.coerce.number().int().default(3000),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
@@ -102,7 +102,7 @@ export type Env = z.infer<typeof EnvSchema>;
  * 缺失（未设或为空字符串）即在生产启动时 throw，避免带默认凭据上生产。
  *
  * 必填集与 compose 各进程实际注入的 env 一一对齐——只要进程会用到的密钥，缺了就崩；
- * 不强求后台进程（worker/consumer/sweeper）持有它们不消费的 Logto OIDC 凭据。
+ * 不强求 worker 持有它不消费的 Logto OIDC 凭据。
  * 注：LLM key（ANTHROPIC_API_KEY）任何进程都不在必填列——上游 degraded 不计 /ready，缺失只降级、不阻塞启动。
  */
 const COMMON_REQUIRED = ['DATABASE_URL'] as const;
@@ -123,10 +123,6 @@ const PRODUCTION_REQUIRED_BY_PROCESS: Record<Env['PROCESS'], readonly string[]> 
   api: [...COMMON_REQUIRED, 'REDIS_QUEUE_URL', 'REDIS_HOT_URL', ...S3_REQUIRED, ...LOGTO_REQUIRED],
   // worker：消费队列 + 写对象存储 + 推热态事件；不做 OIDC。
   worker: [...COMMON_REQUIRED, 'REDIS_QUEUE_URL', 'REDIS_HOT_URL', ...S3_REQUIRED],
-  // consumer：仅 outbox 顺序消费 + 热态水位；不碰队列/对象存储/OIDC。
-  consumer: [...COMMON_REQUIRED, 'REDIS_HOT_URL'],
-  // sweeper：对账/清理/补投，用热态锁 + 对象存储；不做 OIDC、不直连业务队列。
-  sweeper: [...COMMON_REQUIRED, 'REDIS_HOT_URL', ...S3_REQUIRED],
 };
 
 let cached: Env | undefined;
@@ -142,10 +138,7 @@ export function loadEnv(): Env {
   const isProduction = process.env.NODE_ENV === 'production';
   // PROCESS 决定必填集；非法/缺失回落 api（最严格的必填集，宁可多要不可少要）。
   const rawProcess = process.env.PROCESS;
-  const proc: Env['PROCESS'] =
-    rawProcess === 'worker' || rawProcess === 'consumer' || rawProcess === 'sweeper'
-      ? rawProcess
-      : 'api';
+  const proc: Env['PROCESS'] = rawProcess === 'worker' ? rawProcess : 'api';
   const required = PRODUCTION_REQUIRED_BY_PROCESS[proc];
 
   if (isProduction) {

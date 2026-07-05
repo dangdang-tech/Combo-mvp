@@ -12,6 +12,11 @@ export interface MockResponseSpec {
   notJson?: boolean;
   /** true 时模拟 fetch 本身 reject（网络断）。 */
   networkError?: boolean;
+  /**
+   * 只响应 url 含此子串（或匹配此正则）的请求；不带 match 的 spec 按调用序兜底。
+   * 页面同时打多个端点、调用序不稳时用它定向（如任务详情页的能力列表请求）。
+   */
+  match?: string | RegExp;
 }
 
 export interface CapturedRequest {
@@ -51,7 +56,26 @@ export interface FetchMock {
 export function installFetchMock(responses: MockResponseSpec | MockResponseSpec[]): FetchMock {
   const queue = Array.isArray(responses) ? responses : [responses];
   const calls: CapturedRequest[] = [];
-  let i = 0;
+  const consumed = queue.map(() => false);
+
+  const hits = (m: string | RegExp, url: string): boolean =>
+    typeof m === 'string' ? url.includes(m) : m.test(url);
+
+  /** 定向 spec 优先（未消费的按序取，取尽复用最后一个命中的）；否则走无 match 的兜底池。 */
+  function pickSpec(url: string): MockResponseSpec {
+    const matching = queue.filter((s) => s.match !== undefined && hits(s.match, url));
+    if (matching.length > 0) {
+      const fresh = matching.find((s) => !consumed[queue.indexOf(s)]);
+      const spec = fresh ?? matching[matching.length - 1]!;
+      consumed[queue.indexOf(spec)] = true;
+      return spec;
+    }
+    const fallbacks = queue.filter((s) => s.match === undefined);
+    const fresh = fallbacks.find((s) => !consumed[queue.indexOf(s)]);
+    const spec = fresh ?? fallbacks[fallbacks.length - 1];
+    if (spec) consumed[queue.indexOf(spec)] = true;
+    return spec ?? {};
+  }
 
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
     const headers = (init?.headers ?? {}) as Record<string, string>;
@@ -71,8 +95,7 @@ export function installFetchMock(responses: MockResponseSpec | MockResponseSpec[
     };
     if (init?.credentials) captured.credentials = init.credentials;
     calls.push(captured);
-    const spec = queue[Math.min(i, queue.length - 1)] ?? {};
-    i += 1;
+    const spec = pickSpec(url);
     if (spec.networkError) throw new TypeError('Failed to fetch');
     return makeResponse(spec);
   });

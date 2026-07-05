@@ -1,21 +1,21 @@
-// API 层出口：typed client + SSE hook（均消费 @cb/shared 契约真源）。
+// API 层出口：typed client + 业务端点 + 任务进度 SSE hook（均消费 @cb/shared 契约真源）。
 export {
   ApiError,
   apiGet,
   apiGetEnvelope,
   apiPost,
-  apiPostReadonly,
-  apiPatch,
-  apiDelete,
+  fallbackErrorBody,
+  sanitizeErrorBody,
+  unwrapErrorBody,
   type RequestOptions,
-  type WriteOptions,
-  type ReadonlyPostOptions,
-  type IdempotencyScopeInput,
-  type IdempotencyOptionalScopeInput,
 } from './client.js';
+export * from './endpoints.js';
 export {
-  useSSE,
-  type UseSSEState,
-  type UseSSEOptions,
+  useTaskEvents,
+  reduceTaskEvents,
+  INITIAL_TASK_EVENTS_STATE,
+  __setFetchEventSourceForTests,
+  type TaskEventsState,
   type SSEConnectionStatus,
-} from './useSSE.js';
+  type UseTaskEventsOptions,
+} from './useTaskEvents.js';

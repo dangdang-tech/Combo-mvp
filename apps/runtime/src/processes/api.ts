@@ -1,4 +1,4 @@
-// api 进程：HTTP + SSE 服务端（试用端唯一进程）。
+// api 进程：HTTP + SSE 服务端（试用端唯一进程；对话生成在本进程内异步跑）。
 import { loadEnv } from '../platform/config/env.js';
 import { startNodeObservability } from '../platform/observability/node.js';
 

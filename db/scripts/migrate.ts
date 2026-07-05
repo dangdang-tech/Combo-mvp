@@ -1,5 +1,8 @@
 // 极简 SQL 迁移 runner（B-03）。按文件名字典序执行 migrations/*.sql，记账到 schema_migrations。
-// 迁移只加不减、向后兼容（脊柱 §1.1）。需 DATABASE_URL（无 Docker，连任意 PG 实例即可）。
+// 迁移策略（Daniel 2026-07-04 决策）：0000_baseline_schema.sql 是合并后的基线（原 0000-0018 已删）；
+//   之后的变更新增迁移文件（已执行过的文件不可改），历史再度堆积时可再次合并基线——
+//   合并时旧库执行 `DELETE FROM schema_migrations; INSERT ... VALUES ('<新基线文件名>')` 重置记账。
+// 需 DATABASE_URL（无 Docker，连任意 PG 实例即可）。
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

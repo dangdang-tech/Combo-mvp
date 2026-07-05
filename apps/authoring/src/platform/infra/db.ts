@@ -1,7 +1,16 @@
-// PostgreSQL 连接池（pg）。jobs/idempotency/users 等真源（脊柱 §6 / §4 / 10 §7）。
-// 骨架阶段：惰性建池，不在启动期强连（无 Docker 也能跑 tsc/单测/冒烟）。
+// PostgreSQL 连接池（pg）。tasks/uploads/capabilities/users 等状态真源。
+// 惰性建池，不在启动期强连（无 Docker 也能跑 tsc/单测/冒烟）。
 import { Pool } from 'pg';
 import type { Env } from '../config/env.js';
+
+/** pg.Pool / PoolClient 的最小查询面（单测可注入忠实假 PG，不依赖真库）。 */
+export interface QueryResultLike<R = Record<string, unknown>> {
+  rows: R[];
+  rowCount: number | null;
+}
+export interface Queryable {
+  query<R = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResultLike<R>>;
+}
 
 let pool: Pool | undefined;
 

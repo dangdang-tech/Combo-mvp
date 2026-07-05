@@ -9,7 +9,7 @@ export function AppShell() {
           <span />
           <span />
         </div>
-        <span className="rt-topbar__eyebrow">AGORA · CAPABILITY RUNTIME</span>
+        <span className="rt-topbar__eyebrow">COMBO · CAPABILITY RUNTIME</span>
       </header>
       <main className="rt-shell__main">
         <Outlet />

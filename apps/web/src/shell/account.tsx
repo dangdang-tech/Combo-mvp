@@ -1,39 +1,30 @@
-// 当前登录账号（外壳常驻区，开工总纲 §2.2：侧栏底部头像+姓名+职位、顶栏右上头像）。
-//
-// 范围诚实：F-04 不含「当前会话账号」后端端点（契约 §60 的 profile 是对外名片，非会话身份）。
-// 故此处用 typed context + 可注入 mock 默认值（设计 persona Wayne · CGO）；Phase 4 接真实
-// 会话/身份端点时只替换 ViewAccountProvider 的 value，外壳与消费方零改动（D14：外壳恒定）。
+// 当前登录账号（外壳常驻区：侧栏底部头像 + 姓名 · 角色，顶栏右上头像）。
+// 真源是 GET /me 的 MeView（RequireAuth 放行后由 ProtectedLayout 注入）。
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
 import type { MeView, Role } from '@cb/shared';
 
 export interface ShellAccount {
-  /** 头像 URL；null → 前端兜底首字母占位（非破图，对齐契约 avatarUrl 兜底口径）。 */
+  /** 头像 URL；null → 前端首字母占位（非破图）。 */
   avatarUrl: string | null;
-  /** 姓名（如 Wayne）。 */
+  /** 姓名（登录账号名）。 */
   name: string;
-  /** 职位（如 CGO）；展示为「姓名 · 职位」。 */
+  /** 角色展示位（如「创作者」）。 */
   title: string;
 }
 
-/** 设计 persona 默认账号（开工总纲：Wayne · CGO）。Phase 4 由真实身份端点覆盖。 */
+/** 兜底账号（理论上不可达：ProtectedLayout 只在 authed 后渲染）。 */
 export const DEFAULT_ACCOUNT: ShellAccount = {
   avatarUrl: null,
-  name: 'Wayne',
-  title: 'CGO',
+  name: '创作者',
+  title: '创作者',
 };
 
-/** 角色枚举 → 中文展示标签（职位位展示用，非鉴权口径）。 */
+/** 角色枚举 → 中文展示标签（展示用，非鉴权口径）。 */
 const ROLE_LABEL: Record<Role, string> = {
   creator: '创作者',
-  consumer: '消费者',
-  reviewer: '评审',
 };
 
-/**
- * 真实会话身份 MeView → 外壳账号（杀掉 persona Wayne）。
- * 姓名取 account（发布署名同源，10-auth §6）；职位取首个角色的中文标签，缺省回退「创作者」；
- * avatarUrl 暂无（MeView 不含），走首字母兜底（非破图）。
- */
+/** 真实会话身份 MeView → 外壳账号。avatarUrl 暂无（MeView 不含），走首字母兜底。 */
 export function accountFromMe(me: MeView): ShellAccount {
   const role = me.roles[0];
   return {

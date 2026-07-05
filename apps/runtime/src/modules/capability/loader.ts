@@ -1,158 +1,135 @@
-// getPublishedCapability 契约实现（方案 A：直读已发布投影）。
-//   按 slug 或 id 取一个【已发布】能力包：capabilities.current_version_id → capability_versions(status='published')。
-//   取不到（未发布/被驳回/不存在）→ null。加载前用 manifest_hash 校验完整性，不一致 → 拒绝（防篡改/过期）。
-//   只读已发布行 + 只依赖 @cb/shared，绝不 import authoring 代码（仓库边界铁律）。
-import type { Pool } from 'pg';
-import {
-  ManifestSchema,
-  SOFT_FIELD_KEYS,
-  toPublicView,
-  toRuntimeView,
-  type Manifest,
-  type PublicCapabilityView,
-  type SkillPackageRuntimeView,
-  type VersionStatus,
-} from '@cb/shared';
-import { manifestHash, verifyManifest } from './manifest-hash.js';
+// 能力加载：capabilities 行（权限闸）→ 按 storage_key 从 MinIO 读定义 → schema 校验。
+//   放行条件：owner 是本人 OR published=true；否则与不存在同样 not_found（不暴露存在性）。
+//   version 不认识 → unsupported_version（「能力格式过新」）而不是猜着解析。
+import { CapabilityDefinitionSchema, type CapabilityDefinition } from '@cb/shared';
+import type { Queryable } from '../../platform/infra/db.js';
+import type { RuntimeObjectStore } from '../../platform/infra/object-store.js';
+import { toIso } from '../session/repo.js';
 
-export interface LoadedCapability {
-  /** 含 instructions：仅服务端用（注入 systemPrompt）。 */
-  view: SkillPackageRuntimeView;
-  /** 下发浏览器的安全子集（无 instructions / 无 manifestHash）。 */
-  publicView: PublicCapabilityView;
+/** 能力定义所在桶（与 authoring 提取流水线写入侧一致）。 */
+export const CAPABILITY_BUCKET = 'agora-artifacts' as const;
+
+/** 能力行摘要（库里那行轻量索引，试用端消费的子集）。 */
+export interface CapabilitySummary {
+  id: string;
+  name: string;
+  summary: string;
+  kind: string;
+  published: boolean;
+  ownerUserId: string;
 }
 
-/** 加载失败原因（HTTP 层据此出人话信封）。 */
-export type CapabilityLoadReason = 'not_found' | 'integrity';
+export type LoadCapabilityResult =
+  | { kind: 'ok'; capability: CapabilitySummary; definition: CapabilityDefinition }
+  | { kind: 'not_found' }
+  | { kind: 'unsupported_version' }
+  | { kind: 'invalid_definition' };
 
-export class CapabilityLoadError extends Error {
-  constructor(
-    public readonly reason: CapabilityLoadReason,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'CapabilityLoadError';
-  }
-}
-
-interface CapabilityRow {
-  capability_id: string;
-  slug: string;
-  version: string;
-  status: string;
-  manifest: Manifest;
-  manifest_hash: string;
-}
-
-function hasSoftFieldValue(manifest: Manifest, field: (typeof SOFT_FIELD_KEYS)[number]): boolean {
-  const value = manifest[field];
-  return Array.isArray(value)
-    ? value.length > 0
-    : typeof value === 'string' && value.trim().length > 0;
-}
-
-function toLoadedCapability(input: {
-  capabilityId: string;
-  slug: string;
-  version: string;
-  status: VersionStatus;
-  manifest: Manifest;
-  manifestHash: string;
-}): LoadedCapability {
-  const view = toRuntimeView({
-    capabilityId: input.capabilityId,
-    version: input.version,
-    status: input.status,
-    manifest: input.manifest,
-    manifestHash: input.manifestHash,
-  });
-  const publicView = toPublicView({
-    capabilityId: input.capabilityId,
-    slug: input.slug,
-    version: input.version,
-    status: input.status,
-    manifest: input.manifest,
-  });
-  return { view, publicView };
+interface CapabilityDbRow {
+  id: string;
+  owner_user_id: string;
+  name: string;
+  summary: string;
+  kind: string;
+  storage_key: string;
+  published: boolean;
+  created_at: string | Date;
 }
 
 /**
- * 按 slug 或 id 取一个已发布能力包。取不到 → null；指纹不一致 → 抛 CapabilityLoadError('integrity')。
+ * 加载一个能力的完整可运行定义（开会话/发消息前必过）。
+ * userId：当前登录用户——本人可试未发布项，他人只能试已发布项。
  */
-export async function getPublishedCapability(
-  pool: Pool,
-  slugOrId: string,
-): Promise<LoadedCapability | null> {
-  const res = await pool.query<CapabilityRow>(
-    `SELECT v.capability_id, c.slug, v.version, v.status, v.manifest, v.manifest_hash
-       FROM capabilities c
-       JOIN capability_versions v ON v.id = c.current_version_id
-      WHERE (c.slug = $1 OR c.id::text = $1)
-        AND v.status = 'published'
-        -- 仅公开能力可被试用端直读：unlisted（私享，仅 share_token 可达，且不进市集 list）必须排除，
-        --   否则任何知道/猜到 slug 的人都能加载它、开会话拿到它的私有 instructions（访问控制漏洞）。
-        --   share_token 试用是后续能力；本期 unlisted 不可试用，与 list.ts 排除 unlisted 保持一致。
-        AND COALESCE(v.visibility, 'public') = 'public'
+export async function loadCapability(
+  db: Queryable,
+  objectStore: RuntimeObjectStore,
+  capabilityId: string,
+  userId: string,
+): Promise<LoadCapabilityResult> {
+  const res = await db.query<CapabilityDbRow>(
+    `SELECT id, owner_user_id, name, summary, kind, storage_key, published, created_at
+       FROM capabilities
+      WHERE id = $1
       LIMIT 1`,
-    [slugOrId],
+    [capabilityId],
   );
   const row = res.rows[0];
-  if (!row) return null;
+  if (!row) return { kind: 'not_found' };
+  if (row.owner_user_id !== userId && !row.published) return { kind: 'not_found' };
 
-  // 完整性：对【原始 manifest 对象】（authoring 当初据它冻结 hash）重算指纹比对。
-  //   先校验再 zod parse——zod 会剥未知字段，若用 parse 后的对象算 hash 可能与冻结值不符。
-  if (!verifyManifest(row.manifest, row.manifest_hash)) {
-    throw new CapabilityLoadError('integrity', '能力包完整性校验未通过，拒绝加载');
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await objectStore.getObjectText(CAPABILITY_BUCKET, row.storage_key));
+  } catch {
+    return { kind: 'invalid_definition' };
   }
 
-  // 读模型自防御：校验 manifest 结构合规（authoring 写的应合规，但 runtime 不盲信表内容）。
-  const manifest = ManifestSchema.parse(row.manifest);
-  const status = row.status as VersionStatus;
+  // version 前置判定：不是当前认识的 1 → 格式过新（与「结构坏了」区分，报不同人话）。
+  const version = (raw as { version?: unknown } | null)?.version;
+  if (version !== 1) return { kind: 'unsupported_version' };
 
-  return toLoadedCapability({
-    capabilityId: row.capability_id,
-    slug: row.slug,
-    version: row.version,
-    status,
-    manifest,
-    manifestHash: row.manifest_hash,
-  });
+  const parsed = CapabilityDefinitionSchema.safeParse(raw);
+  if (!parsed.success) return { kind: 'invalid_definition' };
+
+  return {
+    kind: 'ok',
+    capability: {
+      id: row.id,
+      name: row.name,
+      summary: row.summary,
+      kind: row.kind,
+      published: row.published,
+      ownerUserId: row.owner_user_id,
+    },
+    definition: parsed.data,
+  };
 }
 
-/**
- * 创作者发布前试用：按 capabilityId + versionId + creatorUserId 读取本人的 draft 能力包。
- * 仅用于 trial session，不进公开市集、不允许 consume session 复用。
- */
-export async function getDraftCapabilityForTrial(
-  pool: Pool,
-  input: { capabilityId: string; versionId: string; creatorUserId: string },
-): Promise<LoadedCapability | null> {
-  const res = await pool.query<Omit<CapabilityRow, 'manifest_hash'>>(
-    `SELECT v.capability_id, c.slug, v.version, v.status, v.manifest
-       FROM capability_versions v
-       JOIN capabilities c ON c.id = v.capability_id
-      WHERE c.id::text = $1
-        AND v.id::text = $2
-        AND c.creator_user_id = $3
-        AND c.status = 'active'
-        AND v.status = 'draft'
-      LIMIT 1`,
-    [input.capabilityId, input.versionId, input.creatorUserId],
+/** 会话详情里的能力摘要读（会话已过 owner 校验，这里不再做权限闸）。 */
+export async function readCapabilitySummary(
+  db: Queryable,
+  capabilityId: string,
+): Promise<Pick<CapabilitySummary, 'id' | 'name' | 'summary' | 'kind'> | null> {
+  const res = await db.query<Pick<CapabilityDbRow, 'id' | 'name' | 'summary' | 'kind'>>(
+    `SELECT id, name, summary, kind FROM capabilities WHERE id = $1 LIMIT 1`,
+    [capabilityId],
   );
   const row = res.rows[0];
-  if (!row) return null;
+  return row ? { id: row.id, name: row.name, summary: row.summary, kind: row.kind } : null;
+}
 
-  const manifest = ManifestSchema.parse(row.manifest);
-  const ready = SOFT_FIELD_KEYS.every((field) => hasSoftFieldValue(manifest, field));
-  if (!ready) return null;
-  const status = row.status as VersionStatus;
+/** 试用入口列表项：我的全部 + 别人已发布的。 */
+export interface TrialCapabilityItem {
+  id: string;
+  name: string;
+  summary: string;
+  kind: string;
+  published: boolean;
+  /** 是否本人创作（前端区分「我的 / 市集」分组）。 */
+  owned: boolean;
+  createdAt: string;
+}
 
-  return toLoadedCapability({
-    capabilityId: row.capability_id,
-    slug: row.slug,
-    version: row.version,
-    status,
-    manifest,
-    manifestHash: manifestHash(manifest),
-  });
+/** 试用入口列表：我的全部 + 已发布的，新→旧。 */
+export async function listTrialCapabilities(
+  db: Queryable,
+  userId: string,
+): Promise<TrialCapabilityItem[]> {
+  const res = await db.query<CapabilityDbRow>(
+    `SELECT id, owner_user_id, name, summary, kind, storage_key, published, created_at
+       FROM capabilities
+      WHERE owner_user_id = $1 OR published = true
+      ORDER BY created_at DESC
+      LIMIT 100`,
+    [userId],
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    summary: r.summary,
+    kind: r.kind,
+    published: r.published,
+    owned: r.owner_user_id === userId,
+    createdAt: toIso(r.created_at),
+  }));
 }

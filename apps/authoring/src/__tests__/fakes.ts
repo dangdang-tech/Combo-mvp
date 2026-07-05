@@ -1,0 +1,587 @@
+// 测试共用假件：忠实假 PG（按 repo/service 的真实 SQL 形态逐条模拟）+ 假对象存储 / 队列 / 事件流 / LLM。
+// 「忠实」指：守卫条件（owner/状态/过期/乐观锁）与真实 SQL 语义一致，命中/未命中行数可断言。
+import type {
+  LlmCallOptions,
+  LlmGatewayPort,
+  LlmResult,
+  ObjectStorePort,
+  QueuePort,
+  SSEEventType,
+} from '@cb/shared';
+import type { QueryResultLike } from '../platform/infra/db.js';
+import type { TxConn, TxPool } from '../platform/infra/db-tx.js';
+import type { TaskEventBridge } from '../platform/sse/event-stream.js';
+import type { PartsManifest } from '../modules/task/repo.js';
+
+let seq = 0;
+/** 递增的假 UUID（保持 id 可比较排序，模拟 UUID v7 时间有序）。 */
+export function nextId(prefix: string): string {
+  seq += 1;
+  return `${prefix}-${String(seq).padStart(6, '0')}`;
+}
+
+export interface TaskRowF {
+  id: string;
+  owner_user_id: string;
+  current_step: string;
+  status: string;
+  description: string | null;
+  meta: Record<string, unknown>;
+  retry_count: number;
+  last_error: unknown;
+  lease_owner: string | null;
+  lease_expires_at: string | null;
+  idempotency_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UploadRowF {
+  task_id: string;
+  storage_key: string | null;
+  status: string;
+  pairing_code_hash: string;
+  pairing_expires_at: string;
+  parts: PartsManifest;
+  raw_purged_at: string | null;
+  meta: Record<string, unknown>;
+}
+
+export interface CapabilityRowF {
+  id: string;
+  task_id: string;
+  owner_user_id: string;
+  name: string;
+  summary: string;
+  kind: string;
+  storage_key: string;
+  published: boolean;
+  published_at: string | null;
+  share_token: string | null;
+  meta: Record<string, unknown>;
+  created_at: string;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+/** 忠实假 PG（tasks / uploads / capabilities 三表）。也可当 TxPool 用（BEGIN/COMMIT 透传）。 */
+export class FakeDb implements TxPool {
+  tasks = new Map<string, TaskRowF>();
+  uploads = new Map<string, UploadRowF>();
+  capabilities = new Map<string, CapabilityRowF>();
+  /** 每条 UPDATE 影响行数历史（断言「单次写、命中/未命中」）。 */
+  updateRowCounts: number[] = [];
+  /** 事务轨迹（断言 BEGIN/COMMIT/ROLLBACK 收口）。 */
+  txLog: string[] = [];
+
+  async connect(): Promise<TxConn> {
+    return {
+      query: (sql: string, params?: unknown[]) => this.query(sql, params),
+      release: () => undefined,
+    } as TxConn;
+  }
+
+  async query<R = Record<string, unknown>>(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<QueryResultLike<R>> {
+    const s = sql.replace(/\s+/g, ' ').trim();
+
+    if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') {
+      this.txLog.push(s);
+      return { rows: [], rowCount: null };
+    }
+
+    // ---------- tasks ----------
+    if (s.startsWith('INSERT INTO tasks')) {
+      const [owner, description, idemKey] = params as [string, string | null, string];
+      for (const t of this.tasks.values()) {
+        if (t.idempotency_key === idemKey) return { rows: [], rowCount: 0 }; // ON CONFLICT DO NOTHING
+      }
+      const id = nextId('task');
+      const now = nowIso();
+      this.tasks.set(id, {
+        id,
+        owner_user_id: owner,
+        current_step: 'upload',
+        status: 'running',
+        description,
+        meta: {},
+        retry_count: 0,
+        last_error: null,
+        lease_owner: null,
+        lease_expires_at: null,
+        idempotency_key: idemKey,
+        created_at: now,
+        updated_at: now,
+      });
+      return { rows: [{ id }] as R[], rowCount: 1 };
+    }
+
+    if (s.includes('FROM tasks WHERE idempotency_key = $1')) {
+      const key = params[0] as string;
+      const t = [...this.tasks.values()].find((x) => x.idempotency_key === key);
+      return t
+        ? { rows: [{ id: t.id, owner_user_id: t.owner_user_id }] as R[], rowCount: 1 }
+        : { rows: [], rowCount: 0 };
+    }
+
+    // transition（唯一状态变更入口）：WHERE id + 期望 (step,status) 乐观锁。
+    if (
+      s.includes('UPDATE tasks') &&
+      s.includes('WHERE id = $1 AND current_step = $2 AND status = $3')
+    ) {
+      const [id, expStep, expStatus, step, status, errMode, errJson, retryMode] = params as [
+        string,
+        string,
+        string,
+        string | null,
+        string | null,
+        string,
+        string | null,
+        string,
+      ];
+      const t = this.tasks.get(id);
+      if (!t || t.current_step !== expStep || t.status !== expStatus) {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      t.current_step = step ?? t.current_step;
+      t.status = status ?? t.status;
+      if (errMode === 'set') t.last_error = errJson ? JSON.parse(errJson) : null;
+      else if (errMode === 'clear') t.last_error = null;
+      if (retryMode === 'increment') t.retry_count += 1;
+      else if (retryMode === 'reset') t.retry_count = 0;
+      t.lease_owner = null;
+      t.lease_expires_at = null;
+      t.updated_at = nowIso();
+      this.updateRowCounts.push(1);
+      return { rows: [], rowCount: 1 };
+    }
+
+    // claimTask：SET lease_owner=$2 WHERE running+extract 且无有效租约。
+    if (s.includes('UPDATE tasks') && s.includes('SET lease_owner = $2')) {
+      const [id, leaseOwner, leaseMs] = params as [string, string, string];
+      const t = this.tasks.get(id);
+      const leaseValid = t?.lease_expires_at && new Date(t.lease_expires_at).getTime() > Date.now();
+      if (!t || t.status !== 'running' || t.current_step !== 'extract' || leaseValid) {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      t.lease_owner = leaseOwner;
+      t.lease_expires_at = new Date(Date.now() + Number(leaseMs)).toISOString();
+      t.updated_at = nowIso();
+      this.updateRowCounts.push(1);
+      return {
+        rows: [{ owner_user_id: t.owner_user_id, retry_count: t.retry_count, meta: t.meta }] as R[],
+        rowCount: 1,
+      };
+    }
+
+    // renewLease：WHERE id=$1 AND lease_owner=$2 AND running。
+    if (s.includes('UPDATE tasks') && s.includes('WHERE id = $1 AND lease_owner = $2')) {
+      const [id, leaseOwner, leaseMs] = params as [string, string, string];
+      const t = this.tasks.get(id);
+      if (!t || t.lease_owner !== leaseOwner || t.status !== 'running') {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      t.lease_expires_at = new Date(Date.now() + Number(leaseMs)).toISOString();
+      this.updateRowCounts.push(1);
+      return { rows: [], rowCount: 1 };
+    }
+
+    // saveTaskProgress：jsonb_set(meta,'{progress}')，仅 running。
+    if (s.includes('UPDATE tasks') && s.includes("jsonb_set(meta, '{progress}'")) {
+      const [id, progressJson] = params as [string, string];
+      const t = this.tasks.get(id);
+      if (!t || t.status !== 'running') {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      t.meta = { ...t.meta, progress: JSON.parse(progressJson) };
+      t.updated_at = nowIso();
+      this.updateRowCounts.push(1);
+      return { rows: [], rowCount: 1 };
+    }
+
+    // readTaskCore
+    if (s.includes('SELECT id, owner_user_id, current_step, status, last_error, meta FROM tasks')) {
+      const t = this.tasks.get(params[0] as string);
+      if (!t) return { rows: [], rowCount: 0 };
+      return {
+        rows: [
+          {
+            id: t.id,
+            owner_user_id: t.owner_user_id,
+            current_step: t.current_step,
+            status: t.status,
+            last_error: t.last_error,
+            meta: t.meta,
+          },
+        ] as R[],
+        rowCount: 1,
+      };
+    }
+
+    // findStalledExtractTasks
+    if (
+      s.startsWith("SELECT id FROM tasks WHERE status = 'running' AND current_step = 'extract'")
+    ) {
+      const rows = [...this.tasks.values()]
+        .filter((t) => {
+          if (t.status !== 'running' || t.current_step !== 'extract') return false;
+          if (t.lease_expires_at) return new Date(t.lease_expires_at).getTime() < Date.now();
+          return new Date(t.updated_at).getTime() < Date.now() - 2 * 60 * 1000;
+        })
+        .map((t) => ({ id: t.id }));
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    // TaskView 读（单个 / 列表）：JOIN uploads + capability_count。
+    if (s.includes('FROM tasks t JOIN uploads u ON u.task_id = t.id')) {
+      const shape = (t: TaskRowF): Record<string, unknown> => {
+        const u = this.uploads.get(t.id)!;
+        return {
+          id: t.id,
+          current_step: t.current_step,
+          status: t.status,
+          description: t.description,
+          retry_count: t.retry_count,
+          last_error: t.last_error,
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+          upload_status: u.status,
+          parts: u.parts,
+          pairing_expires_at: u.pairing_expires_at,
+          capability_count: [...this.capabilities.values()].filter((c) => c.task_id === t.id)
+            .length,
+        };
+      };
+      if (s.includes('WHERE t.id = $1 AND t.owner_user_id = $2')) {
+        const t = this.tasks.get(params[0] as string);
+        if (!t || t.owner_user_id !== params[1] || !this.uploads.get(t.id)) {
+          return { rows: [], rowCount: 0 };
+        }
+        return { rows: [shape(t)] as R[], rowCount: 1 };
+      }
+      // 列表：owner + 可选 cursor（id < $2）+ LIMIT $3，id 降序。
+      const [owner, cursor, limit] = params as [string, string | null, number];
+      const rows = [...this.tasks.values()]
+        .filter((t) => t.owner_user_id === owner && (cursor === null || t.id < cursor))
+        .sort((a, b) => (a.id < b.id ? 1 : -1))
+        .slice(0, limit)
+        .map(shape);
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    // ---------- uploads ----------
+    if (s.startsWith('INSERT INTO uploads')) {
+      const [taskId, hash, expiresAt] = params as [string, string, string];
+      this.uploads.set(taskId, {
+        task_id: taskId,
+        storage_key: null,
+        status: 'pending',
+        pairing_code_hash: hash,
+        pairing_expires_at: expiresAt,
+        parts: {},
+        raw_purged_at: null,
+        meta: {},
+      });
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (s.includes('WHERE u.pairing_code_hash = $1')) {
+      const hash = params[0] as string;
+      const u = [...this.uploads.values()].find((x) => x.pairing_code_hash === hash);
+      if (!u) return { rows: [], rowCount: 0 };
+      const t = this.tasks.get(u.task_id)!;
+      return {
+        rows: [
+          {
+            task_id: u.task_id,
+            owner_user_id: t.owner_user_id,
+            upload_status: u.status,
+            expired: new Date(u.pairing_expires_at).getTime() <= Date.now(),
+            current_step: t.current_step,
+            status: t.status,
+          },
+        ] as R[],
+        rowCount: 1,
+      };
+    }
+
+    // rotatePairingCode
+    if (s.includes('UPDATE uploads') && s.includes('SET pairing_code_hash = $2')) {
+      const [taskId, hash, expiresAt] = params as [string, string, string];
+      const u = this.uploads.get(taskId);
+      if (!u || u.status !== 'pending') {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      u.pairing_code_hash = hash;
+      u.pairing_expires_at = expiresAt;
+      this.updateRowCounts.push(1);
+      return { rows: [], rowCount: 1 };
+    }
+
+    // registerPart：landed 合并 + total 首次声明为准；仅 pending 且未过期。
+    if (s.includes('UPDATE uploads') && s.includes('jsonb_build_object')) {
+      const [taskId, idx, key, total] = params as [string, string, string, number];
+      const u = this.uploads.get(taskId);
+      if (!u || u.status !== 'pending' || new Date(u.pairing_expires_at).getTime() <= Date.now()) {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      u.parts = {
+        total: typeof u.parts.total === 'number' ? u.parts.total : total,
+        landed: { ...(u.parts.landed ?? {}), [idx]: key },
+      };
+      this.updateRowCounts.push(1);
+      return { rows: [{ parts: u.parts }] as R[], rowCount: 1 };
+    }
+
+    // markUploadRaw
+    if (s.includes('UPDATE uploads') && s.includes("SET status = 'raw'")) {
+      const [taskId, storageKey] = params as [string, string];
+      const u = this.uploads.get(taskId);
+      if (!u || u.status !== 'pending') {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      u.status = 'raw';
+      u.storage_key = storageKey;
+      this.updateRowCounts.push(1);
+      return { rows: [], rowCount: 1 };
+    }
+
+    // markUploadProcessed（raw_purged_at 只在 purged=true 时打戳，与真 SQL 的 CASE WHEN 一致）
+    if (s.includes('UPDATE uploads') && s.includes("SET status = 'processed'")) {
+      const [taskId, purged] = params as [string, boolean];
+      const u = this.uploads.get(taskId);
+      if (!u) {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      u.status = 'processed';
+      if (purged) u.raw_purged_at = nowIso();
+      this.updateRowCounts.push(1);
+      return { rows: [], rowCount: 1 };
+    }
+
+    // mergeUploadMeta
+    if (s.includes('UPDATE uploads') && s.includes('SET meta = meta ||')) {
+      const [taskId, patch] = params as [string, string];
+      const u = this.uploads.get(taskId);
+      if (!u) return { rows: [], rowCount: 0 };
+      u.meta = { ...u.meta, ...JSON.parse(patch) };
+      return { rows: [], rowCount: 1 };
+    }
+
+    // readUploadForPipeline
+    if (s.includes('SELECT storage_key, status, parts FROM uploads')) {
+      const u = this.uploads.get(params[0] as string);
+      if (!u) return { rows: [], rowCount: 0 };
+      return {
+        rows: [{ storage_key: u.storage_key, status: u.status, parts: u.parts }] as R[],
+        rowCount: 1,
+      };
+    }
+
+    // ---------- capabilities ----------
+    if (s.startsWith('INSERT INTO capabilities')) {
+      const [id, taskId, owner, name, summary, kind, storageKey, meta] = params as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+      ];
+      const row: CapabilityRowF = {
+        id,
+        task_id: taskId,
+        owner_user_id: owner,
+        name,
+        summary,
+        kind,
+        storage_key: storageKey,
+        published: false,
+        published_at: null,
+        share_token: null,
+        meta: JSON.parse(meta),
+        created_at: nowIso(),
+      };
+      this.capabilities.set(id, row);
+      return { rows: [this.capabilityShape(row)] as R[], rowCount: 1 };
+    }
+
+    if (s.includes('FROM capabilities WHERE id = $1 AND owner_user_id = $2')) {
+      const c = this.capabilities.get(params[0] as string);
+      if (!c || c.owner_user_id !== params[1]) return { rows: [], rowCount: 0 };
+      return { rows: [this.capabilityShape(c)] as R[], rowCount: 1 };
+    }
+
+    if (s.includes('FROM capabilities WHERE owner_user_id = $1')) {
+      const [owner, taskId, cursor, limit] = params as [
+        string,
+        string | null,
+        string | null,
+        number,
+      ];
+      const rows = [...this.capabilities.values()]
+        .filter(
+          (c) =>
+            c.owner_user_id === owner &&
+            (taskId === null || c.task_id === taskId) &&
+            (cursor === null || c.id < cursor),
+        )
+        .sort((a, b) => (a.id < b.id ? 1 : -1))
+        .slice(0, limit)
+        .map((c) => this.capabilityShape(c));
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    if (s.includes('UPDATE capabilities') && s.includes('SET published = true')) {
+      const [id, owner, token] = params as [string, string, string];
+      const c = this.capabilities.get(id);
+      if (!c || c.owner_user_id !== owner) {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      c.published = true;
+      c.published_at = nowIso();
+      c.share_token = c.share_token ?? token;
+      this.updateRowCounts.push(1);
+      return { rows: [this.capabilityShape(c)] as R[], rowCount: 1 };
+    }
+
+    if (s.includes('UPDATE capabilities') && s.includes('SET published = false')) {
+      const [id, owner] = params as [string, string];
+      const c = this.capabilities.get(id);
+      if (!c || c.owner_user_id !== owner) {
+        this.updateRowCounts.push(0);
+        return { rows: [], rowCount: 0 };
+      }
+      c.published = false;
+      c.published_at = null;
+      this.updateRowCounts.push(1);
+      return { rows: [this.capabilityShape(c)] as R[], rowCount: 1 };
+    }
+
+    throw new Error(`FakeDb: unhandled SQL: ${s.slice(0, 140)}`);
+  }
+
+  private capabilityShape(c: CapabilityRowF): Record<string, unknown> {
+    return {
+      id: c.id,
+      task_id: c.task_id,
+      name: c.name,
+      summary: c.summary,
+      kind: c.kind,
+      published: c.published,
+      published_at: c.published_at,
+      share_token: c.share_token,
+      created_at: c.created_at,
+    };
+  }
+}
+
+/** 假对象存储（内存 Map；只实现流水线/配对用到的方法）。 */
+export class FakeObjectStore implements ObjectStorePort {
+  objects = new Map<string, Uint8Array>();
+
+  private k(bucket: string, key: string): string {
+    return `${bucket}/${key}`;
+  }
+  async putObject(bucket: never, key: string, body: Uint8Array): Promise<{ key: string }> {
+    this.objects.set(this.k(bucket, key), body);
+    return { key };
+  }
+  async getObjectText(bucket: never, key: string): Promise<string> {
+    const v = this.objects.get(this.k(bucket, key));
+    if (!v) throw new Error(`FakeObjectStore: missing ${bucket}/${key}`);
+    return new TextDecoder().decode(v);
+  }
+  async getObject(bucket: never, key: string): Promise<Uint8Array> {
+    const v = this.objects.get(this.k(bucket, key));
+    if (!v) throw new Error(`FakeObjectStore: missing ${bucket}/${key}`);
+    return v;
+  }
+  async delete(bucket: never, key: string): Promise<void> {
+    this.objects.delete(this.k(bucket, key));
+  }
+  async presignPut(): Promise<{ url: string; key: string }> {
+    throw new Error('not used');
+  }
+  async presignGet(): Promise<{ url: string }> {
+    throw new Error('not used');
+  }
+  async list(): Promise<[]> {
+    return [];
+  }
+  async head(): Promise<null> {
+    return null;
+  }
+}
+
+/** 假队列（记录 enqueue 调用）。 */
+export class FakeQueue implements QueuePort {
+  enqueued: Array<{ queue: string; taskId: string }> = [];
+  async enqueue(queue: string, taskId: string): Promise<void> {
+    this.enqueued.push({ queue, taskId });
+  }
+  async remove(): Promise<void> {}
+}
+
+/** 假事件桥（记录 worker 推的帧）。 */
+export class FakeStream implements TaskEventBridge {
+  frames: Array<{ taskId: string; event: SSEEventType; payload: unknown }> = [];
+  async publish(
+    taskId: string,
+    frame: { event: SSEEventType; payload: unknown },
+  ): Promise<string | null> {
+    this.frames.push({ taskId, ...frame });
+    return `${this.frames.length}-0`;
+  }
+  events(taskId: string): SSEEventType[] {
+    return this.frames.filter((f) => f.taskId === taskId).map((f) => f.event);
+  }
+}
+
+/** 假 LLM 网关：按脚本回文本 / 降级 / 抛错。 */
+export class FakeLlm implements LlmGatewayPort {
+  calls: string[] = [];
+  constructor(
+    private readonly script: (prompt: string, callIndex: number) => LlmResult | Error = () => ({
+      degraded: true,
+      usage: { promptTokens: 0, completionTokens: 0, costMicros: 0 },
+    }),
+  ) {}
+  async complete(prompt: string, _opts: LlmCallOptions): Promise<LlmResult> {
+    const r = this.script(prompt, this.calls.length);
+    this.calls.push(prompt);
+    if (r instanceof Error) throw r;
+    return r;
+  }
+  // eslint-disable-next-line require-yield
+  async *stream(): AsyncIterable<{ deltaText: string }> {
+    throw new Error('not used');
+  }
+  async embed(): Promise<LlmResult> {
+    throw new Error('not used');
+  }
+}
+
+/** 造一个 LLM 成功结果。 */
+export function llmText(text: string): LlmResult {
+  return {
+    text,
+    degraded: false,
+    usage: { promptTokens: 10, completionTokens: 20, costMicros: 5 },
+  };
+}

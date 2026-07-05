@@ -1,5 +1,5 @@
 // B-06 · LLM Gateway 端口（70 §8.3）。限流/重试/计费/流式。domain 声明，infra/llm 实现。
-import type { TraceId, UserId } from '../core/ids.js';
+import type { Id, TraceId } from '../core/ids.js';
 
 /** 超时分级 40/45/60/180s 按 taskClass 选档（技术方案 1.4）。 */
 export type LlmTaskClass = 'extract' | 'structure_field' | 'embedding' | 'misc';
@@ -8,7 +8,7 @@ export interface LlmCallOptions {
   taskClass: LlmTaskClass;
   traceId: TraceId;
   /** 预算闸/计费归属。 */
-  ownerUserId?: UserId;
+  ownerUserId?: Id;
   /** 匿名按 token 限流（share_token 场景）。 */
   anonKey?: string;
   /** 流式（结构化字段流 field_delta 的上游）。 */

@@ -1,407 +1,209 @@
-// 会话 / 对话消息持久化（rt_chat_sessions / rt_chat_messages）。owner-scoped 读写。
-//   transcript：pi AgentMessage[] 原始转录（rehydrate agent）；rt_chat_messages：UI 形态消息（渲染对话流）。
-//   两者各服务一端：saveTurn 在同事务里一并落，断线重载会话也能拿到一致结果。
-import type { Pool, PoolClient } from 'pg';
-import type {
-  ArtifactRef,
-  PublicCapabilityView,
-  RuntimeMessage,
-  RuntimeSessionListItem,
-  RuntimeSessionMeta,
-  RuntimeSessionMode,
-} from '@cb/shared';
+// sessions / messages 两表 SQL。owner 校验统一收在 SQL 的 owner_user_id 条件里：
+// 非本人与不存在同样 0 行（不暴露存在性）。
+import type { MessageRole, MessageStatus, MessageView, SessionView } from '@cb/shared';
+import { withTransaction, type Queryable, type RuntimeDb } from '../../platform/infra/db.js';
+import { parseMessageContent } from './message-content.js';
 
-export interface CreateSessionInput {
-  ownerId: string;
-  capabilityId: string;
-  slug: string;
-  version: string;
-  title: string;
-  mode?: RuntimeSessionMode;
-  /** 冻结的系统提示词快照（注入 pi）。 */
-  instructions: string;
-  /** 冻结的内容指纹（开会话时记下）。 */
-  manifestHash: string;
-  publicView: PublicCapabilityView;
-}
-
-/** 会话内部行（含服务端机密 instructions / 原始 transcript），仅服务端用。 */
-export interface SessionRow {
-  id: string;
-  ownerId: string;
-  capabilityId: string;
-  slug: string;
-  version: string;
-  mode: RuntimeSessionMode;
-  title: string;
-  instructions: string;
-  manifestHash: string;
-  publicView: PublicCapabilityView;
-  /** pi AgentMessage[]（plain JSON），build-agent 据此 rehydrate。 */
-  transcript: unknown[];
-  createdAt: string;
-  updatedAt: string;
+/** timestamptz → ISO 字符串（pg 可能回 Date 或字符串）。 */
+export function toIso(v: string | Date): string {
+  if (v instanceof Date) return v.toISOString();
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toISOString();
 }
 
 interface SessionDbRow {
   id: string;
-  owner_id: string;
   capability_id: string;
-  slug: string;
-  version: string;
-  title: string;
-  mode: RuntimeSessionMode;
-  instructions: string;
-  manifest_hash: string;
-  public_view: PublicCapabilityView;
-  transcript: unknown[];
-  created_at: Date;
-  updated_at: Date;
+  owner_user_id: string;
+  title: string | null;
+  status: 'active' | 'closed';
+  created_at: string | Date;
+  updated_at: string | Date;
 }
 
-function toRow(r: SessionDbRow): SessionRow {
+/** 会话内部行（含 ownerUserId，仅服务端用；对外形态是 SessionView）。 */
+export interface SessionRow {
+  id: string;
+  capabilityId: string;
+  ownerUserId: string;
+  title: string | null;
+  status: 'active' | 'closed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+const SESSION_COLUMNS = `id, capability_id, owner_user_id, title, status, created_at, updated_at`;
+
+function toSessionRow(r: SessionDbRow): SessionRow {
   return {
     id: r.id,
-    ownerId: r.owner_id,
     capabilityId: r.capability_id,
-    slug: r.slug,
-    version: r.version,
-    mode: r.mode,
+    ownerUserId: r.owner_user_id,
     title: r.title,
-    instructions: r.instructions,
-    manifestHash: r.manifest_hash,
-    publicView: r.public_view,
-    transcript: Array.isArray(r.transcript) ? r.transcript : [],
-    createdAt: r.created_at.toISOString(),
-    updatedAt: r.updated_at.toISOString(),
+    status: r.status,
+    createdAt: toIso(r.created_at),
+    updatedAt: toIso(r.updated_at),
   };
 }
 
-function toMeta(r: SessionRow): RuntimeSessionMeta {
+export function toSessionView(row: SessionRow): SessionView {
   return {
-    id: r.id,
-    capabilityId: r.capabilityId,
-    slug: r.slug,
-    version: r.version,
-    mode: r.mode,
-    title: r.title,
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
+    id: row.id,
+    capabilityId: row.capabilityId,
+    ...(row.title ? { title: row.title } : {}),
+    status: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
+/** 建会话（loader 校验通过后调用）。 */
 export async function createSession(
-  pool: Pool,
-  input: CreateSessionInput,
-): Promise<RuntimeSessionMeta> {
-  const res = await pool.query<SessionDbRow>(
-    `INSERT INTO rt_chat_sessions
-       (owner_id, capability_id, slug, version, mode, title, instructions, manifest_hash, public_view)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-     RETURNING *`,
-    [
-      input.ownerId,
-      input.capabilityId,
-      input.slug,
-      input.version,
-      input.mode ?? 'consume',
-      input.title,
-      input.instructions,
-      input.manifestHash,
-      JSON.stringify(input.publicView),
-    ],
+  db: Queryable,
+  input: { capabilityId: string; ownerUserId: string },
+): Promise<SessionRow> {
+  const res = await db.query<SessionDbRow>(
+    `INSERT INTO sessions (capability_id, owner_user_id)
+     VALUES ($1, $2)
+     RETURNING ${SESSION_COLUMNS}`,
+    [input.capabilityId, input.ownerUserId],
   );
   const row = res.rows[0];
   if (!row) throw new Error('createSession: insert returned no row');
-  return toMeta(toRow(row));
+  return toSessionRow(row);
 }
 
-/** 查找同 owner/capability 下尚未产生消息的 trial 空会话；用于 /try 默认入口刷新复用。 */
-export async function findEmptyTrialSession(
-  pool: Pool,
-  input: { ownerId: string; capabilityId: string; version: string },
-): Promise<RuntimeSessionMeta | null> {
-  const res = await pool.query<SessionDbRow>(
-    `SELECT *
-       FROM rt_chat_sessions s
-      WHERE s.owner_id = $1
-        AND s.capability_id = $2
-        AND s.version = $3
-        AND s.mode = 'trial'
-        AND s.status = 'active'
-        AND NOT EXISTS (SELECT 1 FROM rt_chat_messages m WHERE m.session_id = s.id)
-      ORDER BY s.updated_at DESC
-      LIMIT 1`,
-    [input.ownerId, input.capabilityId, input.version],
-  );
-  const row = res.rows[0];
-  return row ? toMeta(toRow(row)) : null;
-}
-
-/** owner-scoped 取会话内部行（含 instructions/transcript），不存在或非本人 → null。 */
-export async function getSessionRow(
-  pool: Pool,
-  id: string,
-  ownerId: string,
-): Promise<SessionRow | null> {
-  const res = await pool.query<SessionDbRow>(
-    `SELECT * FROM rt_chat_sessions WHERE id = $1 AND owner_id = $2 LIMIT 1`,
-    [id, ownerId],
-  );
-  const row = res.rows[0];
-  return row ? toRow(row) : null;
-}
-
-export async function getSessionMeta(
-  pool: Pool,
-  id: string,
-  ownerId: string,
-): Promise<RuntimeSessionMeta | null> {
-  const row = await getSessionRow(pool, id, ownerId);
-  return row ? toMeta(row) : null;
-}
-
+/** 我的会话列表，按 updated_at 降序；给 capabilityId 时只列该能力下的会话（侧栏按能力隔离）。 */
 export async function listSessions(
-  pool: Pool,
-  ownerId: string,
-  opts: { capabilityId?: string; mode?: RuntimeSessionMode; slug?: string } = {},
-): Promise<RuntimeSessionListItem[]> {
-  const filters: string[] = [`owner_id = $1`, `status = 'active'`];
-  const params: unknown[] = [ownerId];
-  if (opts.capabilityId) {
-    params.push(opts.capabilityId);
-    filters.push(`capability_id = $${params.length}`);
-  }
-  if (opts.mode) {
-    params.push(opts.mode);
-    filters.push(`mode = $${params.length}`);
-  }
-  if (opts.slug) {
-    params.push(opts.slug);
-    filters.push(`slug = $${params.length}`);
-  }
-  const res = await pool.query<{
-    id: string;
-    slug: string;
-    mode: RuntimeSessionMode;
-    title: string;
-    capability_name: string;
-    updated_at: Date;
-  }>(
-    `SELECT id, slug, mode, title, COALESCE(public_view ->> 'name', '') AS capability_name, updated_at
-       FROM rt_chat_sessions s
-      WHERE ${filters.join(' AND ')}
-        -- 只列有内容的会话：每次打开/刷新 /try/:slug 都会建一条空会话，过滤掉空壳避免侧栏堆垃圾。
-        AND EXISTS (SELECT 1 FROM rt_chat_messages m WHERE m.session_id = s.id)
+  db: Queryable,
+  ownerUserId: string,
+  capabilityId?: string,
+): Promise<SessionRow[]> {
+  const res = await db.query<SessionDbRow>(
+    `SELECT ${SESSION_COLUMNS}
+       FROM sessions
+      WHERE owner_user_id = $1
+        AND ($2::uuid IS NULL OR capability_id = $2)
       ORDER BY updated_at DESC
       LIMIT 100`,
-    params,
+    [ownerUserId, capabilityId ?? null],
   );
-  return res.rows.map((r) => ({
-    id: r.id,
-    slug: r.slug,
-    mode: r.mode,
-    title: r.title,
-    capabilityName: r.capability_name,
-    updatedAt: r.updated_at.toISOString(),
-  }));
+  return res.rows.map(toSessionRow);
 }
 
-export async function getMessages(pool: Pool, sessionId: string): Promise<RuntimeMessage[]> {
-  const res = await pool.query<{
-    id: string;
-    run_id: string | null;
-    seq: number;
-    role: 'user' | 'assistant';
-    text: string;
-    artifacts: ArtifactRef[];
-    created_at: Date;
-  }>(
-    `SELECT id, run_id, seq, role, text, artifacts, created_at
-       FROM rt_chat_messages
+/** owner-scoped 取会话；非本人/不存在 → null。 */
+export async function getSession(
+  db: Queryable,
+  id: string,
+  ownerUserId: string,
+): Promise<SessionRow | null> {
+  const res = await db.query<SessionDbRow>(
+    `SELECT ${SESSION_COLUMNS} FROM sessions WHERE id = $1 AND owner_user_id = $2 LIMIT 1`,
+    [id, ownerUserId],
+  );
+  const row = res.rows[0];
+  return row ? toSessionRow(row) : null;
+}
+
+// ───────────────────────────── messages ─────────────────────────────
+
+interface MessageDbRow {
+  id: string;
+  seq: number;
+  role: MessageRole;
+  content: unknown[];
+  status: MessageStatus;
+  created_at: string | Date;
+}
+
+/** 消息行（= 对外 MessageView 同形态；build-agent 也直接消费它重建历史）。 */
+export interface MessageRecord extends MessageView {
+  role: MessageRole;
+}
+
+function toMessageRecord(r: MessageDbRow): MessageRecord {
+  return {
+    id: r.id,
+    seq: r.seq,
+    role: r.role,
+    content: Array.isArray(r.content) ? r.content : [],
+    status: r.status,
+    createdAt: toIso(r.created_at),
+  };
+}
+
+/** 会话全部消息，按 seq 升序。 */
+export async function getMessages(db: Queryable, sessionId: string): Promise<MessageRecord[]> {
+  const res = await db.query<MessageDbRow>(
+    `SELECT id, seq, role, content, status, created_at
+       FROM messages
       WHERE session_id = $1
       ORDER BY seq ASC`,
     [sessionId],
   );
-  return res.rows.map((r) => ({
-    id: r.id,
-    runId: r.run_id,
-    seq: r.seq,
-    role: r.role,
-    text: r.text,
-    artifacts: Array.isArray(r.artifacts) ? r.artifacts : [],
-    createdAt: r.created_at.toISOString(),
-  }));
+  return res.rows.map(toMessageRecord);
 }
 
-export async function getMessagesPage(
-  pool: Pool,
-  sessionId: string,
-  opts: { cursor?: number; limit?: number },
-): Promise<{ items: RuntimeMessage[]; nextCursor: string | null }> {
-  const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
-  const cursor = opts.cursor ?? 0;
-  const res = await pool.query<{
-    id: string;
-    run_id: string | null;
-    seq: number;
-    role: 'user' | 'assistant';
-    text: string;
-    artifacts: ArtifactRef[];
-    created_at: Date;
-  }>(
-    `SELECT id, run_id, seq, role, text, artifacts, created_at
-       FROM rt_chat_messages
-      WHERE session_id = $1 AND seq > $2
-      ORDER BY seq ASC
-      LIMIT $3`,
-    [sessionId, cursor, limit + 1],
+/** 从首条用户消息文本派生会话标题（首轮自动命名）。 */
+function deriveTitle(content: unknown[]): string | null {
+  const first = content.find(
+    (b): b is { type: 'text'; text: string } =>
+      typeof b === 'object' &&
+      b !== null &&
+      (b as { type?: unknown }).type === 'text' &&
+      typeof (b as { text?: unknown }).text === 'string',
   );
-  const rows = res.rows.slice(0, limit);
-  const items = rows.map((r) => ({
-    id: r.id,
-    runId: r.run_id,
-    seq: r.seq,
-    role: r.role,
-    text: r.text,
-    artifacts: Array.isArray(r.artifacts) ? r.artifacts : [],
-    createdAt: r.created_at.toISOString(),
-  }));
-  const extra = res.rows.length > limit;
-  return {
-    items,
-    nextCursor: extra && rows.length > 0 ? String(rows[rows.length - 1]?.seq) : null,
-  };
+  const title = first?.text.trim().slice(0, 30);
+  return title || null;
 }
 
-/** 当前最大 seq（无消息 → 0）。run-turn 据此分配 user/assistant 两条消息序号。 */
-export async function maxSeq(pool: Pool, sessionId: string): Promise<number> {
-  const res = await pool.query<{ m: number | null }>(
-    `SELECT MAX(seq) AS m FROM rt_chat_messages WHERE session_id = $1`,
-    [sessionId],
-  );
-  return res.rows[0]?.m ?? 0;
-}
+/**
+ * 追加一条消息：锁会话行 → max(seq)+1 插入（并发轮次串行化 seq 分配；
+ * uq_messages_session_seq 唯一约束兜底撞车）。同事务里 touch sessions.updated_at，
+ * 首条用户消息时顺手补会话标题。content 写入前必过 parseMessageContent（坏块拒写）。
+ */
+export async function appendMessage(
+  db: RuntimeDb,
+  input: {
+    sessionId: string;
+    role: MessageRole;
+    content: unknown[];
+    status?: MessageStatus;
+  },
+): Promise<MessageRecord> {
+  const content = parseMessageContent(input.role, input.content);
+  const status: MessageStatus = input.status ?? 'completed';
 
-export interface SaveTurnInput {
-  sessionId: string;
-  runId?: string | null;
-  user: { id: string; text: string };
-  assistant: { id: string; text: string; artifacts: ArtifactRef[] };
-  /** 落库的完整 pi 转录（含本回合）。 */
-  transcript: unknown[];
-}
-
-export interface SaveTurnResult {
-  user: RuntimeMessage;
-  assistant: RuntimeMessage;
-}
-
-/** 一回合落库（单事务）：写 user/assistant 两条 UI 消息 + 更新 transcript + 首条时补默认标题。 */
-export async function saveTurn(pool: Pool, input: SaveTurnInput): Promise<SaveTurnResult> {
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // 锁会话行，串行化本会话的并发回合 → seq 在锁内分配，杜绝 (session_id, seq) 撞车（旧实现把 maxSeq 读在事务外，
-    //   两个并发回合会读到同一 base、各自 INSERT 同一 seq，后者违反唯一约束整回合回滚、用户答复被静默丢弃）。
-    await client.query(`SELECT id FROM rt_chat_sessions WHERE id = $1 FOR UPDATE`, [
-      input.sessionId,
-    ]);
-    const seqRes = await client.query<{ m: number | null }>(
-      `SELECT MAX(seq) AS m FROM rt_chat_messages WHERE session_id = $1`,
+  return withTransaction(db, async (tx) => {
+    const locked = await tx.query<{ id: string; title: string | null }>(
+      `SELECT id, title FROM sessions WHERE id = $1 FOR UPDATE`,
       [input.sessionId],
     );
-    const base = seqRes.rows[0]?.m ?? 0;
-    const userSeq = base + 1;
-    const assistantSeq = base + 2;
+    if (!locked.rows[0]) throw new Error(`appendMessage: session ${input.sessionId} not found`);
 
-    const u = await client.query<{ created_at: Date }>(
-      `INSERT INTO rt_chat_messages (id, session_id, run_id, seq, role, text, artifacts)
-       VALUES ($1, $2, $3, $4, 'user', $5, '[]'::jsonb)
-       RETURNING created_at`,
-      [input.user.id, input.sessionId, input.runId ?? null, userSeq, input.user.text],
+    const seqRes = await tx.query<{ m: number | null }>(
+      `SELECT MAX(seq) AS m FROM messages WHERE session_id = $1`,
+      [input.sessionId],
     );
-    const a = await client.query<{ created_at: Date }>(
-      `INSERT INTO rt_chat_messages (id, session_id, run_id, seq, role, text, artifacts)
-       VALUES ($1, $2, $3, $4, 'assistant', $5, $6::jsonb)
-       RETURNING created_at`,
-      [
-        input.assistant.id,
-        input.sessionId,
-        input.runId ?? null,
-        assistantSeq,
-        input.assistant.text,
-        JSON.stringify(input.assistant.artifacts),
-      ],
-    );
+    const seq = (seqRes.rows[0]?.m ?? 0) + 1;
 
-    // 标题：仍是默认「新会话」时，用首条用户输入前 30 字补一个可读标题。
-    const derivedTitle = input.user.text.trim().slice(0, 30) || '新会话';
-    await client.query(
-      `UPDATE rt_chat_sessions
-          SET transcript = $1::jsonb,
-              updated_at = now(),
-              title = CASE WHEN title = '新会话' THEN $2 ELSE title END
-        WHERE id = $3`,
-      [JSON.stringify(input.transcript), derivedTitle, input.sessionId],
+    const inserted = await tx.query<MessageDbRow>(
+      `INSERT INTO messages (session_id, seq, role, content, status)
+       VALUES ($1, $2, $3, $4::jsonb, $5)
+       RETURNING id, seq, role, content, status, created_at`,
+      [input.sessionId, seq, input.role, JSON.stringify(content), status],
+    );
+    const row = inserted.rows[0];
+    if (!row) throw new Error('appendMessage: insert returned no row');
+
+    // 首条用户消息 + 会话还没标题 → 用输入前 30 字补标题；其余只 touch updated_at。
+    const derivedTitle =
+      input.role === 'user' && !locked.rows[0].title ? deriveTitle(content) : null;
+    await tx.query(
+      `UPDATE sessions SET updated_at = now(), title = COALESCE(title, $2) WHERE id = $1`,
+      [input.sessionId, derivedTitle],
     );
 
-    await client.query('COMMIT');
-
-    const uCreated = u.rows[0]?.created_at ?? new Date();
-    const aCreated = a.rows[0]?.created_at ?? new Date();
-    return {
-      user: {
-        id: input.user.id,
-        runId: input.runId ?? null,
-        seq: userSeq,
-        role: 'user',
-        text: input.user.text,
-        artifacts: [],
-        createdAt: uCreated.toISOString(),
-      },
-      assistant: {
-        id: input.assistant.id,
-        runId: input.runId ?? null,
-        seq: assistantSeq,
-        role: 'assistant',
-        text: input.assistant.text,
-        artifacts: input.assistant.artifacts,
-        createdAt: aCreated.toISOString(),
-      },
-    };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-export async function updateSessionTitle(
-  pool: Pool,
-  id: string,
-  ownerId: string,
-  title: string,
-): Promise<RuntimeSessionMeta | null> {
-  const res = await pool.query<SessionDbRow>(
-    `UPDATE rt_chat_sessions
-        SET title = $3, updated_at = now()
-      WHERE id = $1 AND owner_id = $2 AND status = 'active'
-      RETURNING *`,
-    [id, ownerId, title],
-  );
-  const row = res.rows[0];
-  return row ? toMeta(toRow(row)) : null;
-}
-
-export async function archiveSession(pool: Pool, id: string, ownerId: string): Promise<boolean> {
-  const res = await pool.query(
-    `UPDATE rt_chat_sessions
-        SET status = 'archived', updated_at = now()
-      WHERE id = $1 AND owner_id = $2 AND status = 'active'`,
-    [id, ownerId],
-  );
-  return (res.rowCount ?? 0) > 0;
+    return toMessageRecord(row);
+  });
 }

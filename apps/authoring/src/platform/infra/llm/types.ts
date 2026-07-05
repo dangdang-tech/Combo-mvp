@@ -44,6 +44,11 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     inputMicrosPerMTok: 3_000_000,
     outputMicrosPerMTok: 15_000_000,
   },
+  // DeepSeek V4 Flash(OpenRouter,提取步现用模型):$0.09 / $0.18 per MTok。
+  'deepseek/deepseek-v4-flash': {
+    inputMicrosPerMTok: 90_000,
+    outputMicrosPerMTok: 180_000,
+  },
 };
 
 /** 缺模型时的回落费率(取 Opus 档，宁可高估成本不低估)。 */
@@ -82,6 +87,8 @@ export interface NormalizedLlmError {
 /** 一次审计记账(落 audit_llm_calls；非计费真源，70 §8.3)。 */
 export interface LlmAuditRecord {
   ownerUserId?: string;
+  /** 归属任务（audit_llm_calls.task_id，松引用）；网关内部降级记账可空。 */
+  taskId?: string;
   anonKey?: string;
   taskClass: string;
   model: string;

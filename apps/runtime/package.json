@@ -2,7 +2,7 @@
   "name": "@cb/runtime",
   "version": "0.0.0",
   "private": true,
-  "description": "试用端 runtime：消费 SkillPackageRuntimeView 契约，以 pi 为执行层做带 session 管理的流式对话 + 类 Claude Artifacts 的产物生成/渲染。只依赖 @cb/shared，绝不 import authoring。",
+  "description": "试用端 runtime：能力项的「播放器」——按 capabilities.storage_key 从 MinIO 加载 CapabilityDefinition 注入 pi agent，带会话管理的流式对话 + 类 Claude Artifacts 产物画布。只依赖 @cb/shared，绝不 import authoring。",
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
@@ -11,13 +11,13 @@
     "dev": "node --experimental-strip-types --watch src/index.ts",
     "start": "node dist/index.js",
     "start:api": "node dist/processes/api.js",
-    "seed": "node --experimental-strip-types scripts/seed-capability.ts",
     "test": "vitest run",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
     "@ag-ui/core": "0.0.57",
     "@ag-ui/encoder": "0.0.57",
+    "@aws-sdk/client-s3": "^3.726.1",
     "@cb/shared": "workspace:*",
     "@earendil-works/pi-agent-core": "^0.80.2",
     "@earendil-works/pi-ai": "^0.80.2",

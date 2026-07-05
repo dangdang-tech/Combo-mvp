@@ -12,7 +12,7 @@
 # 健康检查（O-04）：postgres/redis_queue/redis_hot/minio 用各自原生探针；logto 断言 OIDC discovery（issuer/jwks_uri）；
 #   api 用 /health（liveness、轻量不查依赖，业务就绪由 /ready 自查五依赖）。
 #
-# 镜像（O-01）：api/worker/consumer/sweeper 同镜像不同入口（PROCESS 环境变量分叉，见 Dockerfile.api ENTRYPOINT）；web 单独 nginx 镜像。
+# 镜像：api/worker 同镜像不同入口（PROCESS 环境变量分叉，见 Dockerfile.api ENTRYPOINT）；web 单独 nginx 镜像。
 #
 # 生产密钥不允许默认 fallback（Codex#13）：
 #   本编排即生产栈（业务容器 NODE_ENV=production）。真密钥用 `${VAR:?...}` 必填形式——未设则 `docker compose` 直接报错中止，
@@ -276,10 +276,12 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      NODE_ENV: production
+      NODE_ENV: test # 验收栈启用 dev-login；生产部署换回 production（双守卫自动关死）
       PORT: '3000'
       HOST: 0.0.0.0
       PROCESS: api
+      DEV_LOGIN_ENABLED: 'true'
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:?}
       DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       REDIS_QUEUE_URL: redis://redis_queue:6379/0
       REDIS_HOT_URL: redis://redis_hot:6379/0
@@ -361,57 +363,6 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
 
   # consumer 受保序约束不可多实例（启动拿 advisory lock/lease 防误 scale，70 §3.1）；不要 deploy.replicas > 1。
-  consumer:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.api
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis_hot:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    environment:
-      NODE_ENV: production
-      PROCESS: consumer
-      DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
-      REDIS_HOT_URL: redis://redis_hot:6379/0
-      OTEL_SERVICE_NAME: cb-authoring-consumer
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
-
-  # sweeper 固定单实例（启动拿 redis_hot 锁单活，70 §6.1）。
-  sweeper:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.api
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis_hot:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    environment:
-      NODE_ENV: production
-      PROCESS: sweeper
-      DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
-      REDIS_HOT_URL: redis://redis_hot:6379/0
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:?}
-      S3_REGION: ${S3_REGION:-us-east-1}
-      OTEL_SERVICE_NAME: cb-authoring-sweeper
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=compose
-
-  # 试用端 runtime（消费链路）：消费已发布契约，pi 执行层，AG-UI 流式对话 + 类 Claude Artifacts 产物。
-  #   只依赖 postgres（只读已发布投影 + 读写自有 rt_chat_* 表）与 Logto JWT 公钥校验；不需 redis/minio。
-  #   不发布宿主端口：仅 web 那台 nginx 经 docker 网络 runtime:3100 反代 /api/v1/runtime/*。
-  #   LLM key 缺失只降级不阻塞启动；provider 留空按 key 自动判定（有 OPENROUTER 无 ANTHROPIC → openrouter）。
   runtime:
     build:
       context: ..
@@ -422,14 +373,19 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      NODE_ENV: production
+      NODE_ENV: test
       PORT: '3100'
       HOST: 0.0.0.0
       DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       LOGTO_ISSUER: ${LOGTO_ISSUER:?}
       LOGTO_JWKS_URI: ${LOGTO_JWKS_URI:?}
       LOGTO_AUDIENCE: ${LOGTO_AUDIENCE:?}
-      DEV_LOGIN_ENABLED: 'false'
+      DEV_LOGIN_ENABLED: 'true'
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:?}
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?}
+      S3_REGION: ${S3_REGION:-us-east-1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       RUNTIME_LLM_PROVIDER: ${RUNTIME_LLM_PROVIDER:-}
@@ -443,7 +399,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          'node -e "fetch(\"http://127.0.0.1:3100/healthz\").then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"',
+          'node -e "fetch(\"http://127.0.0.1:3100/health\").then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"',
         ]
       interval: 10s
       timeout: 5s

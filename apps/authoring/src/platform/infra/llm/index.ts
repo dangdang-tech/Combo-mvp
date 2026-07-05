@@ -78,6 +78,9 @@ export function createLlmGateway(env: Env, db?: QueryableDb): LlmGatewayPort {
   return makeLlmGateway({
     sdk,
     model,
+    // 提取单批实测产出可到 5.3k completion token(audit_llm_calls 2026-07-05),
+    // 默认 4096 有截断风险(截断 JSON 必解析失败计降级),放宽到 8192。
+    maxTokens: 8192,
     // 有 key 才开限流(无 key 直接 degraded,限流无意义)。
     rateLimiter: sdk
       ? createTokenBucketLimiter({ ratePerWindow: 60, windowMs: 60_000 })

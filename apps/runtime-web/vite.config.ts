@@ -11,13 +11,13 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
-      // dev：runtime API 走 3100；登录态和 /me 复用 authoring API 3000。
+      // dev：runtime API（含浏览器侧事件上报）走 3100；登录态和 /me 复用 authoring API 3000。
       '/api/v1/runtime': 'http://localhost:3100',
-      '/api/v1/client-events': 'http://localhost:3000',
+      '/api/v1/client-events': 'http://localhost:3100',
       '/api/v1/auth': 'http://localhost:3000',
       '/api/v1/me': 'http://localhost:3000',
-      '/healthz': 'http://localhost:3100',
-      '/readyz': 'http://localhost:3100',
+      '/health': 'http://localhost:3100',
+      '/ready': 'http://localhost:3100',
     },
   },
   build: {

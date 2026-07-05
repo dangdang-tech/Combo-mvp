@@ -4,16 +4,14 @@
 // 创作者后台账号（如 Wayne）/ 侧栏在对外页面渗漏（BUG-005/006）。子页经 <Outlet> 渲染。
 import type { ReactElement } from 'react';
 import { Link, Outlet } from 'react-router-dom';
+import { ComboWordmark } from './brand.js';
 
 export function PublicLayout(): ReactElement {
   return (
     <div className="cb-public-shell">
       <header className="cb-public-shell__top">
-        <Link to="/" className="cb-public-shell__brand" aria-label="Agora 首页">
-          <span className="cb-public-shell__brand-mark" aria-hidden="true">
-            A
-          </span>
-          <span className="cb-public-shell__brand-word">Agora</span>
+        <Link to="/" className="cb-public-shell__brand" aria-label="Combo 首页">
+          <ComboWordmark className="cb-public-shell__brand-word" />
         </Link>
       </header>
       <main className="cb-public-shell__content">

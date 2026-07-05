@@ -17,86 +17,102 @@ function allSql(): string {
     .join('\n');
 }
 
+// 2026-07-04 重设计基线：三层九表（设计真源见飞书文档「Agora 数据库表设计」）。
+// 本套测试守护基线完整性；此后新增迁移按编号追加，本文件按需补断言。
+
+const TABLES = [
+  // 身份层
+  'users',
+  // 流水线层
+  'tasks',
+  'uploads',
+  // 能力层
+  'capabilities',
+  // 试用层
+  'sessions',
+  'messages',
+  'stream_events',
+  'artifacts',
+  // 保留的审计表
+  'audit_llm_calls',
+];
+
+// 旧结构的表绝不允许回潮（完整清单见 git 历史；抽代表性的几张守门）。
+const LEGACY_TABLES = [
+  'jobs',
+  'idempotency_keys',
+  'drafts',
+  'raw_snapshots',
+  'session_segments',
+  'import_uploads',
+  'import_pairings',
+  'capability_candidates',
+  'capability_versions',
+  'publications',
+  'marketplace_listings',
+  'outbox_events',
+  'notifications',
+  'rt_chat_sessions',
+];
+
 describe('migrations', () => {
-  it('are ordered by numeric prefix', () => {
+  it('are ordered by numeric prefix, baseline first', () => {
     const list = files();
-    expect(list.length).toBeGreaterThanOrEqual(10);
+    expect(list.length).toBeGreaterThanOrEqual(1);
+    expect(list[0]).toBe('0000_baseline_schema.sql');
     const prefixes = list.map((f) => f.slice(0, 4));
     expect(prefixes).toEqual([...prefixes].sort());
   });
 
-  it('define all core base tables', () => {
+  it(`baseline defines all ${TABLES.length} tables of the redesign`, () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '0000_baseline_schema.sql'), 'utf-8');
+    for (const t of TABLES) {
+      expect(sql, `missing table ${t}`).toContain(`CREATE TABLE ${t} (`);
+    }
+    // 全量对齐：CREATE TABLE 数量与清单一致（多一张都算漂移）。
+    expect(sql.match(/CREATE TABLE /g)?.length).toBe(TABLES.length);
+  });
+
+  it('legacy tables never come back', () => {
     const sql = allSql();
-    for (const t of ['users', 'jobs', 'idempotency_keys', 'drafts']) {
-      expect(sql).toContain(`CREATE TABLE ${t} (`);
+    for (const t of LEGACY_TABLES) {
+      expect(sql, `legacy table ${t} reappeared`).not.toContain(`CREATE TABLE ${t} (`);
     }
   });
 
-  it('register §11.E lineage composite constraints (fixed names)', () => {
+  it('tasks carries the two orthogonal state axes plus lease and idempotency', () => {
     const sql = allSql();
-    for (const name of [
-      'uq_session_segments_id_snapshot',
-      'uq_candidates_id_snapshot',
-      'fk_evidence_candidate_snapshot',
-      'fk_evidence_segment_snapshot',
-      'uq_capability_versions_capability_id',
-      'fk_publications_capability_version',
-      'fk_listings_capability_version',
-    ]) {
-      expect(sql).toContain(name);
-    }
-  });
-
-  it('close cross-domain FKs in post-ALTER stage (§11.G)', () => {
-    const sql = allSql();
-    for (const name of [
-      'fk_drafts_snapshot',
-      'fk_drafts_version',
-      'fk_drafts_capability',
-      'fk_drafts_batch',
-      'fk_pairings_draft',
-      'fk_capabilities_current_version',
-      'fk_runtime_sessions_capability_version',
-    ]) {
-      expect(sql).toContain(name);
-    }
-  });
-
-  it('registers structure job version-level hard lock (partial unique index, Codex P1-4)', () => {
-    const sql = allSql();
-    // 部分唯一索引：每个 versionId 至多一个未终态 structure job（version 级硬锁，杜绝并发双跑覆盖）。
-    expect(sql).toContain('uq_structure_job_active_version');
-    expect(sql).toMatch(/CREATE UNIQUE INDEX uq_structure_job_active_version/);
-    expect(sql).toContain("subject_ref->>'versionId'");
-    expect(sql).toMatch(/WHERE type = 'structure' AND status IN \('queued', 'running'\)/);
-  });
-
-  it('freezes cover (three sources) + visibility at version level on capability_versions (Codex r3 P1)', () => {
-    const sql = allSql();
-    // 封面三来源 + 可见性版本级冻结（与价格 capability_tiers 同层、按 version_id 不可变寻址）。
-    for (const col of ['cover_source', 'cover_asset_key', 'cover_snapshot_ref']) {
+    // 双轴状态：step 只有 upload/extract（发布不在这个轴上）；status 三态。
+    expect(sql).toMatch(/current_step IN \('upload', 'extract'\)/);
+    expect(sql).toMatch(/status IN \('running', 'succeeded', 'failed'\)/);
+    for (const col of ['lease_owner', 'lease_expires_at', 'retry_count', 'last_error']) {
       expect(sql).toContain(col);
     }
-    expect(sql).toContain('ck_capver_cover_source');
-    expect(sql).toContain('ck_capver_visibility');
-    // CHECK 约束限定枚举（封面三来源 / 可见性两态）。
-    expect(sql).toMatch(/cover_source IN \('glyph','image','html_snapshot'\)/);
-    expect(sql).toMatch(/visibility IN \('public','unlisted'\)/);
+    // 建任务幂等：唯一约束在表内。
+    expect(sql).toMatch(/idempotency_key\s+text\s+NOT NULL UNIQUE/);
   });
 
-  it('publish_batch_items has subject column (batch-repo reads/writes it); eval_reports has passed (B-31 schema)', () => {
+  it('big content stays in object storage: storage_key columns exist, no content columns', () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '0000_baseline_schema.sql'), 'utf-8');
+    // uploads/capabilities/artifacts 均以 storage_key 指向 MinIO。
+    expect(sql.match(/storage_key/g)!.length).toBeGreaterThanOrEqual(3);
+    // 产物不再把正文存库（旧 rt_chat_artifact_versions.content 的教训）。
+    expect(sql).not.toMatch(/content\s+text/);
+  });
+
+  it('messages keep session-scoped ordering and native agent format', () => {
     const sql = allSql();
-    // batch-repo.ts 建批/读取依赖 publish_batch_items.subject（逐项发布入参），真实 PG 必须有此列（Codex#2）。
-    expect(sql).toMatch(/subject\s+jsonb\s+NOT NULL/);
-    // eval_reports 契约 B-31 预留 passed boolean（Codex#7）。
-    expect(sql).toMatch(/passed\s+boolean/);
+    expect(sql).toContain('uq_messages_session_seq UNIQUE (session_id, seq)');
+    expect(sql).toMatch(/role IN \('user', 'assistant', 'tool'\)/);
   });
 
-  it('provides gen_uuid_v7 helper before any DEFAULT gen_uuid_v7()', () => {
-    const list = files();
-    expect(list[0]).toContain('extensions_and_helpers');
-    expect(readFileSync(join(MIGRATIONS_DIR, list[0]!), 'utf-8')).toContain(
-      'CREATE OR REPLACE FUNCTION gen_uuid_v7()',
-    );
+  it('stream_events use bigserial for resumable ordering', () => {
+    const sql = allSql();
+    expect(sql).toMatch(/CREATE TABLE stream_events \(\n\s+id\s+bigserial\s+PRIMARY KEY/);
+  });
+
+  it('provides gen_uuid_v7 helper in the baseline', () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '0000_baseline_schema.sql'), 'utf-8');
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION gen_uuid_v7()');
   });
 });

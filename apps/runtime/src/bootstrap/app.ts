@@ -1,13 +1,11 @@
-// Fastify app 工厂（试用端）。精简：CORS + Cookie + 统一错误信封 + 健康检查 + 业务路由。
-//   绝不裸露错误码（统一 ErrorEnvelope，复用 @cb/shared 脊柱）。无 Logto/幂等/队列（试用端不需要）。
+// Fastify app 工厂（试用端）。挂基础设施容器 + 轮次编排器 + 全局插件 + 统一错误信封 + 健康检查 + 业务路由。
+// 对外绝不裸露错误码/堆栈：所有非 2xx 只出 ErrorEnvelope，内部 code 只进结构化日志（经 traceId 关联）。
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import {
-  API_PREFIX,
-  buildErrorWithCode,
   ErrorCode,
-  httpStatusFor,
+  errorBodyFor,
   newTraceId,
   TRACE_ID_HEADER,
   TRACEPARENT_HEADER,
@@ -16,27 +14,30 @@ import {
   type ErrorCodeValue,
 } from '@cb/shared';
 import { loadEnv, type Env } from '../platform/config/env.js';
-import { getPool } from '../platform/infra/db.js';
+import { buildInfra } from '../platform/infra/index.js';
 import { registerHealthRoutes } from '../platform/http/health.js';
-import { registerCapabilityRoutes } from '../modules/capability/routes.js';
-import { registerSessionRoutes } from '../modules/session/routes.js';
-import type { RuntimeContext } from './context.js';
 import {
   currentTraceId,
   currentTraceLogFields,
   currentTraceparent,
 } from '../platform/observability/node.js';
-import { registerClientEventRoutes } from '../platform/http/client-events.js';
+import { createTurnRunner } from '../modules/agent/run-turn.js';
+import { createPiTurnAgentFactory } from '../modules/agent/build-agent.js';
+import { registerBusinessRoutes } from './routes.js';
+// 副作用导入：注册 Fastify 类型增强（req.auth / app.infra / app.turns）。
+import '../platform/http/fastify.js';
 
-export interface BuildAppOptions {
-  env?: Env;
-}
-
+/** 生成/继承请求 traceId。 */
 function resolveRequestTraceId(
   headers: Record<string, string | string[] | undefined>,
   url?: string,
 ): string {
   return traceIdFromHeaders(headers) ?? traceIdFromUrl(url) ?? currentTraceId() ?? newTraceId();
+}
+
+export interface BuildAppOptions {
+  /** 覆盖 env（测试用）。 */
+  env?: Env;
 }
 
 export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -53,14 +54,27 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     trustProxy: true,
   });
 
-  const ctx: RuntimeContext = { env, pool: getPool(env) };
+  // —— 基础设施容器 + 轮次编排器（单进程：生成在本进程内异步跑，闸在 runner 内存里）——
+  const infra = buildInfra(env);
+  app.decorate('infra', infra);
+  app.decorate(
+    'turns',
+    createTurnRunner({
+      db: infra.db,
+      objectStore: infra.objectStore,
+      bus: infra.bus,
+      agentFactory: createPiTurnAgentFactory(env),
+    }),
+  );
 
+  // —— 全局插件（同源 Cookie 会话需 credentials）——
   await app.register(cors, {
     origin: env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',').map((s) => s.trim()) : true,
     credentials: true,
   });
   await app.register(cookie);
 
+  // 把每请求 traceId 暴露在 reply 头（前端「反馈代码」用）+ 进日志上下文。
   app.addHook('onRequest', async (req, reply) => {
     reply.header(TRACE_ID_HEADER, req.id);
     reply.header(TRACEPARENT_HEADER, currentTraceparent(req.id));
@@ -79,40 +93,38 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     );
   });
 
-  // 统一错误信封（对外无 code/堆栈；内部 code + err 进结构化日志，经 traceId 关联）。
+  // —— 统一错误信封：对外只发 { error: ErrorBody }；内部 code + 原始 err 进结构化日志。——
   app.setErrorHandler((err, req, reply) => {
     let code: ErrorCodeValue = ErrorCode.INTERNAL;
     const statusCode = (err as { statusCode?: number }).statusCode;
-    if (statusCode === 429) code = ErrorCode.RATE_LIMITED;
-    else if ((err as { validation?: unknown }).validation || statusCode === 400)
+    if (statusCode === 429) {
+      code = ErrorCode.RATE_LIMITED;
+    } else if ((err as { validation?: unknown }).validation || statusCode === 400) {
       code = ErrorCode.VALIDATION_FAILED;
-    const { code: internalCode, envelope } = buildErrorWithCode(code, req.id);
-    req.log.error({ err, code: internalCode, ...currentTraceLogFields(req.id) }, 'request failed');
-    reply.code(httpStatusFor(code)).send(envelope);
+    }
+    const { http, body } = errorBodyFor(code, req.id);
+    req.log.error({ err, code, ...currentTraceLogFields(req.id) }, 'request failed');
+    reply.code(http).send({ error: body });
   });
 
+  // —— 404 也走信封 ——
   app.setNotFoundHandler((req, reply) => {
-    const { code, envelope } = buildErrorWithCode(ErrorCode.NOT_FOUND, req.id);
-    req.log.warn({ code, ...currentTraceLogFields(req.id) }, 'route not found');
-    reply.code(httpStatusFor(ErrorCode.NOT_FOUND)).send(envelope);
+    const { http, body } = errorBodyFor(ErrorCode.NOT_FOUND, req.id);
+    req.log.warn({ ...currentTraceLogFields(req.id) }, 'route not found');
+    reply.code(http).send({ error: body });
   });
 
   // 健康检查（不在 /api/v1 前缀）。
-  await registerHealthRoutes(app, ctx);
+  await registerHealthRoutes(app);
 
-  // 业务路由（/api/v1/runtime/*）。
-  await app.register(
-    async (scoped) => {
-      await registerClientEventRoutes(scoped);
-      await registerCapabilityRoutes(scoped, ctx);
-      await registerSessionRoutes(scoped, ctx);
-    },
-    { prefix: API_PREFIX },
-  );
+  // 业务路由（capability / session / artifact）。
+  await registerBusinessRoutes(app);
 
+  // 进程退出时关闭基础设施连接。
   app.addHook('onClose', async () => {
-    const { closeDb } = await import('../platform/infra/db.js');
+    const { closeDb, closeObjectStore } = await import('../platform/infra/index.js');
     await closeDb();
+    closeObjectStore();
   });
 
   return app;

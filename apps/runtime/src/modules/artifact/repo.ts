@@ -1,170 +1,122 @@
-// 产物持久化（rt_chat_artifacts / rt_chat_artifact_versions）。类 Claude Artifacts 的版本演进：
-//   同 (session, artifactKey) 再次 upsert = latest_version+1 + 追一行版本快照（历史可回看/切换）。
-import type { Pool, PoolClient } from 'pg';
-import type { ArtifactKind, ArtifactVersion, RuntimeArtifact } from '@cb/shared';
+// artifacts 表 SQL。无版本：同一产物再次 upsert 原地覆盖（storage_key 稳定，MinIO 内容直接覆写）。
+import type { ArtifactView } from '@cb/shared';
+import type { Queryable } from '../../platform/infra/db.js';
+import { toIso } from '../session/repo.js';
 
-export interface UpsertArtifactInput {
-  sessionId: string;
-  artifactKey: string;
-  kind: ArtifactKind;
-  title: string;
-  language: string | null;
-  content: string;
+/** 产物内容所在桶。 */
+export const ARTIFACT_BUCKET = 'agora-artifacts' as const;
+
+/** 产物内容对象键：按 (session, artifact) 稳定——同产物反复更新覆写同一对象。 */
+export function artifactStorageKey(sessionId: string, artifactId: string): string {
+  return `artifacts/${sessionId}/${artifactId}`;
 }
 
-export interface UpsertArtifactResult {
-  version: number;
-  artifact: ArtifactVersion;
-}
-
-/** upsert 一个产物版本（单事务）：升 latest_version + 追版本行；返回新版本号与版本快照。 */
-export async function upsertArtifact(
-  pool: Pool,
-  input: UpsertArtifactInput,
-): Promise<UpsertArtifactResult> {
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const head = await client.query<{ id: string; latest_version: number }>(
-      `INSERT INTO rt_chat_artifacts (session_id, artifact_key, kind, title, latest_version)
-       VALUES ($1, $2, $3, $4, 1)
-       ON CONFLICT (session_id, artifact_key)
-       DO UPDATE SET latest_version = rt_chat_artifacts.latest_version + 1,
-                     kind = EXCLUDED.kind,
-                     title = EXCLUDED.title,
-                     updated_at = now()
-       RETURNING id, latest_version`,
-      [input.sessionId, input.artifactKey, input.kind, input.title],
-    );
-    const row = head.rows[0];
-    if (!row) throw new Error('upsertArtifact: head upsert returned no row');
-    const version = row.latest_version;
-
-    const ver = await client.query<{ created_at: Date }>(
-      `INSERT INTO rt_chat_artifact_versions (artifact_id, version, kind, title, language, content)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING created_at`,
-      [row.id, version, input.kind, input.title, input.language, input.content],
-    );
-
-    await client.query('COMMIT');
-
-    const createdAt = (ver.rows[0]?.created_at ?? new Date()).toISOString();
-    return {
-      version,
-      artifact: {
-        artifactKey: input.artifactKey,
-        version,
-        kind: input.kind,
-        title: input.title,
-        language: input.language,
-        content: input.content,
-        createdAt,
-      },
-    };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
+/** kind → 回读时的 Content-Type（产物是文本类内容：网页/文档/代码/结构化 JSON）。 */
+export function contentTypeFor(kind: string): string {
+  switch (kind) {
+    case 'html':
+      return 'text/html; charset=utf-8';
+    case 'markdown':
+      return 'text/markdown; charset=utf-8';
+    case 'structured':
+      return 'application/json; charset=utf-8';
+    default:
+      return 'text/plain; charset=utf-8';
   }
 }
 
 interface ArtifactDbRow {
-  artifact_key: string;
-  kind: ArtifactKind;
-  title: string;
-  latest_version: number;
-  versions: ArtifactVersion[];
+  id: string;
+  session_id: string;
+  kind: string;
+  title: string | null;
+  storage_key: string;
+  updated_at: string | Date;
 }
 
-/** 取会话全部产物（含历史版本，面板版本切换用）。 */
-export async function getArtifacts(pool: Pool, sessionId: string): Promise<RuntimeArtifact[]> {
-  const res = await pool.query<ArtifactDbRow>(
-    `SELECT a.artifact_key,
-            a.kind,
-            a.title,
-            a.latest_version,
-            COALESCE(
-              json_agg(
-                json_build_object(
-                  'artifactKey', a.artifact_key,
-                  'version',     v.version,
-                  'kind',        v.kind,
-                  'title',       v.title,
-                  'language',    v.language,
-                  'content',     v.content,
-                  'createdAt',   to_char(v.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-                )
-                ORDER BY v.version
-              ) FILTER (WHERE v.id IS NOT NULL),
-              '[]'
-            ) AS versions
-       FROM rt_chat_artifacts a
-       LEFT JOIN rt_chat_artifact_versions v ON v.artifact_id = a.id
-      WHERE a.session_id = $1
-        -- 只返回【被某条已落库消息引用】的产物：产物在工具 execute 内自成事务先提交，若该回合随后失败
-        --   （断线/saveTurn 异常/LLM 运行时错误）assistant 消息没写成，产物就成了孤儿；按引用过滤掉它，
-        --   避免详情里冒出一个没有对应回复、还自动展开的产物（孤儿行留库，可由后续 sweeper 清理）。
-        AND EXISTS (
-          SELECT 1 FROM rt_chat_messages m
-           WHERE m.session_id = a.session_id
-             AND m.artifacts @> jsonb_build_array(jsonb_build_object('artifactKey', a.artifact_key))
-        )
-      GROUP BY a.id, a.artifact_key, a.kind, a.title, a.latest_version
-      ORDER BY a.created_at ASC`,
+function toView(r: ArtifactDbRow): ArtifactView {
+  return {
+    id: r.id,
+    kind: r.kind,
+    ...(r.title ? { title: r.title } : {}),
+    updatedAt: toIso(r.updated_at),
+  };
+}
+
+/** 插/更新一行（id 由调用方定；ON CONFLICT 原地覆盖 kind/title/meta）。 */
+export async function upsertArtifact(
+  db: Queryable,
+  input: {
+    id: string;
+    sessionId: string;
+    kind: string;
+    title: string;
+    storageKey: string;
+    meta: Record<string, unknown>;
+  },
+): Promise<ArtifactView> {
+  const res = await db.query<ArtifactDbRow>(
+    `INSERT INTO artifacts (id, session_id, kind, title, storage_key, meta)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+     ON CONFLICT (id)
+     DO UPDATE SET kind = EXCLUDED.kind,
+                   title = EXCLUDED.title,
+                   meta = EXCLUDED.meta,
+                   updated_at = now()
+     RETURNING id, session_id, kind, title, storage_key, updated_at`,
+    [
+      input.id,
+      input.sessionId,
+      input.kind,
+      input.title,
+      input.storageKey,
+      JSON.stringify(input.meta),
+    ],
+  );
+  const row = res.rows[0];
+  if (!row) throw new Error('upsertArtifact: upsert returned no row');
+  return toView(row);
+}
+
+/** 会话内查单个产物（tool 判定「更新还是新建」用）。 */
+export async function readArtifactInSession(
+  db: Queryable,
+  artifactId: string,
+  sessionId: string,
+): Promise<{ id: string } | null> {
+  const res = await db.query<{ id: string }>(
+    `SELECT id FROM artifacts WHERE id = $1 AND session_id = $2 LIMIT 1`,
+    [artifactId, sessionId],
+  );
+  return res.rows[0] ?? null;
+}
+
+/** 会话全部产物（详情画布恢复用），按创建先后。 */
+export async function listArtifacts(db: Queryable, sessionId: string): Promise<ArtifactView[]> {
+  const res = await db.query<ArtifactDbRow>(
+    `SELECT id, session_id, kind, title, storage_key, updated_at
+       FROM artifacts
+      WHERE session_id = $1
+      ORDER BY created_at ASC`,
     [sessionId],
   );
-  return res.rows.map((r) => ({
-    artifactKey: r.artifact_key,
-    kind: r.kind,
-    title: r.title,
-    latestVersion: r.latest_version,
-    versions: Array.isArray(r.versions) ? r.versions : [],
-  }));
+  return res.rows.map(toView);
 }
 
-/** 取单个产物的完整版本历史（不做"被消息引用"过滤；回合进行中渲染用）。无 → null。 */
-export async function getArtifact(
-  pool: Pool,
-  sessionId: string,
-  artifactKey: string,
-): Promise<RuntimeArtifact | null> {
-  const res = await pool.query<ArtifactDbRow>(
-    `SELECT a.artifact_key,
-            a.kind,
-            a.title,
-            a.latest_version,
-            COALESCE(
-              json_agg(
-                json_build_object(
-                  'artifactKey', a.artifact_key,
-                  'version',     v.version,
-                  'kind',        v.kind,
-                  'title',       v.title,
-                  'language',    v.language,
-                  'content',     v.content,
-                  'createdAt',   to_char(v.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-                )
-                ORDER BY v.version
-              ) FILTER (WHERE v.id IS NOT NULL),
-              '[]'
-            ) AS versions
-       FROM rt_chat_artifacts a
-       LEFT JOIN rt_chat_artifact_versions v ON v.artifact_id = a.id
-      WHERE a.session_id = $1 AND a.artifact_key = $2
-      GROUP BY a.id, a.artifact_key, a.kind, a.title, a.latest_version
+/** owner-scoped 读产物（内容回读端点用）：JOIN sessions 校归属，非本人/不存在 → null。 */
+export async function readArtifactForOwner(
+  db: Queryable,
+  artifactId: string,
+  ownerUserId: string,
+): Promise<{ id: string; kind: string; storageKey: string } | null> {
+  const res = await db.query<{ id: string; kind: string; storage_key: string }>(
+    `SELECT a.id, a.kind, a.storage_key
+       FROM artifacts a
+       JOIN sessions s ON s.id = a.session_id
+      WHERE a.id = $1 AND s.owner_user_id = $2
       LIMIT 1`,
-    [sessionId, artifactKey],
+    [artifactId, ownerUserId],
   );
-  const r = res.rows[0];
-  if (!r) return null;
-  return {
-    artifactKey: r.artifact_key,
-    kind: r.kind,
-    title: r.title,
-    latestVersion: r.latest_version,
-    versions: Array.isArray(r.versions) ? r.versions : [],
-  };
+  const row = res.rows[0];
+  return row ? { id: row.id, kind: row.kind, storageKey: row.storage_key } : null;
 }

@@ -1,200 +1,147 @@
-// 我的能力（F-07，接 GET /api/v1/dashboard/capabilities，60 域 §1.4）。
-//
-// 已发布 / 草稿等能力体列表管理（按状态筛选 + cursor 分页）。合规要点：
-//   - 复用工作台已建的 CapabilityTable / TrialNotice / MoreMenu（行渲染、状态徽章、试用占位、更多菜单）——不另造行。
-//   - 状态后端单源：reviewStatus / statusLabel / retryEditable / actions 全从后端派生，不前端自造。
-//   - usage 列（本月调用 / 消耗 sparkline / 收益）统一占位（CapabilityTable 内部 UsagePlaceholder / MiniSparkline）。
-//   - 试用恒「本期未开放」占位（actions.trial.hint），点击落 TrialNotice，不进 runtime。
-//   - 加载用 4A 加载件（Skeleton），错误用 ErrorState（只 userMessage + action）。
-//   - 空态友好（区分「确实没有」与「该筛选下没有」），不裸转圈、不空白。
-//   - 渲染在 4A Shell 主区（侧栏「我的能力」对应项），页面自身不重搭外壳。
-//
-// 分页用 useInfiniteQuery（cursor 原生累积，外壳首页-11）：点「加载更多」翻下一页 → 真追加，旧行不被替换。
-// 多页累积后按 capabilityId 去重（防后端重叠返回时同一能力出现两行），保留首次出现（旧行口径不被覆盖）。
-import { useMemo, useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useInfiniteQuery } from '@tanstack/react-query';
-import type { DashboardCapabilityRow, Meta, PageMeta, Range } from '@cb/shared';
-import { apiGetEnvelope } from '../../api/index.js';
-import { ErrorState, LoadingState } from '../../components/index.js';
+// 能力页：GET /capabilities 列表（可按 ?taskId= 过滤），每项发布/下架 + 分享令牌 + 去试用。
+// 发布是能力项上的标记动作：POST /capabilities/:id/publish|unpublish 返回 PublishResult，
+// 就地合并进缓存（不整页重拉）。「去试用」跳 runtime-web（同域 /try/ 子路径）。
+import { type ReactElement, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
-  CapabilityTable,
-  TrialNotice,
-  useTrialNotice,
-  MoreMenu,
-  useMoreMenu,
-} from '../dashboard/CapabilityTable.js';
-import { dedupeByCapabilityId } from '../dashboard/dedupe.js';
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
+import type { CapabilityView, PublishResult } from '@cb/shared';
+import {
+  listCapabilities,
+  publishCapability,
+  unpublishCapability,
+  type Page,
+} from '../../api/index.js';
+import { ErrorState, Skeleton } from '../../components/index.js';
+import { CapabilityRow } from './CapabilityRow.js';
 
-/** 状态筛选档（与后端 DashboardCapabilitiesQuery.status 一致）。 */
-export type CapabilityStatusFilter =
-  | 'all'
-  | 'alpha_pending'
-  | 'published'
-  | 'review_rejected'
-  | 'draft';
+type CapabilityPages = InfiniteData<Page<CapabilityView>>;
 
-const STATUS_FILTERS: ReadonlyArray<{ key: CapabilityStatusFilter; label: string }> = [
-  { key: 'all', label: '全部' },
-  { key: 'published', label: '已上架' },
-  { key: 'alpha_pending', label: 'Alpha·审核中' },
-  { key: 'draft', label: '草稿' },
-  { key: 'review_rejected', label: '已退回' },
-];
-
-interface CapabilitiesPageResult {
-  rows: DashboardCapabilityRow[];
-  page: PageMeta;
-  meta: Meta;
-}
-
-const EMPTY_PAGE: PageMeta = { nextCursor: null, hasMore: false, limit: 20, order: 'desc' };
-
-/**
- * 拉一页能力体（带 status 筛选 + cursor 分页）。
- * 工作台共享 fetchCapabilities 不含 status 维度（其列表不筛选），故本页特有的状态筛选直调 typed client，
- * 但行渲染复用工作台 CapabilityTable，不重复造轮子。
- */
-async function fetchCapabilitiesPage(params: {
-  status: CapabilityStatusFilter;
-  cursor: string | undefined;
-  range: Range;
-  signal: AbortSignal | undefined;
-}): Promise<CapabilitiesPageResult> {
-  const { data, meta } = await apiGetEnvelope<DashboardCapabilityRow[]>('/dashboard/capabilities', {
-    query: {
-      status: params.status,
-      range: params.range,
-      limit: 20,
-      ...(params.cursor !== undefined ? { cursor: params.cursor } : {}),
-    },
-    ...(params.signal !== undefined ? { signal: params.signal } : {}),
-  });
-  return { rows: data, page: meta?.page ?? EMPTY_PAGE, meta: meta ?? {} };
+/** 把 PublishResult 就地合并进列表缓存（所有 capabilities 查询键，含带 taskId 过滤的）。 */
+export function mergePublishResult(
+  data: CapabilityPages | undefined,
+  result: PublishResult,
+): CapabilityPages | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.map((item) =>
+        item.id === result.id
+          ? {
+              ...item,
+              published: result.published,
+              ...(result.publishedAt !== undefined ? { publishedAt: result.publishedAt } : {}),
+              // 下架保留 share_token（后端语义）；publish 结果缺省时也不清掉已有的。
+              ...(result.shareToken !== undefined ? { shareToken: result.shareToken } : {}),
+            }
+          : item,
+      ),
+    })),
+  };
 }
 
 export function CapabilitiesPage(): ReactElement {
-  const navigate = useNavigate();
-  const trial = useTrialNotice();
-  const more = useMoreMenu();
-  const [status, setStatus] = useState<CapabilityStatusFilter>('all');
-  const range: Range = '30d';
+  const [params, setParams] = useSearchParams();
+  const taskId = params.get('taskId') ?? undefined;
+  const qc = useQueryClient();
 
-  const query = useInfiniteQuery<CapabilitiesPageResult, Error>({
-    // 换筛选即换 queryKey → 新口径独立累积（旧筛选累积页不串台，cursor 自然回第一页，60 §1.6）。
-    queryKey: ['capabilities-page', status, range],
-    queryFn: ({ pageParam, signal }) =>
-      fetchCapabilitiesPage({
-        status,
-        cursor: pageParam as string | undefined,
-        range,
-        signal,
+  const capsQuery = useInfiniteQuery({
+    queryKey: ['capabilities', taskId ?? null],
+    queryFn: ({ pageParam }) =>
+      listCapabilities({
+        ...(taskId ? { taskId } : {}),
+        ...(pageParam ? { cursor: pageParam } : {}),
       }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) =>
-      last.page.hasMore ? (last.page.nextCursor ?? undefined) : undefined,
+    initialPageParam: '',
+    getNextPageParam: (last) => last.page.nextCursor ?? undefined,
   });
 
-  const pages = query.data?.pages ?? [];
-  // 真追加：摊平所有已翻页 → 去重（旧行不被替换）。最近一页 meta 作 usage 占位/分页源。
-  const rows = useMemo(() => dedupeByCapabilityId(pages.flatMap((p) => p.rows)), [pages]);
-  const lastPage = pages.length > 0 ? pages[pages.length - 1] : undefined;
-  const lastMeta = lastPage?.meta ?? {};
+  const toggleMutation = useMutation({
+    mutationFn: (input: { id: string; publish: boolean }) =>
+      input.publish ? publishCapability(input.id) : unpublishCapability(input.id),
+    onSuccess: (result) => {
+      qc.setQueriesData<CapabilityPages>({ queryKey: ['capabilities'] }, (data) =>
+        mergePublishResult(data, result),
+      );
+    },
+  });
 
-  function changeFilter(next: CapabilityStatusFilter): void {
-    setStatus(next); // queryKey 变化即重取第一页，旧累积弃用（换筛选回第一页，60 §1.6）。
-    more.closeMore(); // 换筛选关掉可能开着的更多菜单（避免指向已不在列表的能力）。
-  }
+  const items = capsQuery.data?.pages.flatMap((p) => p.items) ?? [];
 
-  const hasFilter = status !== 'all';
-  const hasLoaded = query.data !== undefined;
-
-  return (
-    <section className="cb-page cb-capabilities" aria-labelledby="cb-capabilities-title">
-      <header className="cb-page__head">
-        <h2 className="cb-page__title" id="cb-capabilities-title">
-          我的能力
-        </h2>
-        <p className="cb-page__lead">管理你创建的能力体：查看状态、编辑、试用与更多操作。</p>
-      </header>
-
-      {/* 状态筛选段控（当前档有选中标识）。 */}
-      <div className="cb-capabilities__filters" role="group" aria-label="按状态筛选">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            className={`cb-filter-chip${status === f.key ? ' cb-filter-chip--active' : ''}`}
-            aria-pressed={status === f.key}
-            onClick={() => changeFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
+  let body: ReactNode;
+  if (capsQuery.isPending) {
+    body = <Skeleton rows={4} label="正在加载能力列表" />;
+  } else if (capsQuery.isError) {
+    body = <ErrorState error={capsQuery.error} onRetry={() => void capsQuery.refetch()} />;
+  } else if (items.length === 0) {
+    body = (
+      <div className="cb-empty">
+        <p className="cb-empty__title">{taskId ? '这个任务还没有能力项' : '还没有能力项'}</p>
+        <p className="cb-empty__hint">先在任务页上传对话历史，提取完成后能力项会出现在这里。</p>
+        <Link className="cb-empty__action" to="/tasks">
+          去任务页
+        </Link>
       </div>
-
-      {/* 首屏加载（无任何已渲染数据）→ 骨架，永不裸转圈。 */}
-      {query.isPending ? (
-        <LoadingState skeletonRows={5} label="能力体加载中" />
-      ) : query.isError && !hasLoaded ? (
-        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-      ) : hasLoaded && rows.length === 0 ? (
-        <div className="cb-empty" role="status">
-          <p className="cb-empty__title">{hasFilter ? '该筛选下还没有能力体' : '还没有能力体'}</p>
-          <p className="cb-empty__hint">
-            {hasFilter
-              ? '换一个状态筛选，或从「上传能力」创建你的第一个能力体。'
-              : '从「上传能力」开始，导入素材并发布你的第一个能力体。'}
-          </p>
-          {hasFilter && (
-            <button type="button" className="cb-empty__action" onClick={() => changeFilter('all')}>
-              查看全部
+    );
+  } else {
+    body = (
+      <>
+        <ul className="cb-caps">
+          {items.map((cap) => (
+            <CapabilityRow
+              key={cap.id}
+              cap={cap}
+              pending={toggleMutation.isPending && toggleMutation.variables?.id === cap.id}
+              onToggle={(publish) => toggleMutation.mutate({ id: cap.id, publish })}
+            />
+          ))}
+        </ul>
+        <div className="cb-pager">
+          {capsQuery.hasNextPage ? (
+            <button
+              type="button"
+              className="cb-pager__more"
+              onClick={() => void capsQuery.fetchNextPage()}
+              disabled={capsQuery.isFetchingNextPage}
+            >
+              {capsQuery.isFetchingNextPage ? '加载中…' : '加载更多'}
             </button>
+          ) : (
+            <p className="cb-pager__end">没有更多了</p>
           )}
         </div>
-      ) : hasLoaded ? (
-        <>
-          <CapabilityTable
-            rows={rows}
-            meta={lastMeta}
-            onTrial={trial.openTrial}
-            /* 2 步模型不做逐项能力编辑（PRD「不做能力编辑」）；「编辑」退化为回上传入口重新生成，
-               与工作台 goEdit 同口径（不再指向已删的 /create/structure，避免 404）。 */
-            onEdit={(row) => navigate(`/create/import?capability=${row.capabilityId}`)}
-            onMore={more.openMore}
-          />
+      </>
+    );
+  }
 
-          {/* 翻页：cursor 分页，hasMore 时给「加载更多」（追加，不替换；不做 total）。 */}
-          <div className="cb-capabilities__pager">
-            {query.hasNextPage ? (
-              <button
-                type="button"
-                className="cb-pager__more"
-                disabled={query.isFetchingNextPage}
-                onClick={() => void query.fetchNextPage()}
-              >
-                {query.isFetchingNextPage ? '加载中…' : '加载更多'}
-              </button>
-            ) : (
-              <p className="cb-pager__end">没有更多了</p>
-            )}
-          </div>
-        </>
-      ) : null}
+  return (
+    <section className="cb-page" aria-labelledby="cb-caps-title">
+      <div className="cb-page__head">
+        <h2 className="cb-page__title" id="cb-caps-title">
+          我的能力
+        </h2>
+        <p className="cb-page__lead">从你的对话历史提取出的能力项：发布拿分享令牌，或先去试用。</p>
+        {taskId && (
+          <button
+            type="button"
+            className="cb-filter-chip cb-filter-chip--active"
+            onClick={() => setParams({})}
+            title="清除过滤，查看全部能力项"
+          >
+            只看单个任务的能力项 ✕
+          </button>
+        )}
+      </div>
 
-      {/* 试用占位浮层（点试用 → 「本期未开放」，不进 runtime）。 */}
-      <TrialNotice capabilityName={trial.noticeName} onClose={trial.closeTrial} />
-
-      {/* 更多菜单（下架/改价占位 + 查看公开页路由占位，外壳首页-35）。 */}
-      <MoreMenu
-        state={more.state}
-        onView={(row) => {
-          more.closeMore();
-          navigate(`/a/${row.slug}`);
-        }}
-        onPending={more.setPending}
-        onClose={more.closeMore}
-      />
+      {toggleMutation.isError && <ErrorState error={toggleMutation.error} />}
+      {body}
     </section>
   );
 }
+

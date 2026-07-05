@@ -1,3 +1,4 @@
+// 浏览器侧错误/调试事件上报：只落结构化日志（经 traceId 关联排障），永远 204。
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { normalizeTraceId } from '@cb/shared';

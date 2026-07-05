@@ -1,34 +1,26 @@
-// Typed API client（F-01）——消费 @cb/shared 的契约真源。
+// Typed API client——消费 @cb/shared 的契约真源，全站 fetch 只走这一处。
 //
-// 三条硬规则在客户端层的落地：
-//   1. 绝不裸露错误码：所有非 2xx → 解析为 ErrorEnvelope，UI 只读 userMessage + action（见 ApiError）。
-//   2. 永不裸转圈：本层只负责取数与抛错；加载态/进度由组件层（components/）承担。
-//   3. 已生成内容不丢：写命令统一注入 Idempotency-Key（幂等可安全重放），scope 取自 shared 常量表。
+// 两条硬规则在客户端层的落地：
+//   1. 绝不裸露错误码：所有非 2xx → 白名单重建 ErrorEnvelope，UI 只读 userMessage + action（见 ApiError）。
+//   2. 永不裸转圈：本层只负责取数与抛错；加载态/进度由组件层承担。
 //
-// 轻包络 { data, meta }（脊柱 §2）：成功解包 data，meta 经 requestEnvelope 暴露给需要分页/占位语义的调用方。
+// 轻包络 { data, meta }（脊柱 §2）：成功默认解包 data；需要 meta（分页）时用 apiGetEnvelope。
 import {
   API_PREFIX,
   CLIENT_FALLBACK_TRACE_ID,
   TRACE_ID_HEADER,
   TRACEPARENT_HEADER,
-  sanitizeErrorEnvelope,
   type Envelope,
-  type Meta,
-  type ErrorEnvelope,
+  type ErrorAction,
   type ErrorBody,
-  type IdempotencyScopeValue,
-  type IdempotencyOptionalScopeValue,
+  type ErrorEnvelope,
+  type Meta,
 } from '@cb/shared';
 import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
 
-/** 写命令必带的 Idempotency scope（脊柱 §4 的 22 项之一；类型层强制不可省，编译期堵「写请求无幂等键」）。 */
-export type IdempotencyScopeInput = IdempotencyScopeValue;
-/** 带请求体「只读」POST 的可选 scope（presign/preview 等不写库豁免，脊柱 §4.1）。 */
-export type IdempotencyOptionalScopeInput = IdempotencyOptionalScopeValue;
-
 /**
- * 统一前端错误：内部承载完整对外 ErrorEnvelope（D1：不含 code），UI 只暴露人话 + action。
- * 渲染层应只读 `userMessage` / `action` / `retriable`；`traceId` 仅作「反馈代码」展示（非错误码）。
+ * 统一前端错误：内部承载完整对外 ErrorEnvelope（不含 code）。
+ * 渲染层只读 `userMessage` / `action` / `retriable`；`traceId` 仅作「反馈代码」展示（非错误码）。
  */
 export class ApiError extends Error {
   readonly envelope: ErrorEnvelope;
@@ -53,69 +45,81 @@ export class ApiError extends Error {
     return this.envelope.error.retriable;
   }
 
-  /** 关联日志 / Sentry，可作「反馈代码」展示——但它不是错误码，永不当主文案。 */
+  /** 关联日志用；可作「反馈代码」展示——但它不是错误码，永不当主文案。 */
   get traceId(): string {
     return this.envelope.error.traceId;
   }
 }
 
-/**
- * 兜底信封：当后端未按契约返回（网络断、HTML 错误页、JSON 解析失败）时仍给人话 + 退路。
- * 对外信封形态（D1）：不含 code —— 内部 code 仅日志侧存在，客户端兜底无 code 可言。
- */
-function fallbackEnvelope(userMessage: string): ErrorEnvelope {
+const VALID_ACTIONS: ReadonlySet<string> = new Set<ErrorAction>([
+  'retry',
+  'change_input',
+  'escalate',
+  'wait',
+  'none',
+]);
+
+/** 兜底人话错误体（网络断 / 后端未按契约返回时仍给人话 + 退路）。 */
+export function fallbackErrorBody(userMessage: string): ErrorBody {
   return {
-    error: {
-      userMessage,
-      retriable: true,
-      action: 'retry',
-      traceId: CLIENT_FALLBACK_TRACE_ID,
-    },
+    userMessage,
+    retriable: true,
+    action: 'retry',
+    traceId: CLIENT_FALLBACK_TRACE_ID,
   };
 }
 
-/** 读请求选项（GET / 只读 POST 共用基底；无幂等字段）。 */
+/**
+ * 从任意可疑输入白名单重建 ErrorBody：只摘 userMessage/retriable/action/traceId/failureId?/details?，
+ * code/status/stack/原始 message 一律不进结果。不像 ErrorBody 的输入 → 兜底人话（绝不裸露错误码）。
+ * HTTP 非 2xx body、SSE error 帧、done.error 三处共用。
+ */
+export function sanitizeErrorBody(input: unknown): ErrorBody {
+  if (typeof input !== 'object' || input === null) {
+    return fallbackErrorBody('服务开小差了，请稍后重试。');
+  }
+  const raw = input as Record<string, unknown>;
+  if (typeof raw.userMessage !== 'string' || raw.userMessage.length === 0) {
+    return fallbackErrorBody('服务开小差了，请稍后重试。');
+  }
+  const action =
+    typeof raw.action === 'string' && VALID_ACTIONS.has(raw.action)
+      ? (raw.action as ErrorAction)
+      : 'retry';
+  return {
+    userMessage: raw.userMessage,
+    retriable: typeof raw.retriable === 'boolean' ? raw.retriable : action === 'retry',
+    action,
+    traceId: typeof raw.traceId === 'string' ? raw.traceId : CLIENT_FALLBACK_TRACE_ID,
+    ...(typeof raw.failureId === 'string' ? { failureId: raw.failureId } : {}),
+    ...(typeof raw.details === 'object' && raw.details !== null
+      ? { details: raw.details as Record<string, unknown> }
+      : {}),
+  };
+}
+
+/** 解包完整对外 ErrorEnvelope（`{ error: {...} }`）；容错裸 ErrorBody；都不像则兜底人话。 */
+export function unwrapErrorBody(payload: unknown): ErrorBody {
+  if (typeof payload === 'object' && payload !== null && 'error' in payload) {
+    return sanitizeErrorBody((payload as { error: unknown }).error);
+  }
+  return sanitizeErrorBody(payload);
+}
+
 export interface RequestOptions {
   /** 查询参数（自动 URL 编码，undefined 值跳过）。 */
-  query?: Record<string, string | number | boolean | undefined>;
+  query?: Record<string, string | number | undefined>;
   /** AbortSignal（组件卸载/取消请求）。 */
   signal?: AbortSignal;
-  /** 额外请求头。 */
-  headers?: Record<string, string>;
-}
-
-/** 写命令选项：**强制**带 `scope`（编译期堵漏幂等），可选覆盖幂等键。 */
-export interface WriteOptions extends RequestOptions {
-  /** 写命令幂等 scope（脊柱 §4 必带 22 项之一）；注入 X-Idempotency-Scope + Idempotency-Key。 */
-  scope: IdempotencyScopeInput;
-  /** 覆盖自动生成的幂等键（断点续传/重放同一逻辑操作时复用同一 key，保证「已生成内容不丢」）。 */
-  idempotencyKey?: string;
-}
-
-/** 带请求体「只读」POST 选项：可选 scope（不写库豁免，脊柱 §4.1）。 */
-export interface ReadonlyPostOptions extends RequestOptions {
-  /** 可选只读 scope（presign/preview）；给了才注入幂等头，不给则纯只读。 */
-  scope?: IdempotencyOptionalScopeInput;
-  /** 覆盖自动生成的幂等键（仅当带 scope 时有意义）。 */
-  idempotencyKey?: string;
 }
 
 interface RawRequestOptions extends RequestOptions {
-  method: string;
+  method: 'GET' | 'POST';
   body?: unknown;
-  scope?: IdempotencyScopeInput | IdempotencyOptionalScopeInput;
-  idempotencyKey?: string;
-}
-
-/** 生成幂等键：优先 crypto.randomUUID，降级时间戳+随机（仅本地兜底）。 */
-function newIdempotencyKey(): string {
-  const c = globalThis.crypto;
-  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  return `idem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
-  const base = path.startsWith('/api/') ? path : `${API_PREFIX}${path}`;
+  const base = `${API_PREFIX}${path}`;
   if (!query) return base;
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query)) {
@@ -127,21 +131,16 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 
 /** 底层请求：解包 { data, meta }；非 2xx 统一抛 ApiError（永远带人话 + 退路）。 */
 async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelope<T>> {
-  const headers: Record<string, string> = { ...opts.headers };
-  const trace = clientTraceHeaders(headers[TRACE_ID_HEADER]);
-  headers[TRACE_ID_HEADER] ??= trace.traceId;
-  headers[TRACEPARENT_HEADER] ??= trace.headers[TRACEPARENT_HEADER]!;
+  const trace = clientTraceHeaders();
+  const headers: Record<string, string> = {
+    [TRACE_ID_HEADER]: trace.traceId,
+    [TRACEPARENT_HEADER]: trace.headers[TRACEPARENT_HEADER]!,
+  };
   const hasBody = opts.body !== undefined;
   if (hasBody) headers['Content-Type'] = 'application/json';
 
-  // 写命令注入幂等键（脊柱 §4）：scope 决定 (scope,key) 唯一性；DELETE 不豁免。
-  if (opts.scope) {
-    headers['Idempotency-Key'] = opts.idempotencyKey ?? newIdempotencyKey();
-    headers['X-Idempotency-Scope'] = opts.scope;
-  }
-
-  let res: Response;
   const url = buildUrl(path, opts.query);
+  let res: Response;
   try {
     res = await fetch(url, {
       method: opts.method,
@@ -151,19 +150,15 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
   } catch (cause) {
-    // 网络层失败（断网/被 abort）：abort 透传，其余包成人话信封。
+    // 网络层失败：abort 透传给调用方（react-query 不当错误处理），其余包成人话信封。
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
     reportClientEvent('api_error', {
       traceId: trace.traceId,
       message: cause instanceof Error ? cause.message : 'network error',
-      stack: cause instanceof Error ? cause.stack : undefined,
       url,
     });
-    throw new ApiError(fallbackEnvelope('网络好像不太稳，检查连接后重试。'));
+    throw new ApiError({ error: fallbackErrorBody('网络好像不太稳，检查连接后重试。') });
   }
-
-  // 204 / 空体：直接返回空 data 包络。
-  if (res.status === 204) return { data: undefined as T };
 
   let body: unknown;
   try {
@@ -175,47 +170,26 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
         message: 'non-json error response',
         url,
       });
-      throw new ApiError(fallbackEnvelope('服务暂时没有正确响应，请稍后重试。'));
+      throw new ApiError({ error: fallbackErrorBody('服务暂时没有正确响应，请稍后重试。') });
     }
     return { data: undefined as T };
   }
 
   if (!res.ok) {
-    // 白名单重建（绝不强转原始 body）：只摘 userMessage/action/retriable/traceId/failureId?/details?，
-    // code/status/stack/原始 message 一律不进 envelope（Codex r2 P1 / D1）。缺人话则回退兜底人话——
-    // 后端没按契约出信封时也绝不裸露状态码。
-    const inner = body as { error?: { userMessage?: unknown } } | null;
-    const hasContractEnvelope =
-      typeof inner === 'object' &&
-      inner !== null &&
-      typeof inner.error?.userMessage === 'string' &&
-      (inner.error.userMessage as string).length > 0;
-    if (hasContractEnvelope) {
-      const envelope = sanitizeErrorEnvelope(body);
-      reportClientEvent('api_error', {
-        traceId: envelope.error.traceId,
-        message: envelope.error.userMessage,
-        url,
-      });
-      throw new ApiError(envelope);
-    }
-    reportClientEvent('api_error', {
-      traceId: trace.traceId,
-      message: 'non-contract error response',
-      url,
-    });
-    throw new ApiError(fallbackEnvelope('服务开小差了，请稍后重试。'));
+    // 白名单重建：只摘安全字段，code/状态码/堆栈绝不进 envelope；缺人话则兜底人话。
+    const error = unwrapErrorBody(body);
+    reportClientEvent('api_error', { traceId: error.traceId, message: error.userMessage, url });
+    throw new ApiError({ error });
   }
 
   return body as Envelope<T>;
 }
 
-// ---------- 公共方法：默认解包 data；需要 meta（分页/占位）时用 *Envelope 版本 ----------
-
 export async function apiGet<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   return (await request<T>(path, { ...opts, method: 'GET' })).data;
 }
 
+/** 需要 meta（分页）时用这个版本。 */
 export async function apiGetEnvelope<T>(
   path: string,
   opts: RequestOptions = {},
@@ -223,32 +197,12 @@ export async function apiGetEnvelope<T>(
   return request<T>(path, { ...opts, method: 'GET' });
 }
 
-/**
- * 写命令 POST：**强制** `opts.scope`（类型层堵漏，编译期保证带 Idempotency-Key）。
- * 只读 POST（market-card/preview、presign 等不写库）请用 {@link apiPostReadonly}，别在这里传可选 scope。
- */
-export async function apiPost<T>(path: string, body: unknown, opts: WriteOptions): Promise<T> {
-  return (await request<T>(path, { ...opts, method: 'POST', body })).data;
-}
-
-/**
- * 「带请求体只读」POST 显式 helper（脊柱 §4.1 豁免：不写库、只签 URL / 只算预览）。
- * scope 可选；不带 scope 即不注入任何幂等头（与写命令分流，杜绝「只读也被迫编一个写 scope」）。
- */
-export async function apiPostReadonly<T>(
+export async function apiPost<T>(
   path: string,
-  body: unknown,
-  opts: ReadonlyPostOptions = {},
+  body?: unknown,
+  opts: RequestOptions = {},
 ): Promise<T> {
-  return (await request<T>(path, { ...opts, method: 'POST', body })).data;
-}
-
-/** 写命令 PATCH：**强制** `opts.scope`。 */
-export async function apiPatch<T>(path: string, body: unknown, opts: WriteOptions): Promise<T> {
-  return (await request<T>(path, { ...opts, method: 'PATCH', body })).data;
-}
-
-/** 写命令 DELETE：**强制** `opts.scope`（DELETE 不因天然幂等豁免，脊柱 §4）。 */
-export async function apiDelete<T>(path: string, opts: WriteOptions): Promise<T> {
-  return (await request<T>(path, { ...opts, method: 'DELETE' })).data;
+  const raw: RawRequestOptions = { ...opts, method: 'POST' };
+  if (body !== undefined) raw.body = body;
+  return (await request<T>(path, raw)).data;
 }
