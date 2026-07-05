@@ -78,7 +78,7 @@ export interface AuthTx {
 
 /** returnTo 白名单：仅站内相对路径（以 / 开头、非 //、非含协议），防 open redirect（10-auth §3.1）。 */
 export function sanitizeReturnTo(raw: string | undefined): string {
-  const fallback = '/creator';
+  const fallback = '/tasks'; // 重构后创作端首页（旧 /creator 路由已删，落过去是 404）
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > 512) return fallback;
   // 必须站内相对路径：以单个 / 开头，且不是 //（协议相对，跳外站）或含 scheme。
   if (!raw.startsWith('/')) return fallback;

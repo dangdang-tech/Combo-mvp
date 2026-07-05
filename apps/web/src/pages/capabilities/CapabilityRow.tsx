@@ -5,6 +5,11 @@ import type { CapabilityView } from '@cb/shared';
 import { trialUrl } from '../../api/index.js';
 import { CopyButton } from '../../components/CopyButton.js';
 
+/** 可直接发出去的完整试用链接（对方需登录）。 */
+function shareUrl(capabilityId: string): string {
+  return `${window.location.origin}${trialUrl(capabilityId)}`;
+}
+
 export function CapabilityRow({
   cap,
   pending,
@@ -25,10 +30,11 @@ export function CapabilityRow({
           </span>
         </p>
         <p className="cb-caps__summary">{cap.summary}</p>
-        {cap.published && cap.shareToken && (
+        {cap.published && (
           <p className="cb-caps__share">
-            分享令牌：<code className="cb-caps__token">{cap.shareToken}</code>
-            <CopyButton text={cap.shareToken} />
+            {/* 裸 shareToken 无任何路由可消费（断头路）；先给真正能用的试用链接，token 语义等后端落地。 */}
+            分享链接：<code className="cb-caps__token">{shareUrl(cap.id)}</code>
+            <CopyButton text={shareUrl(cap.id)} />
           </p>
         )}
       </div>

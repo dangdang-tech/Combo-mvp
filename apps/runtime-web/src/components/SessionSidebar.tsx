@@ -17,6 +17,9 @@ const ROLE_LABEL: Record<Role, string> = {
   creator: '创作者',
 };
 
+/** 无角色/未知角色的兜底：消费端绝不把访客标成「创作者」（#27）。 */
+const DEFAULT_ROLE_LABEL = '使用者';
+
 function avatarInitial(name: string): string {
   const ch = Array.from(name.trim())[0] ?? '?';
   return ch.toUpperCase();
@@ -39,7 +42,7 @@ export function SessionSidebar({
   const me = useRuntimeMe();
   const accountName = me?.account ?? '当前账号';
   const role = me?.roles[0];
-  const accountTitle = role ? ROLE_LABEL[role] : '创作者';
+  const accountTitle = role ? (ROLE_LABEL[role] ?? DEFAULT_ROLE_LABEL) : DEFAULT_ROLE_LABEL;
   const hasCapability = Boolean(capabilityId);
   const sessions = useSessions(capabilityId, { enabled: hasCapability });
   const createSession = useCreateSession();
@@ -64,18 +67,22 @@ export function SessionSidebar({
   return (
     <nav className="rt-sidebar">
       <div className="rt-sidebar__head">
-        <a href="/creator" className="rt-sidebar__brand" aria-label="Combo 创作者中心 首页">
+        {/* 品牌回消费端首页（市集）。/creator 是创作端旧 IA，消费者点 logo 不该被弹进创作端（#27）。 */}
+        <Link to="/market" className="rt-sidebar__brand" aria-label="Combo 试用 首页">
           <ComboWordmark className="rt-sidebar__brand-word" />
-        </a>
-        <button
-          type="button"
-          className="rt-sidebar__back"
-          aria-label={runtimeBackLabel(safeReturnTo)}
-          title={runtimeBackLabel(safeReturnTo)}
-          onClick={() => window.location.assign(runtimeBackTarget(safeReturnTo))}
-        >
-          <span aria-hidden="true">←</span>
-        </button>
+        </Link>
+        {/* 返回发布页只对带 returnTo 进来的创作者渲染；消费者没有「发布流程」可回（#27）。 */}
+        {safeReturnTo && (
+          <button
+            type="button"
+            className="rt-sidebar__back"
+            aria-label={runtimeBackLabel(safeReturnTo)}
+            title={runtimeBackLabel(safeReturnTo)}
+            onClick={() => window.location.assign(runtimeBackTarget(safeReturnTo))}
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+        )}
       </div>
       <div className="rt-sidebar__label">{capabilityName ?? '会话'}</div>
       <div className="rt-sidebar__list">

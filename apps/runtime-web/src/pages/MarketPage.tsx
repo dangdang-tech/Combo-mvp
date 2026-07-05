@@ -12,6 +12,8 @@ import {
   type TrialCapability,
 } from '../api/runtime.js';
 import { QueryErrorNotice } from '../components/QueryErrorNotice.js';
+import { useRuntimeMe } from '../shell/AuthGate.js';
+import { useDocumentTitle } from '../shell/useDocumentTitle.js';
 
 const KIND_LABEL: Record<string, string> = {
   html: '网页',
@@ -68,6 +70,7 @@ function latestSessionByCapability(items: SessionView[]): Map<string, SessionVie
 }
 
 export function MarketPage() {
+  useDocumentTitle('能力市集 · Combo');
   const navigate = useNavigate();
   const caps = useCapabilities();
   const sessions = useSessions();
@@ -222,6 +225,8 @@ function EmptyMarket({
   mode: EmptyMarketMode;
   onModeChange: (mode: EmptyMarketMode) => void;
 }) {
+  const me = useRuntimeMe();
+  const isCreator = Boolean(me?.roles?.includes('creator'));
   return (
     <div className="rt-market-empty">
       <div className="rt-market-empty__intro">
@@ -231,9 +236,12 @@ function EmptyMarket({
           能力只会在创作者上传任务、提取并确认后出现在这里。未提取的候选和原始会话不会进入试用视角。
         </p>
         <div className="rt-market-empty__actions" aria-label="空市集操作">
-          <a className="rt-btn rt-btn--accent" href="/tasks">
-            去提取第一个能力
-          </a>
+          {/* 提取能力是创作端动作，只对创作者渲染；消费者不该被引去登录门（#27）。 */}
+          {isCreator && (
+            <a className="rt-btn rt-btn--accent" href="/tasks">
+              去提取第一个能力
+            </a>
+          )}
           <button
             type="button"
             className="rt-btn"

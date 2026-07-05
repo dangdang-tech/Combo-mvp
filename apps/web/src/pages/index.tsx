@@ -2,6 +2,7 @@
 import type { ReactElement } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AUTH_LOGIN_PATH } from '../shell/auth.js';
+import { useDocumentTitle } from '../shell/useDocumentTitle.js';
 
 export { TasksPage } from './tasks/TasksPage.js';
 export { TaskDetailPage } from './tasks/TaskDetailPage.js';
@@ -14,6 +15,7 @@ export function LoginPage(): ReactElement {
   const [params] = useSearchParams();
   const failureId = params.get('failureId');
   const failed = failureId != null && failureId.length > 0;
+  useDocumentTitle('登录 · Combo');
   return (
     <section className="cb-page cb-public" aria-labelledby="cb-login-title">
       <div className="cb-public__notice">
@@ -41,6 +43,7 @@ export function LoginPage(): ReactElement {
 
 // 人话 404：给回首页 + 去登录两条退路，无内部文案渗漏。
 export function NotFoundPage(): ReactElement {
+  useDocumentTitle('页面不存在 · Combo');
   return (
     <section className="cb-page cb-public" aria-labelledby="cb-notfound-title">
       <div className="cb-public__notice">
