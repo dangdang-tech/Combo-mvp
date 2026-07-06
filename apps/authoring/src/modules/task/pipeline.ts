@@ -210,12 +210,13 @@ async function execute(
   reporter: ProgressReporter,
 ): Promise<number> {
   // 分步耗时（毫秒），最后汇总一条 info 日志——线上观测哪步是瓶颈。
-  const startedAt = Date.now();
+  // 用单调钟（performance.now）而非墙钟：墙钟被 NTP 校正时差值会变成负数或虚高。
+  const startedAt = performance.now();
   let stepStartedAt = startedAt;
   const stepMs: Record<string, number> = {};
   const markStep = (name: string): void => {
-    const now = Date.now();
-    stepMs[name] = now - stepStartedAt;
+    const now = performance.now();
+    stepMs[name] = Math.round(now - stepStartedAt);
     stepStartedAt = now;
   };
 
@@ -355,6 +356,9 @@ async function execute(
       traceId,
       segments,
       onBatchDone: async (segmentsDone, segmentsTotal) => {
+        // extract 是最慢的一步（真实 LLM 延迟下可超过租约的 10 分钟），每批完成都续租，
+        // 否则租约过期后对账循环会把仍在跑的任务重新派出去，造成双跑与能力项重复落库。
+        await renewLease(deps.db, { taskId, leaseOwner: deps.leaseOwner });
         const percent = 48 + Math.round((segmentsDone / segmentsTotal) * 30);
         await reporter.progress(percent, `已分析 ${segmentsDone} / ${segmentsTotal} 段会话`, {
           done: segmentsDone,
@@ -430,7 +434,7 @@ async function execute(
       taskId,
       traceId,
       stepMs,
-      totalMs: Date.now() - startedAt,
+      totalMs: Math.round(performance.now() - startedAt),
       segments: segments.length,
       capabilities: landed,
       degraded: extracted.degraded,

@@ -249,6 +249,38 @@ describe('runPipeline · 逐片消费', () => {
   });
 });
 
+describe('runPipeline · extract 期间续租', () => {
+  it('每完成一批 LLM 归纳续一次租（防长提取超过租约被对账重派双跑）', async () => {
+    // 9 段独立会话 → BATCH_SIZE=8 切成 2 批。
+    const sessions = Array.from({ length: 9 }, (_, i) =>
+      claudeJsonl([
+        { role: 'user', text: `独立任务 ${i}：请帮我处理第 ${i} 类问题` },
+        { role: 'assistant', text: `好的，第 ${i} 类问题的处理步骤是……` },
+      ]),
+    );
+    const bundle = sessions.map((f) => `${BUNDLE_SENTINEL}\n${f}\n`).join('');
+    const { deps, taskId } = await setup(new FakeLlm(() => llmText(LLM_CAPABILITIES)), [bundle]);
+
+    // 数 renewLease 形状的 UPDATE（有 lease_owner 条件、无 current_step 条件，区别于 claimTask）。
+    let renewCount = 0;
+    const rawQuery = deps.db.query.bind(deps.db);
+    deps.db.query = (async (sql: string, params?: unknown[]) => {
+      if (
+        sql.includes('lease_expires_at') &&
+        sql.includes('lease_owner = $2') &&
+        !sql.includes('current_step')
+      ) {
+        renewCount += 1;
+      }
+      return rawQuery(sql, params);
+    }) as typeof deps.db.query;
+
+    expect(await runPipeline(deps, taskId, 'trace-1')).toBe('succeeded');
+    // 固定续租点：segment 后、extract 后各一次；按批续租：2 批各一次。
+    expect(renewCount).toBe(4);
+  });
+});
+
 describe('runPipeline · 降级兜底', () => {
   it('LLM 全程降级：走确定性兜底，仍产出可试用的能力项并成功终态', async () => {
     const { deps, taskId } = await setup(new FakeLlm()); // 缺省脚本恒 degraded

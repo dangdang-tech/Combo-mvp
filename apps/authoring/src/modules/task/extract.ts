@@ -101,13 +101,13 @@ export async function extractCapabilities(
       const i = nextIndex;
       nextIndex += 1;
       if (i >= batches.length) return;
-      const startedAt = Date.now();
+      const startedAt = performance.now(); // 单调钟：墙钟跳变不影响耗时差值
       results[i] = await extractBatch(deps, input, batches[i]!);
       deps.log?.info?.(
         {
           batchIndex: i,
           segments: batches[i]!.length,
-          ms: Date.now() - startedAt,
+          ms: Math.round(performance.now() - startedAt),
           drafts: results[i]?.length ?? null, // null = 本批降级
         },
         'extract batch done',
