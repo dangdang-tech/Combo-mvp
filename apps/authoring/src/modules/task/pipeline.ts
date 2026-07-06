@@ -48,7 +48,7 @@ import {
   extractCapabilities,
   type ExtractSegment,
 } from './extract.js';
-import { insertCapability } from '../capability/repo.js';
+import { insertCapability } from '../capability/index.js';
 
 /** 能力项可运行定义所在桶（长期保留，与会被清除的原始件分桶）。 */
 export const CAPABILITY_BUCKET = 'combo-artifacts' as const;

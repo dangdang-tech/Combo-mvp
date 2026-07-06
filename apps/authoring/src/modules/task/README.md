@@ -20,7 +20,7 @@
 
 被谁使用：路由由 `bootstrap/routes.ts` 挂载；`processes/worker.ts` 消费队列时调 pipeline.ts 的 runPipeline、对账时调 repo.ts 的 findStalledExtractTasks。
 
-依赖什么：`platform/middleware/auth.ts`（登录与 SSE 守卫）、`platform/http/_helpers.ts`（错误信封）、`platform/infra/db.ts` 与 `db-tx.ts`（连接池与事务）、`platform/infra/queue.ts`（BullMQ 队列名与入队）、`platform/sse/`（建流与 Redis 流桥）、`platform/infra/llm/`（LLM 网关端口与审计类型）、`platform/text/session-noise.ts`（平台噪声识别）、`modules/capability/repo.ts`（落能力项行）、`modules/account/repo.ts`（toIso）。外部资源：PostgreSQL 的 tasks、uploads、capabilities 表，MinIO 的 combo-raw（原始件，处理完清除）与 combo-artifacts（能力项定义，长期保留）两个桶，Redis 队列（BullMQ）与 Redis 热流（进度帧），以及经网关调用的大模型上游。
+依赖什么：`platform/middleware/auth.ts`（登录与 SSE 守卫）、`platform/http/_helpers.ts`（错误信封）、`platform/infra/db.ts` 与 `db-tx.ts`（连接池与事务）、`platform/infra/queue.ts`（BullMQ 队列名与入队）、`platform/sse/`（建流与 Redis 流桥）、`platform/infra/llm/`（LLM 网关端口与审计类型）、`platform/text/session-noise.ts`（平台噪声识别）、`modules/capability/index.ts`（域出口，落能力项行）。toIso 时间格式化来自 `platform/infra/db.ts`。外部资源：PostgreSQL 的 tasks、uploads、capabilities 表，MinIO 的 combo-raw（原始件，处理完清除）与 combo-artifacts（能力项定义，长期保留）两个桶，Redis 队列（BullMQ）与 Redis 热流（进度帧），以及经网关调用的大模型上游。
 
 ## 典型流程：POST /connect/upload（助手上传一片，恰好收齐）
 

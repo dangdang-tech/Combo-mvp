@@ -6,11 +6,11 @@
 
 - `routes.ts` 声明四个端点：GET /auth/login（发起登录，无鉴权）、GET /auth/callback（登录回调，无鉴权）、POST /auth/logout（尽力鉴权但永不拦）、GET /me（必须登录）；另外单独导出仅 dev/test 使用的 POST /auth/dev-login 种子登录端点，由 bootstrap/app.ts 条件注册。
 - `handlers.ts` 实现上述端点：login 生成随机校验串并 302 跳转 Logto 授权页；callback 校验回跳参数、用授权码换 token、验签、首登建档、把 access_token 种进 cb_session Cookie；logout 幂等清 Cookie；me 读用户视图；dev-login 用应用自签的 HS256 token 造一个测试会话。
-- `repo.ts` 收拢 users 表 SQL：provisionUser 按 Logto 的用户标识（sub）查或建 users 行，展示账号撞唯一键时自动追后缀消歧；readMe 读 /me 视图行；toIso 时间格式化函数被 task 和 capability 的 repo 复用。
+- `repo.ts` 收拢 users 表 SQL：provisionUser 按 Logto 的用户标识（sub）查或建 users 行，展示账号撞唯一键时自动追后缀消歧；readMe 读 /me 视图行。
 
 ## 上下游
 
-被谁使用：路由由 `bootstrap/routes.ts` 挂载，dev-login 路由由 `bootstrap/app.ts` 条件挂载；`platform/middleware/auth.ts` 的鉴权中间件在每个受保护请求上调用本模块的 provisionUser 把验签结果换成业务用户 id；task 与 capability 的 repo 引用本模块的 toIso。
+被谁使用：路由由 `bootstrap/routes.ts` 挂载，dev-login 路由由 `bootstrap/app.ts` 条件挂载；`bootstrap/app.ts` 还把本模块的 provisionUser 注入 Fastify 实例（app.decorate），供 `platform/middleware/auth.ts` 的鉴权中间件在每个受保护请求上把验签结果换成业务用户 id（platform 不直接 import 业务域，走组合根接线）。
 
 依赖什么：`platform/infra/logto.ts`（JWT 验签）、`platform/infra/logto-oidc.ts`（授权 URL 构建、换 token、回跳白名单）、`platform/infra/dev-session.ts`（种子会话签发与开关判定）、`platform/middleware/auth.ts`（会话 Cookie 名与守卫）、`platform/http/_helpers.ts`（错误信封）。外部资源：PostgreSQL 的 users 表（经 req.server.infra.db），以及 Logto 服务的授权、token、验签端点。
 

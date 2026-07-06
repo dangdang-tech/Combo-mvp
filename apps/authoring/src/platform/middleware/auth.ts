@@ -10,8 +10,30 @@ import type { AuthContext } from '@cb/shared';
 import { ErrorCode } from '@cb/shared';
 import { sendError } from '../http/_helpers.js';
 import { verifyLogtoJwt, type VerifiedToken } from '../infra/logto.js';
-import { provisionUser } from '../../modules/account/repo.js';
 import { devLoginAvailable, verifyDevSession } from '../infra/dev-session.js';
+
+/**
+ * provision 依赖反转：查/建 users 属账号业务域，platform 只声明所需函数形状，
+ * 实现由组合根接线（bootstrap/app.ts 以 app.decorate('provisionUser', …) 注入 account 域实现）。
+ */
+export interface ProvisionUserInput {
+  /** OIDC sub（去重键）。 */
+  logtoUserId: string;
+  /** 展示账号候选（撞名由实现方消歧）。 */
+  account: string;
+  email: string | null;
+  roles: AuthContext['roles'];
+}
+export type ProvisionUserFn = (
+  input: ProvisionUserInput,
+) => Promise<{ id: string; account: string; roles: AuthContext['roles'] }>;
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    /** 组合根注入的用户 provision 实现（见 bootstrap/app.ts）。 */
+    provisionUser: ProvisionUserFn;
+  }
+}
 
 /** 会话 Cookie 名（HttpOnly + Secure(prod) + SameSite=Lax 承载 access_token）。 */
 export const SESSION_COOKIE = 'cb_session';
@@ -48,7 +70,7 @@ async function buildAuthContext(
   verified: VerifiedToken,
 ): Promise<AuthResolution> {
   try {
-    const provisioned = await provisionUser(req.server.infra.db, {
+    const provisioned = await req.server.provisionUser({
       logtoUserId: verified.sub,
       account: verified.account,
       email: verified.email,
