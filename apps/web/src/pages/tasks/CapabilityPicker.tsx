@@ -163,7 +163,7 @@ export function CapabilityPicker({
               ? `正在逐个发布：已处理 ${run.processed} / ${run.total}（成功 ${run.published} · 失败 ${run.failed}）`
               : `已发布 ${run.published} / ${run.total} 个能力${
                   run.failed > 0 ? `（失败 ${run.failed}，可在卡片上单独重试）` : ''
-                }。把分享令牌发给别人即可试用。`}
+                }。复制卡片上的分享链接发给别人即可试用（对方需登录）。`}
           </p>
         ) : null}
         {(!run || (!run.running && selected.length > 0)) && (
@@ -249,12 +249,11 @@ function CapabilityPickRow({
         {!itemState && cap.published && (
           <div className="cb-cap-card__status" data-state="published">
             <span className="cb-cap-card__status-label">已发布</span>
-            {cap.shareToken && (
-              <span className="cb-cap-card__status-msg">
-                <code className="cb-caps__token">{cap.shareToken}</code>
-                <CopyButton text={cap.shareToken} />
-              </span>
-            )}
+            <span className="cb-cap-card__status-msg">
+              {/* 裸 shareToken 无路由可消费；复制真正可用的完整试用链接。 */}
+              <code className="cb-caps__token">{`${window.location.origin}${trialUrl(cap.id)}`}</code>
+              <CopyButton text={`${window.location.origin}${trialUrl(cap.id)}`} />
+            </span>
           </div>
         )}
       </div>

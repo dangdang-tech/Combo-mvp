@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { ErrorState, Skeleton } from '../../components/index.js';
+import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { fetchPublicCapability } from './publicApi.js';
 
 export function PublicCapabilityPage(): ReactElement {
@@ -15,6 +16,7 @@ export function PublicCapabilityPage(): ReactElement {
     enabled: slug.length > 0,
     retry: false,
   });
+  useDocumentTitle(query.data ? `${query.data.name} · Combo` : undefined);
 
   if (query.isLoading) {
     return (

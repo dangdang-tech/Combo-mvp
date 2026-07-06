@@ -2,33 +2,52 @@
    白色内容底 + 浅灰侧栏 + Combo 墨色/砖红品牌 + 衬线标题 / 等宽 label。 */
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Noto+Serif+SC:wght@500;600&family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap');
 :root {
+  /* ===== Combo 统一设计 token（canon 单一事实源；与 runtime-web/styles.css 逐值同步，diff 必须为零）===== */
   /* 尺寸 */
   --cb-sidebar-w: 288px;
   --cb-sidebar-w-collapsed: 64px;
-  /* 页面底 / 侧栏 / surface */
-  --cb-bg: #ffffff;
-  --cb-rail: #f7f7f7;
-  --cb-surface: #ffffff;
+  /* 面层级（4 级）：paper 品牌时刻 / page 页面底 / surface 卡片 / raised 纯白 */
+  --cb-paper: #fbfaf6;
+  --cb-bg: #f4f6f4;
+  --cb-surface: #fafbf8;
   --cb-surface-raised: #ffffff;
-  /* 文字 / 边框 / 骨架 / 网格纸底 */
+  --cb-muted-bg: #eef2ef;
+  --cb-rail: #f7f7f7; /* 侧栏底：用户明确偏好，保持 */
+  /* 文字 */
   --cb-fg: #1c1b19;
   --cb-muted: #66706c;
-  --cb-border: #dbe0db;
+  /* 线（3 级）+ 骨架 / 网格纸底 */
+  --cb-line-1: #d8ded8;
+  --cb-line-2: #e3e7e2;
+  --cb-line-3: #ebefea;
+  --cb-border: var(--cb-line-1);
   --cb-skeleton: #eef2ef;
-  --cb-grid: rgba(219, 224, 219, 0.72);
-  /* Combo 砖红强调 */
+  --cb-grid: rgba(216, 222, 216, 0.72);
+  /* Combo 砖红强调（hover/pressed/soft/tint 全档）*/
   --cb-accent: #a73718;
-  --cb-accent-strong: #8f2f14;
-  --cb-accent-soft: rgba(167, 55, 24, 0.1);
-  --cb-focus-ring: #77a590;
-  /* 语义色 */
-  --cb-badge-ok: #47714f;
-  --cb-warn: #8a6414;
+  --cb-accent-strong: #8f2d14;
+  --cb-accent-pressed: #6e210f;
+  --cb-accent-soft: #f7e7e1;
+  --cb-accent-tint: #f4d4c9;
+  --cb-focus-ring: #7fa59d;
+  /* 语义色 + 软底 */
+  --cb-ok: #4f6f52;
+  --cb-badge-ok: var(--cb-ok);
+  --cb-warn: #7a5317;
   --cb-danger: #b3261e;
-  /* 圆角 */
-  --cb-radius-card: 8px;
+  --cb-ok-soft: color-mix(in srgb, var(--cb-ok) 10%, var(--cb-surface));
+  --cb-warn-soft: color-mix(in srgb, var(--cb-warn) 10%, var(--cb-surface));
+  --cb-danger-soft: color-mix(in srgb, var(--cb-danger) 8%, var(--cb-surface));
+  --cb-danger-line: color-mix(in srgb, var(--cb-danger) 28%, transparent);
+  /* 圆角刻度 */
   --cb-radius-control: 6px;
+  --cb-radius-card: 8px;
+  --cb-radius-hero: 22px;
   --cb-radius-pill: 999px;
+  /* 阴影（墨色 tint 三档）*/
+  --cb-shadow-surface: 0 2px 8px rgba(28, 27, 25, 0.04);
+  --cb-shadow-hero: 0 8px 24px rgba(28, 27, 25, 0.06);
+  --cb-shadow-overlay: 0 12px 28px rgba(28, 27, 25, 0.1);
   /* 字体四族：品牌字标 / 衬线标题 / 无衬线正文 / 等宽 label */
   --cb-font-brand: 'Fraunces', 'Noto Serif SC', serif;
   --cb-font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
@@ -391,13 +410,13 @@ body {
 }
 
 .cb-card--failed {
-  border-color: #f3d0cd;
-  background: #fff5f4;
+  border-color: color-mix(in srgb, var(--cb-danger) 22%, transparent);
+  background: var(--cb-danger-soft);
 }
 
 .cb-card--succeeded {
-  border-color: #cfe6d8;
-  background: #f4faf6;
+  border-color: color-mix(in srgb, var(--cb-ok) 25%, transparent);
+  background: var(--cb-ok-soft);
 }
 
 /* ---------- LoadingState（永不裸转圈三件套） ---------- */
@@ -470,8 +489,8 @@ body {
 
 /* ---------- ErrorState（唯一主文案 = 人话 userMessage） ---------- */
 .cb-error-state {
-  border: 1px solid #f3d0cd;
-  background: #fff5f4;
+  border: 1px solid color-mix(in srgb, var(--cb-danger) 22%, transparent);
+  background: var(--cb-danger-soft);
   border-radius: 8px;
   padding: 16px;
   max-width: 480px;
@@ -505,7 +524,7 @@ body {
   padding: 10px 12px;
   border: 1px dashed var(--cb-border);
   border-radius: 8px;
-  background: #fffdf5;
+  background: var(--cb-paper);
 }
 
 .cb-slowhint__phrase {
@@ -615,7 +634,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #1f2329;
+  background: var(--cb-fg);
   border-radius: 8px;
   padding: 14px 16px;
 }
@@ -624,7 +643,7 @@ body {
 .cb-cmdbox__command-text {
   flex: 1;
   min-width: 0;
-  color: #e3e6ea;
+  color: var(--cb-line-2);
   font-family: var(--cb-font-mono);
   font-size: 13px;
   line-height: 1.6;
@@ -635,8 +654,8 @@ body {
 .cb-cmdbox__copy {
   flex-shrink: 0;
   background: transparent;
-  color: #e3e6ea;
-  border-color: #3a4048;
+  color: var(--cb-line-2);
+  border-color: var(--cb-muted);
 }
 
 .cb-cmdbox__phase {
@@ -700,17 +719,17 @@ body {
 }
 
 .cb-status-badge.is-published {
-  background: #e8f5ec;
+  background: var(--cb-ok-soft);
   color: var(--cb-badge-ok);
 }
 
 .cb-status-badge.is-pending {
-  background: #fff4e5;
+  background: var(--cb-warn-soft);
   color: var(--cb-warn);
 }
 
 .cb-status-badge.is-rejected {
-  background: #fdecea;
+  background: var(--cb-danger-soft);
   color: var(--cb-danger);
 }
 
@@ -1325,7 +1344,7 @@ body {
   font-size: 12px;
   color: var(--cb-accent);
   background: var(--cb-accent-soft);
-  border-radius: 999px;
+  border-radius: var(--cb-radius-pill);
   padding: 2px 10px;
 }
 
@@ -1604,7 +1623,7 @@ body {
 
 .cb-cap-card[data-selected='true'] {
   border-color: var(--cb-accent);
-  background: rgba(167, 55, 24, 0.06);
+  background: color-mix(in srgb, var(--cb-accent) 6%, transparent);
 }
 
 .cb-cap-card__select {
@@ -1649,7 +1668,7 @@ body {
 .cb-cap-card__type {
   font-size: 12px;
   color: var(--cb-accent);
-  border: 1px solid rgba(167, 55, 24, 0.28);
+  border: 1px solid color-mix(in srgb, var(--cb-accent) 28%, transparent);
   border-radius: var(--cb-radius-pill);
   background: var(--cb-accent-soft);
   padding: 2px 8px;
@@ -1763,4 +1782,37 @@ body {
   .cb-capabilities__publish {
     width: 100%;
   }
+}
+
+/* ===== 统一交互状态层（B2/B3）：焦点可见 + 指针反馈，全站一致 ===== */
+/* 键盘焦点：所有可交互元素统一 canon 焦点环（此前 token 定义了但零引用）。 */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--cb-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 实心砖红 CTA：hover 加深、按压更深（canon hover/pressed 档）。 */
+.cb-primary-btn:hover:not(:disabled),
+.cb-public__action:not(.cb-public__action--ghost):hover,
+.cb-error-state__action:hover {
+  background: var(--cb-accent-strong);
+}
+.cb-primary-btn:active:not(:disabled),
+.cb-public__action:not(.cb-public__action--ghost):active,
+.cb-error-state__action:active {
+  background: var(--cb-accent-pressed);
+}
+
+/* 描边/幽灵控件：hover 转品牌描边（对齐 runtime 端 .rt-btn:hover 行为）。 */
+.cb-empty__action:hover,
+.cb-pager__more:hover:not(:disabled),
+.cb-filter-chip:hover,
+.cb-pairing__dismiss:hover,
+.cb-caps__toggle:hover:not(:disabled),
+.cb-copy:hover,
+.cb-caps__trial:hover,
+.cb-cap-card__trial:hover,
+.cb-public__action--ghost:hover {
+  border-color: var(--cb-accent);
+  color: var(--cb-accent);
 }

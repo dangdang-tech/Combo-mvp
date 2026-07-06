@@ -149,8 +149,9 @@ describe('TaskDetailPage — 挑选与一键发布', () => {
     // 一键发布：逐项 POST，两张卡状态槽都变已发布 + 分享令牌。
     await userEvent.click(screen.getByRole('button', { name: '一键发布到市集 · 2 项' }));
     expect(await screen.findAllByText('已发布')).toHaveLength(2);
-    expect(screen.getByText('tok-1')).toBeInTheDocument();
-    expect(screen.getByText('tok-2')).toBeInTheDocument();
+    // 状态槽展示的是完整试用链接（裸 shareToken 无路由可消费）。
+    expect(screen.getByText((text) => text.includes('/try/c/c1'))).toBeInTheDocument();
+    expect(screen.getByText((text) => text.includes('/try/c/c2'))).toBeInTheDocument();
     expect(screen.getByText(/已发布 2 \/ 2 个能力/)).toBeInTheDocument();
 
     const posts = fm.calls.filter((c) => c.method === 'POST').map((c) => c.url);

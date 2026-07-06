@@ -18,6 +18,7 @@ import {
   rememberRuntimeReturnTo,
   safeRuntimeReturnTo,
 } from '../navigation/runtimeReturn.js';
+import { useDocumentTitle } from '../shell/useDocumentTitle.js';
 
 export function ChatPage() {
   const { sessionId } = useParams();
@@ -39,6 +40,7 @@ export function ChatPage() {
   }, [queryReturnTo, sessionId]);
 
   const capability = detail?.capability;
+  useDocumentTitle(capability ? `${capability.name} · Combo 试用` : undefined);
   const sidebarCapability = capability
     ? { id: capability.id, name: capability.name }
     : lastSidebarCapability;
@@ -92,6 +94,13 @@ export function ChatPage() {
 
             <main className="rt-genui">
               <div ref={canvasRef} className="rt-genui__canvas" data-state={canvasState}>
+                {/* 首轮失败时 FloatingChat 尚未挂载（hasStarted=false），错误必须在画布可见，
+                    否则用户只看到生成卡一闪回表单、零解释（A7）。 */}
+                {stream.errorMessage && !hasStarted && (
+                  <div className="rt-inline-error" role="alert">
+                    {stream.errorMessage}
+                  </div>
+                )}
                 {stream.artifactList.length > 1 && (
                   <div className="rt-canvas-chips">
                     {stream.artifactList.map((a) => (

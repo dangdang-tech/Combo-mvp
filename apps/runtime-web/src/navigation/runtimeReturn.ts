@@ -30,6 +30,8 @@ function containsControlCharacter(value: string): boolean {
 
 export function safeRuntimeReturnTo(value: string | null | undefined): string | null {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
+  if (value.includes('\\')) return null; // 反斜杠规避：浏览器把 /\evil.com 按协议相对跳外站
+  if (/^\/[a-z][a-z0-9+.-]*:/i.test(value)) return null; // scheme 走私（/javascript: 等）
   if (containsControlCharacter(value)) return null;
   return value;
 }

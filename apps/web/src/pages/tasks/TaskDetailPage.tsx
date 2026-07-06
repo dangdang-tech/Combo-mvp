@@ -24,6 +24,7 @@ import {
   SlowHint,
   SubtaskChecklist,
 } from '../../components/index.js';
+import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { CapabilityPicker } from './CapabilityPicker.js';
 import {
   formatTime,
@@ -34,6 +35,7 @@ import {
 } from './taskPresent.js';
 
 export function TaskDetailPage(): ReactElement {
+  useDocumentTitle('任务详情 · Combo');
   const { taskId = '' } = useParams();
   const qc = useQueryClient();
 

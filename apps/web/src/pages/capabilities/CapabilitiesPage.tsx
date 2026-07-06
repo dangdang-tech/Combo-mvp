@@ -17,6 +17,7 @@ import {
   type Page,
 } from '../../api/index.js';
 import { ErrorState, Skeleton } from '../../components/index.js';
+import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { CapabilityRow } from './CapabilityRow.js';
 
 type CapabilityPages = InfiniteData<Page<CapabilityView>>;
@@ -47,6 +48,7 @@ export function mergePublishResult(
 }
 
 export function CapabilitiesPage(): ReactElement {
+  useDocumentTitle('我的能力 · Combo');
   const [params, setParams] = useSearchParams();
   const taskId = params.get('taskId') ?? undefined;
   const qc = useQueryClient();

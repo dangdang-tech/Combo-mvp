@@ -5,6 +5,7 @@ import type { ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { ErrorState, Skeleton } from '../../components/index.js';
+import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { fetchPublicCreator, type PublicCreatorProfile } from './publicApi.js';
 
 /** 万位收敛的紧凑数字（12500 → 1.3万）。 */
@@ -21,6 +22,9 @@ export function PublicCreatorPage(): ReactElement {
     enabled: slug.length > 0,
     retry: false,
   });
+  // 展示名绝不回落 slug/id（#29）：分享出去的 tab/标题顶着一串机器 id 极其难看。
+  const displayName = query.data?.hero.displayName?.trim() || '未命名创作者';
+  useDocumentTitle(query.data ? `${displayName} 的主页 · Combo` : undefined);
 
   if (query.isLoading) {
     return (
@@ -39,10 +43,11 @@ export function PublicCreatorPage(): ReactElement {
   }
 
   const profile = query.data;
+  const hero = { ...profile.hero, displayName };
 
   return (
     <section className="cb-public cb-profile" data-creator={profile.slug}>
-      <HeroSection hero={profile.hero} />
+      <HeroSection hero={hero} />
       <MetricsBandSection metrics={profile.metrics} />
       <NetworkSection network={profile.network} />
       <WorksSection works={profile.works} />

@@ -6,6 +6,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import type { CreateTaskResult, TaskView } from '@cb/shared';
 import { createTask, listTasks } from '../../api/index.js';
 import { ErrorState, Skeleton } from '../../components/index.js';
+import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { PairingCard } from './PairingCard.js';
 import {
   formatTime,
@@ -16,6 +17,7 @@ import {
 } from './taskPresent.js';
 
 export function TasksPage(): ReactElement {
+  useDocumentTitle('上传任务 · Combo');
   const qc = useQueryClient();
   const [created, setCreated] = useState<CreateTaskResult | null>(null);
 
