@@ -272,6 +272,11 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      # 建桶一次性容器跑完才起 api（api 预签名上传前四桶必须存在）。这条依赖同时让
+      # `up --wait` 知道 minio_mc 是「应当退出」的一次性服务——没有任何依赖方声明时，
+      # --wait 会把它的正常退出（exit 0）误判为失败。
+      minio_mc:
+        condition: service_completed_successfully
       logto:
         condition: service_healthy
       migrate:

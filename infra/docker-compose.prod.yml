@@ -40,6 +40,9 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      # 与基础 compose 同理：桶先建好才起 api，同时让 --wait 认得 minio_mc 的正常退出。
+      minio_mc:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
 
