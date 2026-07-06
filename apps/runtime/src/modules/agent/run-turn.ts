@@ -4,6 +4,8 @@
 //   - 事件：pi 事件翻成 AG-UI 标准事件，经 TurnEmitter 双写（stream_events 表 + 进程内总线）。
 //   - 终态：正常结束把整轮 assistant/toolResult 消息落 messages（completed）+ RUN_FINISHED；
 //     失败/打断落一条 failed 消息 + RUN_ERROR。
+//   - 空闲看门狗：LLM 流两次活动间隔超过 idleTimeoutMs 判连接夯死 → abort + RUN_ERROR
+//     （只判停滞不限总时长，长时间但持续有输出的轮次不受影响）。
 //   - agent 经注入的 TurnAgentFactory 构造（生产 = pi 实现见 build-agent.ts；单测注入假 agent）。
 import { randomUUID } from 'node:crypto';
 import { EventType } from '@ag-ui/core';
@@ -33,6 +35,11 @@ export interface TurnAgentInput {
 export interface TurnAgent {
   /** 订阅助手文本增量；返回退订函数。 */
   subscribeTextDelta(fn: (delta: string) => void): () => void;
+  /**
+   * 订阅「任意 agent 活动」（含工具调用参数流等一切事件，不只文本 delta）；返回退订函数。
+   * 空闲看门狗以此判活；不实现则看门狗只依赖文本 delta。
+   */
+  subscribeActivity?(fn: () => void): () => void;
   prompt(text: string): Promise<void>;
   abort(): void;
   /** 完整转录（历史 + 本轮 user + 本轮新消息），pi AgentMessage[] plain JSON。 */
@@ -58,6 +65,12 @@ export interface TurnRunnerDeps {
   objectStore: RuntimeObjectStore;
   bus: SessionEventBus;
   agentFactory: TurnAgentFactory;
+  /**
+   * 空闲看门狗阈值：LLM 流两次活动（任意事件）间隔超过此值判定连接夯死，
+   * abort 本轮并发 RUN_ERROR（issue #51：流中途停滞时链路上没有任何超时）。
+   * 只判「无输出的停滞」，不限制轮次总时长——持续有输出的长任务不受影响。
+   */
+  idleTimeoutMs: number;
 }
 
 export type StartTurnResult =
@@ -205,29 +218,57 @@ export function createTurnRunner(deps: TurnRunnerDeps): TurnRunner {
 
     const onAbort = (): void => agent.abort();
     controller.signal.addEventListener('abort', onAbort, { once: true });
+
+    // 空闲看门狗：任意活动（文本 delta / 工具调用等一切事件）之间超过阈值 → 判连接夯死，
+    // abort 走统一打断链路，随后按 idleTimedOut 区分文案收尾（不限制轮次总时长）。
+    let idleTimedOut = false;
+    let idleTimer: NodeJS.Timeout | undefined;
+    const armIdleWatchdog = (): void => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        idleTimedOut = true;
+        log.error({ idleTimeoutMs: deps.idleTimeoutMs }, 'turn idle watchdog fired, aborting');
+        controller.abort();
+      }, deps.idleTimeoutMs);
+      idleTimer.unref?.();
+    };
+
     const unsubscribe = agent.subscribeTextDelta((delta) => {
+      armIdleWatchdog();
       openText();
       assistantText += delta;
       emitter.emit({ type: EventType.TEXT_MESSAGE_CONTENT, ...base, messageId, delta });
     });
+    const unsubscribeActivity = agent.subscribeActivity?.(armIdleWatchdog);
 
+    const finishAborted = async (): Promise<void> =>
+      idleTimedOut
+        ? finishFailed(
+            `模型响应停滞超过 ${Math.round(deps.idleTimeoutMs / 1000)} 秒，本轮已终止，请重试。`,
+            assistantText ? [{ type: 'text', text: assistantText }] : undefined,
+          )
+        : finishInterrupted();
+
+    armIdleWatchdog();
     try {
       await agent.prompt(args.text);
     } catch (err) {
       if (controller.signal.aborted) {
-        await finishInterrupted();
+        await finishAborted();
         return;
       }
       log.error({ err }, 'agent.prompt failed');
       await finishFailed('对话生成失败，请重试。');
       return;
     } finally {
+      clearTimeout(idleTimer);
       unsubscribe();
+      unsubscribeActivity?.();
       controller.signal.removeEventListener('abort', onAbort);
     }
 
     if (controller.signal.aborted) {
-      await finishInterrupted();
+      await finishAborted();
       return;
     }
 

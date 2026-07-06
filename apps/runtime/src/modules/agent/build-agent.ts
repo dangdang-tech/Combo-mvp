@@ -169,6 +169,10 @@ export function createPiTurnAgentFactory(env: Env): TurnAgentFactory {
           }
         });
       },
+      subscribeActivity(fn) {
+        // 任意 agent 事件都算活动（含工具调用参数流等非文本事件），供空闲看门狗判活。
+        return agent.subscribe(() => fn());
+      },
       prompt: (text) => agent.prompt(text),
       abort: () => agent.abort(),
       transcript: () => agent.state.messages as unknown[],

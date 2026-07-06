@@ -81,6 +81,7 @@ function makeReq(input: {
     objectStore: input.objectStore ?? new FakeObjectStore(),
     bus: createSessionEventBus(),
     agentFactory: makeFakeAgentFactory().factory,
+    idleTimeoutMs: 60_000,
   });
   return {
     id: 'trace-test',

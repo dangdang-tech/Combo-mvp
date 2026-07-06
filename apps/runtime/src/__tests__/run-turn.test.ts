@@ -25,7 +25,7 @@ const DEFINITION: CapabilityDefinition = {
   meta: {},
 };
 
-async function setup(script: FakeAgentScript = {}) {
+async function setup(script: FakeAgentScript = {}, idleTimeoutMs = 60_000) {
   const db = new FakeDb();
   const store = new FakeObjectStore();
   const bus = createSessionEventBus();
@@ -35,6 +35,7 @@ async function setup(script: FakeAgentScript = {}) {
     objectStore: store,
     bus,
     agentFactory: handle.factory,
+    idleTimeoutMs,
   });
   const cap = db.seedCapability({ owner_user_id: ME });
   const session: SessionRow = await createSession(db, { capabilityId: cap.id, ownerUserId: ME });
@@ -169,6 +170,31 @@ describe('run-turn busy 闸与打断', () => {
   });
 });
 
+describe('run-turn 空闲看门狗（issue #51：流中途停滞永无终态）', () => {
+  it('LLM 流停滞超过阈值 → abort + RUN_ERROR，已生成的部分文本保进 failed 消息', async () => {
+    const { db, runner, session } = await setup({ deltas: ['部分'], hangUntilAbort: true }, 30);
+
+    const result = await runner.startTurn({
+      session,
+      definition: DEFINITION,
+      text: '会停滞的一轮',
+      log: silentLog,
+    });
+    expect(result.status).toBe('started');
+    // 不做人工 interrupt：看门狗自己判死并收尾。
+    await waitFor(() => !runner.isBusy(session.id));
+
+    const failed = db.messages.find((m) => m.role === 'assistant');
+    expect(failed?.status).toBe('failed');
+    expect(failed?.content).toEqual([{ type: 'text', text: '部分' }]);
+
+    const last = db.streamEvents.at(-1)?.event as { type: unknown; message?: string };
+    expect(last.type).toBe(EventType.RUN_ERROR);
+    expect(last.message).toContain('停滞');
+    expect(eventTypes(db)).not.toContain(EventType.RUN_FINISHED);
+  });
+});
+
 describe('run-turn 失败路径（失败落 failed 消息 + RUN_ERROR）', () => {
   it('agent.prompt 抛错', async () => {
     const { db, runner, session } = await setup({ promptError: new Error('llm down') });
@@ -202,6 +228,7 @@ describe('run-turn 失败路径（失败落 failed 消息 + RUN_ERROR）', () =>
       agentFactory: () => {
         throw new TurnAgentUnavailableError('试用服务未配置模型密钥，暂时无法对话。');
       },
+      idleTimeoutMs: 60_000,
     });
     const result = await runner.startTurn({
       session,

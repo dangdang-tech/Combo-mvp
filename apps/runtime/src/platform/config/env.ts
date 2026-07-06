@@ -44,6 +44,9 @@ const EnvSchema = z.object({
   OPENROUTER_API_KEY: z.string().default(''),
   // 显式模型 id 覆盖；空 → 按 provider 兜底（见 platform/infra/llm.ts）。
   RUNTIME_LLM_MODEL: z.preprocess(emptyToUndefined, z.string().default('')),
+  // 轮次空闲看门狗：LLM 流两次活动间隔超过此值（毫秒）判连接夯死，abort 本轮并发 RUN_ERROR。
+  // 只判无输出的停滞，不限制轮次总时长（issue #51）。
+  RUNTIME_TURN_IDLE_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
 
   // CORS 允许来源（dev 走 vite 代理同源；留空 = 反射来源放开，生产收敛）。
   CORS_ORIGIN: z.string().default(''),
