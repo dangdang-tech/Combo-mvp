@@ -30,5 +30,9 @@ infra/docker-compose.override.local.yml
 # 仓库根工具/临时产物（由原外层 .gitignore 合并而来）
 .gstack/
 .playwright-mcp/
+.playwright-cli/
 cb_auth_qr.png
 apps-db.json
+
+# Claude Code 本地配置与个人技能，不入库
+.claude/
