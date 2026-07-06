@@ -71,6 +71,9 @@ async function main(): Promise<void> {
       // 内存护栏：导入 pipeline 会把整份语料多副本驻留内存，并发>1 会成倍放大峰值内存
       // （海量历史下直接 OOM）。降为 1 顺序处理，配合容器 mem_limit 稳住内存上界。
       concurrency: 1,
+      // 默认 30s 的锁在大分片同步解析阻塞事件循环或 Redis 抖动时容易被误判过期
+      // （锁丢失后任务会被重派，靠 DB 租约吸收成 not_claimed 噪音）。放宽到 120s。
+      lockDuration: 120_000,
     },
   );
   worker.on('failed', (job, err) => {
