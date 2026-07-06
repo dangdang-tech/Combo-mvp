@@ -1,0 +1,99 @@
+# tecent2 生产部署 override。叠加在 docker-compose.yml 之上使用（由 CD workflow 部署，也可手动执行）：
+#   docker compose --env-file .env -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans --wait
+#
+# 与基础 compose 的四点差异：
+#   一、业务服务不在服务器上构建，改用 CI 推送到 GHCR 的镜像（IMAGE_TAG 必填，来自部署目录 .env，
+#       由 CD workflow 写入为被部署提交的完整 SHA；build 配置用 !reset 摘除，杜绝服务器上误触发构建）。
+#   二、Logto 用外部托管实例（LOGTO_ENDPOINT 等指向 .env 里的托管地址），compose 内置的
+#       logto_db_seed / logto_alteration / logto 三个服务通过 profiles 停用，不随 up 启动；
+#       migrate / api 的 depends_on 相应用 !override 摘掉对内置 logto 的依赖（否则 --wait 永远等不到）。
+#   三、宿主机 80 / 443 / 9001 已被系统 nginx 与其他项目占用：web 入口改绑 8080（系统 nginx 反代到这里），
+#       MinIO 控制台改绑 9011；postgres / redis 两实例只绑 127.0.0.1（公网服务器不裸露数据端口）。
+#   四、api / worker / runtime 跑 NODE_ENV=development 以启用 dev 种子登录（与线上现状一致；
+#       真正切 production + 公网 Logto 登录是独立事项，切换时删掉这三段 environment 即可）。
+#
+# 项目名固定为 infra：沿用既有 named volume（infra_pgdata / infra_redis_queue_data / infra_miniodata 等），
+# 换部署目录不换数据。
+name: infra
+
+services:
+  migrate:
+    image: ghcr.io/dangdang-tech/combo-api:${IMAGE_TAG:?IMAGE_TAG 必填（CD 写入部署 SHA）}
+    build: !reset null
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ghcr.io/dangdang-tech/combo-api:${IMAGE_TAG:?IMAGE_TAG 必填（CD 写入部署 SHA）}
+    build: !reset null
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis_queue:
+        condition: service_healthy
+      redis_hot:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: ghcr.io/dangdang-tech/combo-api:${IMAGE_TAG:?IMAGE_TAG 必填（CD 写入部署 SHA）}
+    build: !reset null
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
+
+  runtime:
+    image: ghcr.io/dangdang-tech/combo-runtime:${IMAGE_TAG:?IMAGE_TAG 必填（CD 写入部署 SHA）}
+    build: !reset null
+    environment:
+      NODE_ENV: development
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
+      DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
+
+  web:
+    image: ghcr.io/dangdang-tech/combo-web:${IMAGE_TAG:?IMAGE_TAG 必填（CD 写入部署 SHA）}
+    build: !reset null
+    ports: !override
+      - '8080:80'
+
+  minio:
+    ports: !override
+      - '9000:9000'
+      - '9011:9001'
+
+  postgres:
+    ports: !override
+      - '127.0.0.1:5432:5432'
+
+  redis_queue:
+    ports: !override
+      - '127.0.0.1:6379:6379'
+
+  redis_hot:
+    ports: !override
+      - '127.0.0.1:6380:6379'
+
+  # 服务器把 Docker 数据目录迁到了数据盘（tecent2 上是 /home/xingzheng/data/docker），
+  # /var/lib/docker 只剩空壳——日志采集必须 tail 真实的 containers 目录，否则 Loki 里一条日志都没有。
+  # 实际路径由 .env 的 DOCKER_CONTAINERS_DIR 提供；容器内挂载点不变（collector 配置引用的是容器内路径）。
+  otel-collector:
+    volumes: !override
+      - ./observability/otel-collector.yml:/etc/otelcol/config.yml:ro
+      - ${DOCKER_CONTAINERS_DIR:-/var/lib/docker/containers}:/var/lib/docker/containers:ro
+
+  # 外部托管 Logto，内置三件套整体停用（profiles 不激活即不启动、不参与 --wait）。
+  logto_db_seed:
+    profiles: ['logto-selfhosted']
+  logto_alteration:
+    profiles: ['logto-selfhosted']
+  logto:
+    profiles: ['logto-selfhosted']

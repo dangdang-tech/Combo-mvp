@@ -21,6 +21,8 @@ import { buildInfra } from '../platform/infra/index.js';
 import { registerHealthRoutes } from '../platform/http/health.js';
 import { registerBusinessRoutes } from './routes.js';
 import { registerDevAccountRoutes } from '../modules/account/routes.js';
+import { provisionUser } from '../modules/account/repo.js';
+import type { ProvisionUserFn } from '../platform/middleware/auth.js';
 import { devLoginAvailable } from '../platform/infra/dev-session.js';
 import {
   currentTraceId,
@@ -65,6 +67,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // —— 基础设施容器：注入 app.infra（db/redis/queue/objectStore/llm），handler 经 req.server.infra 取用 ——
   app.decorate('infra', buildInfra(env));
+  // —— provision 接线（依赖反转）：platform 鉴权中间件领域无关，查/建 users 的实现由组合根注入 account 域 ——
+  const provision: ProvisionUserFn = (input) => provisionUser(app.infra.db, input);
+  app.decorate('provisionUser', provision);
 
   // —— 全局插件 ——
   await app.register(helmet, { contentSecurityPolicy: false });

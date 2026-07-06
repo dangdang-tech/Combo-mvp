@@ -12,6 +12,13 @@ export interface Queryable {
   query<R = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResultLike<R>>;
 }
 
+/** timestamptz → ISO 字符串（pg 可能回 Date 或字符串，统一 IsoDateTime）。行映射通用助手，各业务仓储共用。 */
+export function toIso(v: string | Date): string {
+  if (v instanceof Date) return v.toISOString();
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toISOString();
+}
+
 let pool: Pool | undefined;
 
 /** PG 连接池单例。 */

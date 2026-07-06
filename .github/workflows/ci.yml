@@ -2,7 +2,7 @@
 # 所有步骤直接以仓库根（= monorepo 根）为工作目录，无需再 working-directory 限定。
 #
 # 两个 job：
-#   gate    —— install / lint(含分层依赖规则) / typecheck / build / test / openapi 生成 / compose 配置自查。无外部依赖、必过才允许合并。
+#   gate    —— install / lint(含分层依赖规则) / typecheck / build / test / compose 配置自查。无外部依赖、必过才允许合并。
 #   integration —— 起 PG/Redis 双实例/MinIO 临时 service 容器，跑 db 迁移集成 + redis 双实例分工断言（O-05/O-07）。
 name: CI
 
@@ -54,9 +54,6 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: OpenAPI generation smoke (3.1 doc produces)
-        run: pnpm -F @cb/scripts openapi:dump > /tmp/openapi.json && node -e "const d=require('/tmp/openapi.json'); if(d.openapi!=='3.1.0') process.exit(1); if(!d.components||!d.components.schemas) process.exit(1); console.log('openapi 3.1 schemas:', Object.keys(d.components.schemas).length)"
-
       - name: Compose config self-check (structural, no up)
         # 结构自检只做 YAML/引用校验、不起容器。compose 里必填变量用 ${VAR:?}（生产禁默认，安全刻意）
         # 故此处注入一次性占位值让插值通过——绝不改 compose 的「生产禁默认」约束。
@@ -73,7 +70,11 @@ jobs:
           LOGTO_JWKS_URI: http://logto:3001/oidc/jwks
           LOGTO_REDIRECT_URI: http://ci.local/callback
           GRAFANA_ADMIN_PASSWORD: ci
-        run: docker compose -f infra/docker-compose.yml config -q && echo "compose config valid"
+          DEV_SESSION_SECRET: ci
+          IMAGE_TAG: ci
+        run: |
+          docker compose -f infra/docker-compose.yml config -q && echo "base compose config valid"
+          docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml config -q && echo "prod overlay config valid"
 
       - name: ShellCheck scripts
         run: |
@@ -143,14 +144,49 @@ jobs:
           REDIS_HOT_PORT: '6380'
         run: bash scripts/integration/redis-dual.sh
 
+  # 三镜像构建（api/runtime/web）。PR 上只构建作守门；push main 时额外推送 GHCR：
+  #   tag 打两枚——完整 commit SHA（CD 按 SHA 部署与回滚）+ latest（人查看最新用，部署不依赖它）。
+  #   buildx 的 GitHub Actions 层缓存按镜像名分 scope，避免三镜像互相冲刷缓存。
   image:
-    name: docker image build (api + web)
+    name: docker image build+push (api + runtime + web)
     runs-on: ubuntu-latest
     needs: gate
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: combo-api
+            dockerfile: infra/Dockerfile.api
+          - image: combo-runtime
+            dockerfile: infra/Dockerfile.runtime
+          - image: combo-web
+            dockerfile: infra/Dockerfile.web
+    env:
+      SHOULD_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR (main push 才需要)
+        if: env.SHOULD_PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       # 仓库根即 monorepo 根：build context 与 -f 路径均相对仓库根。
-      - name: Build api image (one image, four entrypoints via PROCESS)
-        run: docker build -f infra/Dockerfile.api -t cb-api:ci .
-      - name: Build web image (nginx static + reverse proxy)
-        run: docker build -f infra/Dockerfile.web -t cb-web:ci .
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: ${{ env.SHOULD_PUSH == 'true' }}
+          tags: |
+            ghcr.io/dangdang-tech/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/dangdang-tech/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max

@@ -185,8 +185,7 @@ describe('runPipeline · 逐片消费', () => {
       { role: 'user', text: '给新同事写一份环境搭建指南' },
       { role: 'assistant', text: '从依赖安装开始……' },
     ]);
-    const bundle = (files: string[]) =>
-      files.map((f) => `${BUNDLE_SENTINEL}\n${f}\n`).join('');
+    const bundle = (files: string[]) => files.map((f) => `${BUNDLE_SENTINEL}\n${f}\n`).join('');
     const { deps, taskId } = await setup(new FakeLlm(() => llmText(LLM_CAPABILITIES)), [
       bundle([sessionA, sessionB]),
       bundle([sessionB, sessionC]),

@@ -1,8 +1,7 @@
 // capabilities 表 SQL。库里只存轻量索引，完整可运行定义在 MinIO（storage_key）。
 // owner 校验统一收在 SQL 的 owner_user_id 条件里：非本人与不存在同样 0 行（不暴露存在性）。
 import type { CapabilityView, PublishResult } from '@cb/shared';
-import type { Queryable } from '../../platform/infra/db.js';
-import { toIso } from '../account/repo.js';
+import { toIso, type Queryable } from '../../platform/infra/db.js';
 
 interface CapabilityRow {
   id: string;

@@ -11,6 +11,6 @@
 
 ## 上下游
 
-被谁使用：`bootstrap/app.ts` 注册 health.ts 的探针路由并 import fastify.ts 的类型增强；`bootstrap/routes.ts` 挂载 client-events.ts 的上报端点；三个业务模块的 routes.ts 和 handlers.ts 以及 `platform/middleware/auth.ts` 都用 _helpers.ts 的 sendError 和 registerEndpoints。
+被谁使用：`bootstrap/app.ts` 注册 health.ts 的探针路由并 import fastify.ts 的类型增强；`bootstrap/routes.ts` 挂载 client-events.ts 的上报端点；三个业务模块的 routes.ts 和 handlers.ts 以及 `platform/middleware/auth.ts` 都用 \_helpers.ts 的 sendError 和 registerEndpoints。
 
 依赖什么：health.ts 调 `platform/infra/` 各文件的探针函数（pingDb、pingRedis、pingObjectStore、probeLogto、probeLlm），间接触达 PostgreSQL、Redis、MinIO、Logto；client-events.ts 用 `platform/observability/node.ts` 的日志字段工具；错误码与信封组装来自共享包 `@cb/shared`。

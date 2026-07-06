@@ -6,7 +6,7 @@
 //   - account 首登从 token profile 派生，撞 uq_users_account_lower 时追加后缀消歧（如 wayne-2）。
 import type { Role } from '@cb/shared';
 import { RoleSchema } from '@cb/shared';
-import type { Queryable } from '../../platform/infra/db.js';
+import { toIso, type Queryable } from '../../platform/infra/db.js';
 
 /** provision 入参：来自已验签 token 的身份要素。 */
 export interface ProvisionInput {
@@ -127,13 +127,6 @@ export async function readMe(db: Queryable, userId: string): Promise<MeRow | nul
     createdAt: toIso(row.created_at),
     lastLoginAt: row.last_login_at == null ? null : toIso(row.last_login_at),
   };
-}
-
-/** timestamptz → ISO 字符串（pg 可能回 Date 或字符串，统一 IsoDateTime）。 */
-export function toIso(v: string | Date): string {
-  if (v instanceof Date) return v.toISOString();
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? v : d.toISOString();
 }
 
 /** 判定 pg 错误是否为 account 唯一键冲突（用于追后缀重试）。 */

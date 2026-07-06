@@ -174,7 +174,11 @@ async function extractBatch(
   const parsed = parseCapabilityJson(result.text);
   if (!parsed || parsed.length === 0) {
     deps.log?.warn(
-      { textLen: result.text.length, textHead: result.text.slice(0, 200), textTail: result.text.slice(-200) },
+      {
+        textLen: result.text.length,
+        textHead: result.text.slice(0, 200),
+        textTail: result.text.slice(-200),
+      },
       'extract batch degraded: model text not parseable as capability array',
     );
     return null;

@@ -1,9 +1,8 @@
 // tasks / uploads 两表 SQL + TaskView 组装。本模块所有落库语句收在这里；
 // 状态轴（current_step/status）的变更不在此——唯一入口是 service.transition。
 import type { ErrorBody, TaskStatus, TaskStep, TaskView, UploadStatus } from '@cb/shared';
-import type { Queryable } from '../../platform/infra/db.js';
+import { toIso, type Queryable } from '../../platform/infra/db.js';
 import type { Tx } from '../../platform/infra/db-tx.js';
-import { toIso } from '../account/repo.js';
 
 /** uploads.parts 登记表形态：声明总数 + 已落地分片（index → MinIO 对象键）。 */
 export interface PartsManifest {

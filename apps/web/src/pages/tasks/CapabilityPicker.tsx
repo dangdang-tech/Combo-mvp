@@ -82,7 +82,9 @@ export function CapabilityPicker({
                 ? {
                     ...item,
                     published: result.published,
-                    ...(result.publishedAt !== undefined ? { publishedAt: result.publishedAt } : {}),
+                    ...(result.publishedAt !== undefined
+                      ? { publishedAt: result.publishedAt }
+                      : {}),
                     ...(result.shareToken !== undefined ? { shareToken: result.shareToken } : {}),
                   }
                 : item,
@@ -103,9 +105,7 @@ export function CapabilityPicker({
           const result = await publishCapability(cap.id);
           applyPublishResult(result);
           setItemState(cap.id, null);
-          setRun((r) =>
-            r ? { ...r, processed: r.processed + 1, published: r.published + 1 } : r,
-          );
+          setRun((r) => (r ? { ...r, processed: r.processed + 1, published: r.published + 1 } : r));
         } catch (error) {
           setItemState(cap.id, { state: 'failed', message: publishFailureMessage(error) });
           setRun((r) => (r ? { ...r, processed: r.processed + 1, failed: r.failed + 1 } : r));
@@ -132,11 +132,7 @@ export function CapabilityPicker({
           {extracting && <span className="cb-capabilities__analyzed"> · 还在提取中…</span>}
         </span>
         {unpublished.length > 0 && (
-          <button
-            type="button"
-            className="cb-link cb-capabilities__select-all"
-            onClick={toggleAll}
-          >
+          <button type="button" className="cb-link cb-capabilities__select-all" onClick={toggleAll}>
             {allSelected ? '取消全选' : '全选'}
           </button>
         )}

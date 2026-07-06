@@ -54,7 +54,10 @@ function factDiscipline(now: Date): string {
 }
 
 /** 编排完整 systemPrompt：作者 instructions 逐字 + 平台注入的运行约定。 */
-export function composeSystemPrompt(definition: CapabilityDefinition, now: Date = new Date()): string {
+export function composeSystemPrompt(
+  definition: CapabilityDefinition,
+  now: Date = new Date(),
+): string {
   return [
     definition.instructions.trim(),
     '',

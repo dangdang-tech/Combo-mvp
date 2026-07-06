@@ -2,10 +2,9 @@
   "name": "@cb/scripts",
   "version": "0.0.0",
   "private": true,
-  "description": "运维/开发脚本（O-05）：bootstrap、openapi 导出、健康冒烟等。",
+  "description": "运维/开发脚本（O-05）：bootstrap、健康冒烟等。",
   "type": "module",
   "scripts": {
-    "openapi:dump": "node --experimental-strip-types openapi-dump.ts",
     "start": "./start.sh",
     "migrate": "./migrate.sh",
     "smoke": "./smoke.sh",

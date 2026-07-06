@@ -1,0 +1,115 @@
+# CD：部署到 tecent2。当前为手动触发（workflow_dispatch），跑顺后可再加 main 自动触发。
+#
+# 前置约定：
+#   镜像由 CI 在 main push 时构建并推送 GHCR（tag = 完整 commit SHA），本 workflow 只拉不建。
+#   服务器上有固定部署目录 /opt/combo：infra/ 放 compose 与各服务配置（由本 workflow 每次同步覆盖），
+#   其中 .env 是唯一不同步的文件（密钥只存在服务器上，不进 git 也不进 Actions）。
+#
+# 回滚 = 用旧提交重新触发本 workflow（ref 填旧 SHA）；镜像按 SHA 留存在 GHCR，随取随部。
+#
+# 所需 Secrets：
+#   DEPLOY_SSH_KEY —— 专用部署私钥（对应公钥在服务器 authorized_keys）
+#   DEPLOY_HOST / DEPLOY_USER —— 服务器地址与登录用户（仓库 public，不在 yml 里明文写）
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 要部署的 git ref（分支或完整 SHA）。该提交的镜像必须已由 CI 在 main 上推送完成。
+        required: true
+        default: main
+
+# 同一时间只允许一个部署在跑；后触发的排队而不是取消前一个（部署中途被杀会留半成品栈）。
+concurrency:
+  group: cd-tecent2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy to tecent2
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: 解析部署 SHA
+        id: rev
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # 镜像不存在就提前失败（比如 ref 指了还没跑完 CI 的提交），绝不带着缺镜像去动线上栈。
+      - name: 校验三镜像已在 GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for img in combo-api combo-runtime combo-web; do
+            docker manifest inspect "ghcr.io/dangdang-tech/${img}:${{ steps.rev.outputs.sha }}" > /dev/null \
+              || { echo "缺镜像 ${img}:${{ steps.rev.outputs.sha }}——等 CI 的 image job 跑完再部署"; exit 1; }
+          done
+
+      - name: 配置 SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          {
+            echo "Host deploy-target"
+            echo "  HostName $DEPLOY_HOST"
+            echo "  User $DEPLOY_USER"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  StrictHostKeyChecking yes"
+          } >> ~/.ssh/config
+
+      # 部署清单以仓库为准整目录镜像同步（含 redis/observability/postgres/minio 等 compose 挂载的配置文件），
+      # 唯独 .env 不碰：密钥只活在服务器上。
+      - name: 同步部署清单到服务器
+        run: |
+          rsync -az --delete --exclude='.env' infra/ deploy-target:/opt/combo/infra/
+          rsync -az scripts/smoke.sh deploy-target:/opt/combo/scripts/
+
+      - name: 服务器 GHCR 登录（临时 token，部署完即登出）
+        run: |
+          ssh deploy-target 'docker login ghcr.io -u "${{ github.actor }}" --password-stdin' \
+            <<< "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: 拉镜像并滚动更新（migrate 先行，--wait 等全栈健康）
+        env:
+          SHA: ${{ steps.rev.outputs.sha }}
+        run: |
+          ssh deploy-target env SHA="$SHA" bash -s <<'REMOTE'
+            set -euo pipefail
+            cd /opt/combo/infra
+            # IMAGE_TAG 写进 .env：既是 compose 的变量来源，也是服务器上可直查的「当前部署版本」记录。
+            if grep -q '^IMAGE_TAG=' .env; then
+              sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${SHA}/" .env
+            else
+              printf 'IMAGE_TAG=%s\n' "${SHA}" >> .env
+            fi
+            docker compose --env-file .env -f docker-compose.yml -f docker-compose.prod.yml pull -q
+            docker compose --env-file .env -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans --wait --wait-timeout 300
+          REMOTE
+
+      - name: 服务器 GHCR 登出 + 清理旧镜像层
+        if: always()
+        run: |
+          ssh deploy-target 'docker logout ghcr.io; docker image prune -f > /dev/null' || true
+
+      - name: 冒烟验证
+        run: |
+          ssh deploy-target '
+            set -euo pipefail
+            LOGTO_ISSUER=$(grep "^LOGTO_ISSUER=" /opt/combo/infra/.env | cut -d= -f2-)
+            API_BASE=http://localhost:3000 WEB_BASE=http://localhost:8080 LOGTO_ISSUER="$LOGTO_ISSUER" \
+              bash /opt/combo/scripts/smoke.sh
+          '
+
+      - name: 部署结果
+        run: echo "已部署 ${{ steps.rev.outputs.sha }}（ref = ${{ inputs.ref }}）到 tecent2 并通过冒烟。"

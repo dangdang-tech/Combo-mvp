@@ -86,7 +86,10 @@ const MOCK_CAPABILITIES: PublicCapabilityView[] = [
     },
     starterPrompts: ['帮我把这套品牌规范落到现有页面上。', '先只换配色和字体，给我最小改动清单。'],
     boundaries: {
-      redLines: ['不直接修改设计源文件，只输出实施方案。', '配色对比度不达标时会明确指出而不是照做。'],
+      redLines: [
+        '不直接修改设计源文件，只输出实施方案。',
+        '配色对比度不达标时会明确指出而不是照做。',
+      ],
     },
   },
 ];
@@ -124,7 +127,12 @@ const MOCK_CREATORS: PublicCreatorProfile[] = [
     },
     works: [
       { capabilityId: 'n1', slug: 'cap-wskatc', name: '真实长会话能力提取评审', invocations: 512 },
-      { capabilityId: 'n2', slug: 'cap-brand-refresh', name: 'Figma 到前端的品牌刷新', invocations: 347 },
+      {
+        capabilityId: 'n2',
+        slug: 'cap-brand-refresh',
+        name: 'Figma 到前端的品牌刷新',
+        invocations: 347,
+      },
     ],
   },
 ];

@@ -42,7 +42,14 @@ function segs(count: number, prefix: string): ExtractSegment[] {
 
 function capJson(name: string, summary: string): string {
   return JSON.stringify([
-    { name, summary, kind: '编码', instructions: '按记录里的做法完成同类任务。', inputs: [], starterPrompts: [] },
+    {
+      name,
+      summary,
+      kind: '编码',
+      instructions: '按记录里的做法完成同类任务。',
+      inputs: [],
+      starterPrompts: [],
+    },
   ]);
 }
 

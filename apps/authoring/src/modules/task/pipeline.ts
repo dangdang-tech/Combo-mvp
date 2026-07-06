@@ -43,12 +43,8 @@ import {
   type ParseStats,
   type SessionSource,
 } from './session-parse.js';
-import {
-  SEGMENT_CONTENT_MAX_CHARS,
-  extractCapabilities,
-  type ExtractSegment,
-} from './extract.js';
-import { insertCapability } from '../capability/repo.js';
+import { SEGMENT_CONTENT_MAX_CHARS, extractCapabilities, type ExtractSegment } from './extract.js';
+import { insertCapability } from '../capability/index.js';
 
 /** 能力项可运行定义所在桶（长期保留，与会被清除的原始件分桶）。 */
 export const CAPABILITY_BUCKET = 'combo-artifacts' as const;
@@ -319,10 +315,7 @@ async function execute(
     badLineCount,
     duplicateSegmentCount,
   };
-  const redactionReport = mergeReports(
-    redactionReports,
-    redactionReports[0]!.rulesetVersion,
-  );
+  const redactionReport = mergeReports(redactionReports, redactionReports[0]!.rulesetVersion);
   await mergeUploadMeta(deps.db, taskId, {
     parseStats,
     redaction: redactionReport,
