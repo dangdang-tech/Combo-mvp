@@ -99,7 +99,7 @@ export function TasksPage(): ReactElement {
   }
 
   return (
-    <section className="cb-page" aria-labelledby="cb-tasks-title">
+    <section className="cb-page cb-page--tasks" aria-labelledby="cb-tasks-title">
       <div className="cb-page__head cb-page__head--split">
         <div>
           <h2 className="cb-page__title" id="cb-tasks-title">
