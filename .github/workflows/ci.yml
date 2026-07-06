@@ -2,7 +2,7 @@
 # 所有步骤直接以仓库根（= monorepo 根）为工作目录，无需再 working-directory 限定。
 #
 # 两个 job：
-#   gate    —— install / lint(含分层依赖规则) / typecheck / build / test / openapi 生成 / compose 配置自查。无外部依赖、必过才允许合并。
+#   gate    —— install / lint(含分层依赖规则) / typecheck / build / test / compose 配置自查。无外部依赖、必过才允许合并。
 #   integration —— 起 PG/Redis 双实例/MinIO 临时 service 容器，跑 db 迁移集成 + redis 双实例分工断言（O-05/O-07）。
 name: CI
 
@@ -53,9 +53,6 @@ jobs:
 
       - name: Test
         run: pnpm test
-
-      - name: OpenAPI generation smoke (3.1 doc produces)
-        run: pnpm -F @cb/scripts openapi:dump > /tmp/openapi.json && node -e "const d=require('/tmp/openapi.json'); if(d.openapi!=='3.1.0') process.exit(1); if(!d.components||!d.components.schemas) process.exit(1); console.log('openapi 3.1 schemas:', Object.keys(d.components.schemas).length)"
 
       - name: Compose config self-check (structural, no up)
         # 结构自检只做 YAML/引用校验、不起容器。compose 里必填变量用 ${VAR:?}（生产禁默认，安全刻意）

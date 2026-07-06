@@ -42,9 +42,7 @@ describe('CapabilitiesPage — 列表渲染', () => {
     expect(within(rowB).getByText('已发布')).toBeInTheDocument();
     expect(within(rowB).getByText('按团队规范给出评审意见。')).toBeInTheDocument();
     // 分享展示的是可用的完整试用链接（裸 shareToken 无路由可消费）。
-    expect(
-      within(rowB).getByText((text) => text.includes('/try/c/cap-b')),
-    ).toBeInTheDocument();
+    expect(within(rowB).getByText((text) => text.includes('/try/c/cap-b'))).toBeInTheDocument();
   });
 
   it('?taskId= 过滤：请求带 taskId，可清除过滤', async () => {

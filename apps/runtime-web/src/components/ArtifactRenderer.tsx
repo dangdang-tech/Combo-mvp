@@ -110,9 +110,7 @@ function StructuredNode({ value, depth }: { value: unknown; depth: number }): Re
   if (entries.length === 0) return <span className="rt-structured__nil">（空）</span>;
   // 深层对象降级为紧凑 JSON，避免无限嵌套表格；前两层用键值行。
   if (depth >= 2) {
-    return (
-      <code className="rt-structured__inline">{JSON.stringify(value)}</code>
-    );
+    return <code className="rt-structured__inline">{JSON.stringify(value)}</code>;
   }
   return (
     <dl className="rt-structured__group">

@@ -90,10 +90,7 @@ describe('TaskDetailPage — SSE 实时进度', () => {
     act(() => conn.emit('item-appended', { item: cap2 }, { id: '3-2' }));
     expect(await screen.findByText('周报整理')).toBeInTheDocument();
     expect(await screen.findByText('代码评审')).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: '试用 →' })[0]).toHaveAttribute(
-      'href',
-      '/try/c/c1',
-    );
+    expect(screen.getAllByRole('link', { name: '试用 →' })[0]).toHaveAttribute('href', '/try/c/c1');
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
     expect(screen.getAllByRole('checkbox').every((el) => (el as HTMLInputElement).checked)).toBe(
       true,
@@ -155,10 +152,7 @@ describe('TaskDetailPage — 挑选与一键发布', () => {
     expect(screen.getByText(/已发布 2 \/ 2 个能力/)).toBeInTheDocument();
 
     const posts = fm.calls.filter((c) => c.method === 'POST').map((c) => c.url);
-    expect(posts).toEqual([
-      '/api/v1/capabilities/c1/publish',
-      '/api/v1/capabilities/c2/publish',
-    ]);
+    expect(posts).toEqual(['/api/v1/capabilities/c1/publish', '/api/v1/capabilities/c2/publish']);
   });
 });
 

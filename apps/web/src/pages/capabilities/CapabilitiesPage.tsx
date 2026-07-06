@@ -146,4 +146,3 @@ export function CapabilitiesPage(): ReactElement {
     </section>
   );
 }
-
