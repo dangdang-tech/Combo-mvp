@@ -10,13 +10,18 @@ export function CapabilityDeepLink() {
   const createSession = useCreateSession();
   const fired = useRef(false);
 
+  // 挂载即建会话并转入对话页。跳转走 mutateAsync 的 promise，而不是 mutate 的 per-call
+  // 回调 / 组件读 mutation 状态——StrictMode 双挂载会销毁旧 observer 重建新 observer，
+  // 挂载即触发的 mutate 回调会被孤立、其结果也不落到当前 observer 上，导致会话已建（201）
+  // 却永不跳转。mutateAsync 的 promise 不依赖组件挂载态，dev/prod 都可靠。
+  // fired ref 防重复建会话；不用 cancelled 标志（否则首跑 cleanup 会把唯一一次跳转也吞掉）。
   useEffect(() => {
     if (!capabilityId || fired.current) return;
-    fired.current = true; // StrictMode 双跑守卫：只建一次会话
-    createSession.mutate(capabilityId, {
-      onSuccess: (session) => navigate(`/session/${session.id}`, { replace: true }),
-      onError: () => navigate('/market', { replace: true }),
-    });
+    fired.current = true;
+    createSession
+      .mutateAsync(capabilityId)
+      .then((session) => navigate(`/session/${session.id}`, { replace: true }))
+      .catch(() => navigate('/market', { replace: true }));
   }, [capabilityId, createSession, navigate]);
 
   return <p className="rt-deeplink">正在为你打开试用会话…</p>;
