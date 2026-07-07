@@ -1,0 +1,50 @@
+{
+  "name": "@cb/ds",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Combo 设计系统组件包：样式只引用 --cb-* 语义 token 的 React 组件，每组件带中文 README、story 用例与纯 JSON props 渲染测试",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b && node scripts/build-css.mjs && node scripts/check-token-purity.mjs",
+    "typecheck": "tsc -b --noEmit false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demo": "vite demo",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@cb/ds-tokens": "workspace:*",
+    "@radix-ui/react-dialog": "^1.1.4",
+    "dompurify": "^3.2.3",
+    "marked": "^14.1.4"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

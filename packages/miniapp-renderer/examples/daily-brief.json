@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "root": {
+    "type": "stack",
+    "gap": "md",
+    "children": [
+      { "type": "heading", "level": 2, "text": "每日情报简报" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "gap": "sm",
+        "children": [
+          { "type": "badge", "variant": "accent", "text": "2026-07-07" },
+          { "type": "badge", "variant": "ok", "text": "3 条新情报" },
+          { "type": "timestamp", "value": "2026-07-07T08:00:00+08:00" }
+        ]
+      },
+      {
+        "type": "card",
+        "variant": "raised",
+        "padding": "lg",
+        "children": [
+          {
+            "type": "stack",
+            "gap": "sm",
+            "children": [
+              {
+                "type": "list-item",
+                "title": "竞品上新：某头部女装品牌夏季连衣裙系列",
+                "description": "首日销量破千，主打 199 至 299 价格带，与我方候选 A 直接竞争",
+                "badge": { "variant": "warn", "text": "关注" }
+              },
+              {
+                "type": "list-item",
+                "title": "平台活动：七夕大促报名通道开启",
+                "description": "报名截止 7 月 10 日，需要提前锁定主推款库存"
+              },
+              {
+                "type": "list-item",
+                "title": "素材趋势：口播实拍类素材 CTR 回升",
+                "description": "近 3 天品类均值上涨 0.6 个点，建议补拍两条口播素材",
+                "badge": { "variant": "ok", "text": "机会" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "markdown",
+        "content": "**今日建议**：优先完成七夕大促报名并锁定连衣裙库存，其次安排口播素材补拍；主推款判断沿用昨日「女装主推款 CTR 判断」的结论，无需调整。"
+      },
+      {
+        "type": "citation",
+        "index": 1,
+        "label": "情报源：女装品类日报 2026-07-07",
+        "href": "https://example.com/brief/2026-07-07"
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "gap": "sm",
+        "children": [
+          {
+            "type": "button",
+            "variant": "primary",
+            "text": "生成明日简报",
+            "actionId": "generate-next-brief"
+          },
+          {
+            "type": "button",
+            "variant": "ghost",
+            "text": "查看历史简报",
+            "actionId": "open-brief-history"
+          }
+        ]
+      }
+    ]
+  }
+}

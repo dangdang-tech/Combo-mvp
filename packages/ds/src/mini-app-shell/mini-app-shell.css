@@ -1,0 +1,117 @@
+/* 经验体容器样式：paper 底、hero 圆角、hero 阴影；颜色、间距、圆角、字体、动效只引用 --cb-* 语义 token。 */
+
+.cb-mini-app-shell {
+  display: flex;
+  flex-direction: column;
+  background: var(--cb-paper);
+  border: 1px solid var(--cb-line-2);
+  border-radius: var(--cb-radius-hero);
+  box-shadow: var(--cb-shadow-hero);
+  overflow: hidden;
+}
+
+.cb-mini-app-shell-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cb-space-4);
+  padding: var(--cb-space-5) var(--cb-space-5) var(--cb-space-4);
+}
+
+.cb-mini-app-shell-heading {
+  min-width: 0;
+}
+
+.cb-mini-app-shell-title {
+  margin: 0;
+  font-family: var(--cb-font-serif);
+  font-size: var(--cb-text-xl);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--cb-fg);
+  overflow-wrap: break-word;
+}
+
+.cb-mini-app-shell-subtitle {
+  margin: var(--cb-space-1) 0 0;
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  color: var(--cb-muted);
+  overflow-wrap: break-word;
+}
+
+.cb-mini-app-shell-side {
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-3);
+  flex-shrink: 0;
+  padding-top: var(--cb-space-1);
+}
+
+.cb-mini-app-shell-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cb-space-2);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+}
+
+.cb-mini-app-shell-status--ok {
+  color: var(--cb-ok);
+}
+
+.cb-mini-app-shell-status--running {
+  color: var(--cb-warn);
+}
+
+.cb-mini-app-shell-status--error {
+  color: var(--cb-danger);
+}
+
+.cb-mini-app-shell-dot {
+  width: var(--cb-space-2);
+  height: var(--cb-space-2);
+  border-radius: var(--cb-radius-pill);
+  background: currentColor;
+}
+
+/* running 态的圆点做缓慢呼吸；周期由动效 token 推导，尊重系统减动效偏好。 */
+.cb-mini-app-shell-status--running .cb-mini-app-shell-dot {
+  animation: cb-mini-app-shell-pulse calc(var(--cb-duration-slow) * 4) var(--cb-ease-standard)
+    infinite;
+}
+
+@keyframes cb-mini-app-shell-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-mini-app-shell-status--running .cb-mini-app-shell-dot {
+    animation: none;
+  }
+}
+
+.cb-mini-app-shell-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-2);
+}
+
+.cb-mini-app-shell-body {
+  background: var(--cb-surface);
+  padding: var(--cb-space-5);
+}
+
+.cb-mini-app-shell-footer {
+  border-top: 1px solid var(--cb-line-3);
+  background: var(--cb-paper);
+  padding: var(--cb-space-3) var(--cb-space-5);
+  font-size: var(--cb-text-sm);
+  color: var(--cb-muted);
+}

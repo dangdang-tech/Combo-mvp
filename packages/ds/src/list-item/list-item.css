@@ -1,0 +1,87 @@
+.cb-list-item {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-3);
+  width: 100%;
+  padding: var(--cb-space-2) var(--cb-space-3);
+  border: none;
+  border-radius: var(--cb-radius-control);
+  background: transparent;
+  color: var(--cb-fg);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-md);
+  text-align: left;
+  transition: background-color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.cb-list-item--interactive {
+  cursor: pointer;
+}
+
+.cb-list-item--interactive:hover {
+  background: var(--cb-muted-bg);
+}
+
+.cb-list-item--interactive:focus-visible {
+  outline: var(--cb-focus-ring-w) solid var(--cb-focus-ring);
+  outline-offset: calc(-1 * var(--cb-focus-ring-w));
+}
+
+/* 选中态底色，且悬停时保持不被 muted-bg 覆盖。 */
+.cb-list-item--selected,
+.cb-list-item--interactive.cb-list-item--selected:hover {
+  background: var(--cb-accent-soft);
+}
+
+/* 选中态左侧指示条（宽度用 --cb-indicator-w token），绝对定位避免布局位移。 */
+.cb-list-item--selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--cb-space-2);
+  bottom: var(--cb-space-2);
+  width: var(--cb-indicator-w);
+  border-radius: var(--cb-radius-pill);
+  background: var(--cb-accent);
+}
+
+.cb-list-item-leading,
+.cb-list-item-trailing {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cb-list-item-trailing {
+  color: var(--cb-muted);
+  font-size: var(--cb-text-sm);
+}
+
+.cb-list-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cb-space-1);
+}
+
+/* 标题单行截断。 */
+.cb-list-item-title {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--cb-fg);
+}
+
+/* 描述为 muted 小字，最多两行后截断。 */
+.cb-list-item-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--cb-muted);
+  font-size: var(--cb-text-sm);
+}

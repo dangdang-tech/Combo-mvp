@@ -1,0 +1,28 @@
+# @cb/ds — 机器可读文档索引
+# 格式：组件名: README 路径 — 一句话何时用。路径均相对仓库根。
+
+Avatar: packages/ds/src/avatar/README.md — 需要显示用户或角色的圆形头像时用，图片缺失或加载失败时自动回退为首字母色块。
+Badge: packages/ds/src/badge/README.md — 需要用小面积软色底在列表行、卡片标题旁标注状态或类别时用。
+Button: packages/ds/src/button/README.md — 页面上所有可点击操作的统一按钮，带变体、尺寸与加载态。
+Card: packages/ds/src/card/README.md — 需要一个纯展示的卡片容器来承载和分组内容时用。
+Thread/Message/Composer: packages/ds/src/chat/README.md — 需要渲染会话流时用：消息列表容器、单条消息气泡、自动增高的消息输入框。
+Citation: packages/ds/src/citation/README.md — 需要在正文中行内标注内容来源（引用编号、来源链接、引文块）时用。
+Dialog: packages/ds/src/dialog/README.md — 需要模态对话框（二次确认、弹窗表单）时用，基于 @radix-ui/react-dialog 封装。
+EmptyState: packages/ds/src/empty-state/README.md — 列表、收件箱等区域没有内容时的居中占位展示。
+Input: packages/ds/src/input/README.md — 需要单行文本、搜索或密码输入框时用，带 label 关联、校验失败态与禁用态。
+ListItem: packages/ds/src/list-item/README.md — 会话列表、经验体列表等纵向列表的单行，带选中态与首尾插槽。
+Markdown: packages/ds/src/markdown/README.md — 需要把 Markdown 字符串安全渲染成 Combo 样式 HTML 时用（marked 解析加 DOMPurify 消毒）。
+MiniAppShell: packages/ds/src/mini-app-shell/README.md — 经验体（mini-app）的容器外壳，带标题、运行状态指示与 actions、footer 插槽。
+Skeleton: packages/ds/src/skeleton/README.md — 数据加载期间需要用呼吸动画灰块占住内容位置时用。
+Text/Heading: packages/ds/src/text/README.md — 正文与标题的统一排版组件。
+Timestamp: packages/ds/src/timestamp/README.md — 需要显示绝对格式或相对格式的时间戳时用。
+Toast/ToastProvider/useToast: packages/ds/src/toast/README.md — 需要在页面右下角展示自动消失的操作结果通知时用。
+
+# 其他关键路径
+
+tokens（--cb-* 全量清单，生成物）: packages/ds-tokens/dist/tokens.css
+tokens（扁平字面值映射，生成物）: packages/ds-tokens/dist/tokens.flat.json
+tokens（源 JSON，改这里）: packages/ds-tokens/tokens/primitives.json, packages/ds-tokens/tokens/semantic.json, packages/ds-tokens/tokens/motion.json
+经验体 UI schema（白名单节点）: packages/miniapp-renderer/schema/miniapp-ui.schema.json
+agent 规则手册: AGENTS.md
+导出合同（唯一 barrel）: packages/ds/src/index.ts

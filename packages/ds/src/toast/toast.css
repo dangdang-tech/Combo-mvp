@@ -1,0 +1,60 @@
+/* Toast 通知样式：颜色/间距/圆角/阴影/字体全部引用 --cb-* 语义 token；
+ * 左侧变体色条宽度用 --cb-bar-w token，其余描边为结构性 1px。 */
+
+.cb-toast {
+  box-sizing: border-box;
+  padding: var(--cb-space-3) var(--cb-space-4);
+  background: var(--cb-surface-raised);
+  border: 1px solid var(--cb-line-2);
+  border-left-width: var(--cb-bar-w);
+  border-radius: var(--cb-radius-card);
+  box-shadow: var(--cb-shadow-overlay);
+  font-family: var(--cb-font-sans);
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+}
+
+.cb-toast--info {
+  border-left-color: var(--cb-muted);
+}
+
+.cb-toast--ok {
+  border-left-color: var(--cb-ok);
+}
+
+.cb-toast--warn {
+  border-left-color: var(--cb-warn);
+}
+
+.cb-toast--danger {
+  border-left-color: var(--cb-danger);
+}
+
+.cb-toast-title {
+  margin: 0;
+  color: var(--cb-fg);
+  font-size: var(--cb-text-md);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.cb-toast-desc {
+  margin: var(--cb-space-1) 0 0;
+  color: var(--cb-muted);
+  font-size: var(--cb-text-sm);
+  line-height: 1.5;
+}
+
+/* 右下角固定通知区域：宽度复用 --cb-sidebar-w token，小屏时收缩到视口内。 */
+.cb-toast-region {
+  position: fixed;
+  right: var(--cb-space-4);
+  bottom: var(--cb-space-4);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cb-space-2);
+  width: var(--cb-sidebar-w);
+  max-width: calc(100vw - var(--cb-space-4) * 2);
+  pointer-events: none;
+}

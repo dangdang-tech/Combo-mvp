@@ -3,6 +3,8 @@
   "files": [],
   "references": [
     { "path": "./packages/shared" },
+    { "path": "./packages/ds" },
+    { "path": "./packages/miniapp-renderer" },
     { "path": "./apps/authoring" },
     { "path": "./apps/web" },
     { "path": "./apps/runtime" },

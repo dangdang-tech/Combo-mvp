@@ -108,6 +108,26 @@ export default tseslint.config(
       ],
     },
   },
+  // Node ESM 脚本（构建脚本 / 校验脚本 / vitest 测试等 *.mjs）运行在 Node 环境，补全其全局对象声明
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+      },
+    },
+  },
   // 配置文件 / 脚本宽松
   {
     files: ['**/*.config.{js,ts}', 'scripts/**/*.{js,ts,mjs}'],

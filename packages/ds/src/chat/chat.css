@@ -1,0 +1,171 @@
+/* 会话流容器：内容列居中并限制最大宽度，消息之间用间距 token 分隔。 */
+.cb-thread {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.cb-thread-col {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--cb-space-4);
+}
+
+.cb-thread--md .cb-thread-col {
+  max-width: var(--cb-thread-w-md);
+}
+
+.cb-thread--lg .cb-thread-col {
+  max-width: var(--cb-thread-w-lg);
+}
+
+/* 单条消息：按角色决定水平对齐。 */
+.cb-msg {
+  display: flex;
+  max-width: 76%;
+  flex-direction: column;
+}
+
+.cb-thread-col > .cb-msg--user {
+  align-self: flex-end;
+}
+
+.cb-msg--user {
+  align-items: flex-end;
+  margin-left: auto;
+}
+
+.cb-msg--assistant {
+  align-items: flex-start;
+  margin-right: auto;
+}
+
+.cb-msg--system {
+  max-width: 64%;
+  align-items: center;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* 气泡上方的作者与时间行：等宽小字、弱化颜色。 */
+.cb-msg-meta {
+  display: flex;
+  gap: var(--cb-space-2);
+  margin-bottom: var(--cb-space-1);
+  color: var(--cb-muted);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+}
+
+/* 消息气泡本体。 */
+.cb-msg-bubble {
+  padding: var(--cb-space-2) var(--cb-space-3);
+  color: var(--cb-fg);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-md);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.cb-msg--user .cb-msg-bubble {
+  background: var(--cb-accent-soft);
+  border-radius: var(--cb-radius-card);
+  border-top-right-radius: calc(var(--cb-radius-card) / 4);
+}
+
+.cb-msg--assistant .cb-msg-bubble {
+  background: var(--cb-surface);
+  border: 1px solid var(--cb-line-2);
+  border-radius: var(--cb-radius-card);
+}
+
+.cb-msg--system .cb-msg-bubble {
+  padding: var(--cb-space-1) var(--cb-space-3);
+  background: var(--cb-muted-bg);
+  border-radius: var(--cb-radius-pill);
+  color: var(--cb-muted);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  text-align: center;
+}
+
+/* 生成中的三个呼吸点：透明度循环呼吸，节奏与延迟由动效 token 推导。 */
+.cb-msg-dots {
+  display: inline-flex;
+  gap: var(--cb-space-1);
+  padding: var(--cb-space-1) 0;
+}
+
+.cb-msg-dot {
+  width: var(--cb-space-1);
+  height: var(--cb-space-1);
+  background: var(--cb-muted);
+  border-radius: var(--cb-radius-pill);
+  animation: cb-msg-breathe calc(var(--cb-duration-slow) * 3) var(--cb-ease-standard) infinite;
+}
+
+.cb-msg-dot:nth-child(2) {
+  animation-delay: var(--cb-duration-base);
+}
+
+.cb-msg-dot:nth-child(3) {
+  animation-delay: calc(var(--cb-duration-base) * 2);
+}
+
+@keyframes cb-msg-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 输入框容器：白纸浮起底、细描边，聚焦时描边换成焦点色。 */
+.cb-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--cb-space-2);
+  padding: var(--cb-space-2);
+  background: var(--cb-surface-raised);
+  border: 1px solid var(--cb-line-1);
+  border-radius: var(--cb-radius-card);
+  box-shadow: var(--cb-shadow-surface);
+  transition: border-color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.cb-composer:focus-within {
+  border-color: var(--cb-focus-ring);
+}
+
+.cb-composer--disabled {
+  background: var(--cb-muted-bg);
+}
+
+/* 文本域：无自带边框，高度由脚本随内容增长，六行封顶后内部滚动。 */
+.cb-composer-input {
+  flex: 1;
+  max-height: calc(1.5em * 6 + var(--cb-space-1) * 2);
+  padding: var(--cb-space-1) var(--cb-space-2);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  color: var(--cb-fg);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-md);
+  line-height: 1.5;
+}
+
+.cb-composer-input::placeholder {
+  color: var(--cb-muted);
+}
+
+.cb-composer-input:disabled {
+  color: var(--cb-muted);
+  cursor: not-allowed;
+}

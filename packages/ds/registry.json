@@ -1,0 +1,218 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "combo-ds",
+  "homepage": "https://github.com/dangdang-tech/Combo-mvp",
+  "items": [
+    {
+      "name": "avatar",
+      "type": "registry:component",
+      "title": "Avatar",
+      "description": "需要显示用户或角色的圆形头像时用，图片缺失或加载失败时自动回退为首字母色块。",
+      "files": [
+        { "path": "src/avatar/avatar.tsx", "type": "registry:component" },
+        { "path": "src/avatar/avatar.css", "type": "registry:component" },
+        { "path": "src/avatar/avatar.stories.tsx", "type": "registry:component" },
+        { "path": "src/avatar/avatar.test.tsx", "type": "registry:component" },
+        { "path": "src/avatar/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "badge",
+      "type": "registry:component",
+      "title": "Badge",
+      "description": "需要用小面积软色底在列表行、卡片标题旁标注状态或类别时用。",
+      "files": [
+        { "path": "src/badge/badge.tsx", "type": "registry:component" },
+        { "path": "src/badge/badge.css", "type": "registry:component" },
+        { "path": "src/badge/badge.stories.tsx", "type": "registry:component" },
+        { "path": "src/badge/badge.test.tsx", "type": "registry:component" },
+        { "path": "src/badge/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "button",
+      "type": "registry:component",
+      "title": "Button",
+      "description": "页面上所有可点击操作的统一按钮，带变体、尺寸与加载态。",
+      "files": [
+        { "path": "src/button/button.tsx", "type": "registry:component" },
+        { "path": "src/button/button.css", "type": "registry:component" },
+        { "path": "src/button/button.stories.tsx", "type": "registry:component" },
+        { "path": "src/button/button.test.tsx", "type": "registry:component" },
+        { "path": "src/button/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "card",
+      "type": "registry:component",
+      "title": "Card",
+      "description": "需要一个纯展示的卡片容器来承载和分组内容时用。",
+      "files": [
+        { "path": "src/card/card.tsx", "type": "registry:component" },
+        { "path": "src/card/card.css", "type": "registry:component" },
+        { "path": "src/card/card.stories.tsx", "type": "registry:component" },
+        { "path": "src/card/card.test.tsx", "type": "registry:component" },
+        { "path": "src/card/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "chat",
+      "type": "registry:component",
+      "title": "Chat (Thread / Message / Composer)",
+      "description": "需要渲染会话流时用：消息列表容器、单条消息气泡、自动增高的消息输入框。",
+      "registryDependencies": ["button"],
+      "files": [
+        { "path": "src/chat/chat.tsx", "type": "registry:component" },
+        { "path": "src/chat/chat.css", "type": "registry:component" },
+        { "path": "src/chat/chat.stories.tsx", "type": "registry:component" },
+        { "path": "src/chat/chat.test.tsx", "type": "registry:component" },
+        { "path": "src/chat/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "citation",
+      "type": "registry:component",
+      "title": "Citation",
+      "description": "需要在正文中行内标注内容来源（引用编号、来源链接、引文块）时用。",
+      "files": [
+        { "path": "src/citation/citation.tsx", "type": "registry:component" },
+        { "path": "src/citation/citation.css", "type": "registry:component" },
+        { "path": "src/citation/citation.stories.tsx", "type": "registry:component" },
+        { "path": "src/citation/citation.test.tsx", "type": "registry:component" },
+        { "path": "src/citation/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "dialog",
+      "type": "registry:component",
+      "title": "Dialog",
+      "description": "需要模态对话框（二次确认、弹窗表单）时用，基于 @radix-ui/react-dialog 封装。",
+      "dependencies": ["@radix-ui/react-dialog"],
+      "files": [
+        { "path": "src/dialog/dialog.tsx", "type": "registry:component" },
+        { "path": "src/dialog/dialog.css", "type": "registry:component" },
+        { "path": "src/dialog/dialog.stories.tsx", "type": "registry:component" },
+        { "path": "src/dialog/dialog.test.tsx", "type": "registry:component" },
+        { "path": "src/dialog/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "empty-state",
+      "type": "registry:component",
+      "title": "EmptyState",
+      "description": "列表、收件箱等区域没有内容时的居中占位展示。",
+      "files": [
+        { "path": "src/empty-state/empty-state.tsx", "type": "registry:component" },
+        { "path": "src/empty-state/empty-state.css", "type": "registry:component" },
+        { "path": "src/empty-state/empty-state.stories.tsx", "type": "registry:component" },
+        { "path": "src/empty-state/empty-state.test.tsx", "type": "registry:component" },
+        { "path": "src/empty-state/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "input",
+      "type": "registry:component",
+      "title": "Input",
+      "description": "需要单行文本、搜索或密码输入框时用，带 label 关联、校验失败态与禁用态。",
+      "files": [
+        { "path": "src/input/input.tsx", "type": "registry:component" },
+        { "path": "src/input/input.css", "type": "registry:component" },
+        { "path": "src/input/input.stories.tsx", "type": "registry:component" },
+        { "path": "src/input/input.test.tsx", "type": "registry:component" },
+        { "path": "src/input/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "list-item",
+      "type": "registry:component",
+      "title": "ListItem",
+      "description": "会话列表、经验体列表等纵向列表的单行，带选中态与首尾插槽。",
+      "files": [
+        { "path": "src/list-item/list-item.tsx", "type": "registry:component" },
+        { "path": "src/list-item/list-item.css", "type": "registry:component" },
+        { "path": "src/list-item/list-item.stories.tsx", "type": "registry:component" },
+        { "path": "src/list-item/list-item.test.tsx", "type": "registry:component" },
+        { "path": "src/list-item/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "markdown",
+      "type": "registry:component",
+      "title": "Markdown",
+      "description": "需要把 Markdown 字符串安全渲染成 Combo 样式 HTML 时用（marked 解析加 DOMPurify 消毒）。",
+      "dependencies": ["marked", "dompurify"],
+      "files": [
+        { "path": "src/markdown/markdown.tsx", "type": "registry:component" },
+        { "path": "src/markdown/markdown.css", "type": "registry:component" },
+        { "path": "src/markdown/markdown.stories.tsx", "type": "registry:component" },
+        { "path": "src/markdown/markdown.test.tsx", "type": "registry:component" },
+        { "path": "src/markdown/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "mini-app-shell",
+      "type": "registry:component",
+      "title": "MiniAppShell",
+      "description": "经验体（mini-app）的容器外壳，带标题、运行状态指示与 actions、footer 插槽。",
+      "files": [
+        { "path": "src/mini-app-shell/mini-app-shell.tsx", "type": "registry:component" },
+        { "path": "src/mini-app-shell/mini-app-shell.css", "type": "registry:component" },
+        { "path": "src/mini-app-shell/mini-app-shell.stories.tsx", "type": "registry:component" },
+        { "path": "src/mini-app-shell/mini-app-shell.test.tsx", "type": "registry:component" },
+        { "path": "src/mini-app-shell/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "skeleton",
+      "type": "registry:component",
+      "title": "Skeleton",
+      "description": "数据加载期间需要用呼吸动画灰块占住内容位置时用。",
+      "files": [
+        { "path": "src/skeleton/skeleton.tsx", "type": "registry:component" },
+        { "path": "src/skeleton/skeleton.css", "type": "registry:component" },
+        { "path": "src/skeleton/skeleton.stories.tsx", "type": "registry:component" },
+        { "path": "src/skeleton/skeleton.test.tsx", "type": "registry:component" },
+        { "path": "src/skeleton/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "text",
+      "type": "registry:component",
+      "title": "Text / Heading",
+      "description": "正文与标题的统一排版组件。",
+      "files": [
+        { "path": "src/text/text.tsx", "type": "registry:component" },
+        { "path": "src/text/text.css", "type": "registry:component" },
+        { "path": "src/text/text.stories.tsx", "type": "registry:component" },
+        { "path": "src/text/text.test.tsx", "type": "registry:component" },
+        { "path": "src/text/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "timestamp",
+      "type": "registry:component",
+      "title": "Timestamp",
+      "description": "需要显示绝对格式或相对格式的时间戳时用。",
+      "files": [
+        { "path": "src/timestamp/timestamp.tsx", "type": "registry:component" },
+        { "path": "src/timestamp/timestamp.css", "type": "registry:component" },
+        { "path": "src/timestamp/timestamp.stories.tsx", "type": "registry:component" },
+        { "path": "src/timestamp/timestamp.test.tsx", "type": "registry:component" },
+        { "path": "src/timestamp/README.md", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "toast",
+      "type": "registry:component",
+      "title": "Toast / ToastProvider / useToast",
+      "description": "需要在页面右下角展示自动消失的操作结果通知时用。",
+      "files": [
+        { "path": "src/toast/toast.tsx", "type": "registry:component" },
+        { "path": "src/toast/toast.css", "type": "registry:component" },
+        { "path": "src/toast/toast.stories.tsx", "type": "registry:component" },
+        { "path": "src/toast/toast.test.tsx", "type": "registry:component" },
+        { "path": "src/toast/README.md", "type": "registry:component" }
+      ]
+    }
+  ]
+}

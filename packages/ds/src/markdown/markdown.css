@@ -1,0 +1,147 @@
+/* Markdown 渲染样式：全部规则作用在 .cb-markdown 作用域内，颜色、字体、间距、圆角只引用 --cb-* 语义 token。 */
+
+.cb-markdown {
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-md);
+  line-height: 1.7;
+  color: var(--cb-fg);
+  overflow-wrap: break-word;
+}
+
+.cb-markdown > :first-child {
+  margin-top: 0;
+}
+
+.cb-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+/* 标题用衬线；mini-app 语境下整体降两档字号：h1 用 xl、h2 用 lg、h3 用 md。 */
+.cb-markdown h1,
+.cb-markdown h2,
+.cb-markdown h3,
+.cb-markdown h4,
+.cb-markdown h5,
+.cb-markdown h6 {
+  font-family: var(--cb-font-serif);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--cb-fg);
+  margin: var(--cb-space-5) 0 var(--cb-space-2);
+}
+
+.cb-markdown h1 {
+  font-size: var(--cb-text-xl);
+}
+
+.cb-markdown h2 {
+  font-size: var(--cb-text-lg);
+}
+
+.cb-markdown h3 {
+  font-size: var(--cb-text-md);
+}
+
+.cb-markdown h4,
+.cb-markdown h5,
+.cb-markdown h6 {
+  font-size: var(--cb-text-sm);
+}
+
+.cb-markdown p {
+  margin: 0 0 var(--cb-space-3);
+}
+
+.cb-markdown ul,
+.cb-markdown ol {
+  margin: 0 0 var(--cb-space-3);
+  padding-left: var(--cb-space-5);
+}
+
+.cb-markdown li {
+  margin: 0 0 var(--cb-space-1);
+}
+
+.cb-markdown li > ul,
+.cb-markdown li > ol {
+  margin: var(--cb-space-1) 0 0;
+}
+
+/* 行内代码：等宽字体，muted 底色，小圆角（control 半径的一半，即 3px）。 */
+.cb-markdown code {
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-sm);
+  background: var(--cb-muted-bg);
+  border-radius: calc(var(--cb-radius-control) / 2);
+  padding: 0 var(--cb-space-1);
+}
+
+/* 代码块：墨底反白（--cb-fg 做底、--cb-paper 做字），card 圆角，横向内滚动。 */
+.cb-markdown pre {
+  background: var(--cb-fg);
+  color: var(--cb-paper);
+  border-radius: var(--cb-radius-card);
+  padding: var(--cb-space-3) var(--cb-space-4);
+  margin: 0 0 var(--cb-space-3);
+  overflow-x: auto;
+}
+
+.cb-markdown pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: var(--cb-text-sm);
+}
+
+.cb-markdown a {
+  color: var(--cb-accent);
+  text-decoration: underline;
+}
+
+.cb-markdown a:hover {
+  color: var(--cb-accent-strong);
+}
+
+.cb-markdown blockquote {
+  margin: 0 0 var(--cb-space-3);
+  padding: 0 0 0 var(--cb-space-4);
+  border-left: calc(var(--cb-space-1) / 2) solid var(--cb-line-1);
+  color: var(--cb-muted);
+}
+
+.cb-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--cb-space-3);
+  font-size: var(--cb-text-sm);
+}
+
+.cb-markdown th,
+.cb-markdown td {
+  text-align: left;
+  padding: var(--cb-space-2) var(--cb-space-3);
+  border-bottom: 1px solid var(--cb-line-2);
+}
+
+.cb-markdown th {
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  font-weight: 500;
+  color: var(--cb-muted);
+}
+
+.cb-markdown hr {
+  border: none;
+  border-top: 1px solid var(--cb-line-2);
+  margin: var(--cb-space-5) 0;
+}
+
+.cb-markdown img {
+  max-width: 100%;
+  border-radius: var(--cb-radius-card);
+}
+
+.cb-markdown strong {
+  font-weight: 600;
+}

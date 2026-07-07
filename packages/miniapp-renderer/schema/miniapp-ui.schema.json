@@ -1,0 +1,194 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://combo.internal/schemas/miniapp-ui.schema.json",
+  "title": "Combo MiniApp UI Document",
+  "description": "经验体 mini-app 的受限 UI 文档。runtime agent 的 UI 输出必须符合本结构：顶层是 { version: 1, root: 节点 }，节点只允许 12 种白名单类型。两条整体约束由渲染器的 zod 校验强制执行、无法在 draft-07 里表达：节点嵌套深度不超过 6 层（根节点算第 1 层），节点总数不超过 200。",
+  "type": "object",
+  "required": ["version", "root"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "文档格式版本，当前固定为 1。"
+    },
+    "root": {
+      "$ref": "#/definitions/node"
+    }
+  },
+  "definitions": {
+    "node": {
+      "description": "白名单节点：以 type 字段判别的 12 种节点之一。",
+      "oneOf": [
+        { "$ref": "#/definitions/stackNode" },
+        { "$ref": "#/definitions/headingNode" },
+        { "$ref": "#/definitions/textNode" },
+        { "$ref": "#/definitions/markdownNode" },
+        { "$ref": "#/definitions/cardNode" },
+        { "$ref": "#/definitions/listItemNode" },
+        { "$ref": "#/definitions/badgeNode" },
+        { "$ref": "#/definitions/buttonNode" },
+        { "$ref": "#/definitions/citationNode" },
+        { "$ref": "#/definitions/emptyStateNode" },
+        { "$ref": "#/definitions/timestampNode" },
+        { "$ref": "#/definitions/skeletonNode" }
+      ]
+    },
+    "badgeContent": {
+      "description": "徽标内容：list-item 的 badge 字段与独立 badge 节点共用同一结构。",
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "variant": { "enum": ["neutral", "ok", "warn", "danger", "accent"] },
+        "text": { "type": "string" }
+      }
+    },
+    "stackNode": {
+      "description": "纵向或横向的弹性布局容器。",
+      "type": "object",
+      "required": ["type", "children"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "stack" },
+        "gap": { "enum": ["sm", "md", "lg"] },
+        "direction": { "enum": ["column", "row"] },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        }
+      }
+    },
+    "headingNode": {
+      "description": "标题，level 对应 h1 到 h4。",
+      "type": "object",
+      "required": ["type", "level", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "heading" },
+        "level": { "enum": [1, 2, 3, 4] },
+        "text": { "type": "string" }
+      }
+    },
+    "textNode": {
+      "description": "纯文本段落，variant 控制正文、弱化、小字或等宽标签样式。",
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "text" },
+        "variant": { "enum": ["body", "muted", "caption", "label"] },
+        "text": { "type": "string" }
+      }
+    },
+    "markdownNode": {
+      "description": "Markdown 内容块，渲染前经 sanitize 消毒。",
+      "type": "object",
+      "required": ["type", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "markdown" },
+        "content": { "type": "string" }
+      }
+    },
+    "cardNode": {
+      "description": "卡片容器，可嵌套子节点。",
+      "type": "object",
+      "required": ["type", "children"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "card" },
+        "variant": { "enum": ["surface", "raised", "hero"] },
+        "padding": { "enum": ["none", "md", "lg"] },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        }
+      }
+    },
+    "listItemNode": {
+      "description": "列表行：主文案加可选描述与行尾徽标。",
+      "type": "object",
+      "required": ["type", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "list-item" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "badge": { "$ref": "#/definitions/badgeContent" }
+      }
+    },
+    "badgeNode": {
+      "description": "独立徽标节点。",
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "badge" },
+        "variant": { "enum": ["neutral", "ok", "warn", "danger", "accent"] },
+        "text": { "type": "string" }
+      }
+    },
+    "buttonNode": {
+      "description": "按钮：只携带 actionId 动作标识符，具体行为由宿主决定，渲染器不执行任何代码。",
+      "type": "object",
+      "required": ["type", "text", "actionId"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "button" },
+        "variant": { "enum": ["primary", "secondary", "ghost", "danger"] },
+        "size": { "enum": ["sm", "md", "lg"] },
+        "text": { "type": "string" },
+        "actionId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "citationNode": {
+      "description": "来源引用：来源名称加可选链接、原文片段与序号。",
+      "type": "object",
+      "required": ["type", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "citation" },
+        "label": { "type": "string" },
+        "href": {
+          "type": "string",
+          "pattern": "^(https?://|/|#|\\./)",
+          "description": "只允许 http(s) 绝对地址或站内相对路径，禁止 javascript: 等伪协议。"
+        },
+        "quote": { "type": "string" },
+        "index": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "emptyStateNode": {
+      "description": "空状态占位。",
+      "type": "object",
+      "required": ["type", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "empty-state" },
+        "title": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "timestampNode": {
+      "description": "时间戳，value 是 ISO 8601 字符串，mode 控制绝对或相对显示。",
+      "type": "object",
+      "required": ["type", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "timestamp" },
+        "value": { "type": "string" },
+        "mode": { "enum": ["absolute", "relative"] }
+      }
+    },
+    "skeletonNode": {
+      "description": "骨架屏占位。",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "skeleton" },
+        "variant": { "enum": ["text", "block", "circle"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+.cb-card {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* surface：surface 底、line-2 描边（结构性 1px 描边，颜色走 token）、卡片圆角、极轻阴影。 */
+.cb-card--surface {
+  background: var(--cb-surface);
+  border: 1px solid var(--cb-line-2);
+  border-radius: var(--cb-radius-card);
+  box-shadow: var(--cb-shadow-surface);
+}
+
+/* raised：纯白（surface-raised）底、无描边、卡片圆角、极轻阴影。 */
+.cb-card--raised {
+  background: var(--cb-surface-raised);
+  border-radius: var(--cb-radius-card);
+  box-shadow: var(--cb-shadow-surface);
+}
+
+/* hero：paper 底、大圆角、hero 阴影，用于首屏或页面主视觉容器。 */
+.cb-card--hero {
+  background: var(--cb-paper);
+  border-radius: var(--cb-radius-hero);
+  box-shadow: var(--cb-shadow-hero);
+}
+
+.cb-card--pad-none {
+  padding: 0;
+}
+
+.cb-card--pad-md {
+  padding: var(--cb-space-4);
+}
+
+.cb-card--pad-lg {
+  padding: var(--cb-space-5);
+}

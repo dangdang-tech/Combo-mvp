@@ -1,0 +1,9 @@
+/* Timestamp：等宽弱化色时间戳，表格数字对齐依赖 tabular-nums。 */
+.cb-timestamp {
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  line-height: 1.4;
+  color: var(--cb-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
