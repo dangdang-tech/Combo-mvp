@@ -1,61 +1,24 @@
-// canon 对齐测试：apps/web/src/styles.css 的 :root 是既成品牌 canon，本包的构建产物
-// dist/tokens.css 必须逐变量、逐值与其一致（空白归一后比较；var() 与 color-mix() 原样保留）。
-// 另有幂等测试：连跑两次 build.mjs，两次 dist/tokens.css 的内容哈希必须一致。
+// 本包是 --cb-* 设计 token 的唯一源头：apps/web 与 apps/runtime-web 已改为在入口 main.tsx 直接
+// import '@cb/ds-tokens/tokens.css' 消费构建产物，不再在各自 styles.css 的 :root 里手工自存一份 canon。
+// 因此原「canon 对齐」测试（读 apps/web/src/styles.css :root 与 dist 逐值比对）已随 canon 消失而删除。
+// 本文件保留两项断言：① 构建幂等（连跑两次 build.mjs，dist 产物哈希一致）；
+// ② 两个 app 的入口确实 import 了 @cb/ds-tokens/tokens.css（token 链路没有断开）。
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repoRoot = join(pkgDir, '..', '..');
-const canonPath = join(repoRoot, 'apps', 'web', 'src', 'styles.css');
 const distPath = join(pkgDir, 'dist', 'tokens.css');
 
 function runBuild() {
   execFileSync(process.execPath, [join(pkgDir, 'build.mjs')], { cwd: pkgDir, stdio: 'pipe' });
 }
 
-// 取第一个 :root 规则的声明块（canon 与产物的 :root 块内都没有嵌套花括号）。
-function extractRootBlock(css) {
-  const start = css.indexOf(':root');
-  const open = css.indexOf('{', start);
-  const close = css.indexOf('}', open);
-  if (start === -1 || open === -1 || close === -1) {
-    throw new Error('没有找到 :root 块');
-  }
-  return css.slice(open + 1, close);
-}
-
-// 解析声明块为「变量名到空白归一后值」的映射。
-function parseDeclarations(block) {
-  const withoutComments = block.replace(/\/\*[\s\S]*?\*\//g, ' ');
-  const map = new Map();
-  for (const chunk of withoutComments.split(';')) {
-    const match = chunk.match(/(--cb-[\w-]+)\s*:\s*([\s\S]+)/);
-    if (match) {
-      map.set(match[1], match[2].replace(/\s+/g, ' ').trim());
-    }
-  }
-  return map;
-}
-
-describe('canon 对齐', () => {
-  beforeAll(() => {
-    runBuild();
-  });
-
-  it('canon :root 里每一个 --cb-* 变量都在 dist/tokens.css 的 :root 中且值完全一致', () => {
-    const canonMap = parseDeclarations(extractRootBlock(readFileSync(canonPath, 'utf8')));
-    const distMap = parseDeclarations(extractRootBlock(readFileSync(distPath, 'utf8')));
-    expect(canonMap.size).toBeGreaterThan(0);
-    for (const [name, value] of canonMap) {
-      expect(distMap.has(name), `产物缺少 canon 变量 ${name}`).toBe(true);
-      expect(distMap.get(name), `变量 ${name} 的值漂移`).toBe(value);
-    }
-  });
-
+describe('ds-tokens 构建与消费链路', () => {
   it('连跑两次 build，dist 全部产物（tokens.css + tokens.flat.json）哈希一致（幂等）', () => {
     const flatPath = distPath.replace('tokens.css', 'tokens.flat.json');
     runBuild();
@@ -69,5 +32,18 @@ describe('canon 对齐', () => {
       .update(readFileSync(flatPath))
       .digest('hex');
     expect(second).toBe(first);
+  });
+
+  it('两个 app 的入口 main.tsx 都 import 了 @cb/ds-tokens/tokens.css（唯一 token 源头）', () => {
+    const entries = [
+      join(repoRoot, 'apps', 'web', 'src', 'main.tsx'),
+      join(repoRoot, 'apps', 'runtime-web', 'src', 'main.tsx'),
+    ];
+    for (const entry of entries) {
+      const source = readFileSync(entry, 'utf8');
+      expect(source, `${entry} 未 import @cb/ds-tokens/tokens.css`).toContain(
+        '@cb/ds-tokens/tokens.css',
+      );
+    }
   });
 });

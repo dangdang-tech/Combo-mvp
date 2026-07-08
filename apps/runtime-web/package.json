@@ -16,6 +16,8 @@
   "dependencies": {
     "@ag-ui/client": "0.0.57",
     "@ag-ui/core": "0.0.57",
+    "@cb/ds": "workspace:*",
+    "@cb/ds-tokens": "workspace:*",
     "@cb/shared": "workspace:*",
     "@tanstack/react-query": "^5.62.11",
     "dompurify": "^3.2.3",

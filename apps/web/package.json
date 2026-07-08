@@ -17,6 +17,8 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
+    "@cb/ds": "workspace:*",
+    "@cb/ds-tokens": "workspace:*",
     "@cb/shared": "workspace:*",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@tanstack/react-query": "^5.62.11",

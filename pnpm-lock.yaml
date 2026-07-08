@@ -208,6 +208,12 @@ importers:
       '@ag-ui/core':
         specifier: 0.0.57
         version: 0.0.57
+      '@cb/ds':
+        specifier: workspace:*
+        version: link:../../packages/ds
+      '@cb/ds-tokens':
+        specifier: workspace:*
+        version: link:../../packages/ds-tokens
       '@cb/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -251,6 +257,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@cb/ds':
+        specifier: workspace:*
+        version: link:../../packages/ds
+      '@cb/ds-tokens':
+        specifier: workspace:*
+        version: link:../../packages/ds-tokens
       '@cb/shared':
         specifier: workspace:*
         version: link:../../packages/shared

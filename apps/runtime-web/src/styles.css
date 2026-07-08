@@ -2,55 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Noto+Serif+SC:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 :root {
-  /* ===== Combo 统一设计 token（canon 单一事实源；与 web/styles.css 逐值同步，diff 必须为零）===== */
-  /* 面层级（4 级）：paper 品牌时刻 / page 页面底 / surface 卡片 / raised 纯白 */
-  --cb-paper: #faf9f7;
-  --cb-bg: #f4f3f1;
-  --cb-surface: #fbfbf9;
-  --cb-surface-raised: #ffffff;
-  --cb-muted-bg: #eeece9;
-  --cb-rail: #f6f5f3; /* 侧栏底：用户明确偏好，保持 */
-  /* 文字 */
-  --cb-fg: #1a1917;
-  --cb-muted: #6a655f;
-  /* 线（3 级）+ 骨架 / 网格纸底 */
-  --cb-line-1: #dcd9d4;
-  --cb-line-2: #e7e4df;
-  --cb-line-3: #efedea;
-  --cb-border: var(--cb-line-1);
-  --cb-skeleton: #eeece9;
-  --cb-grid: rgba(220, 217, 212, 0.72);
-  /* Combo 砖红强调（hover/pressed/soft/tint 全档）*/
-  --cb-accent: #f15f43;
-  --cb-accent-strong: #db4e32;
-  --cb-accent-pressed: #bb3f27;
-  --cb-accent-soft: #fcebe5;
-  --cb-accent-tint: #f9d1c6;
-  --cb-focus-ring: #5e8bdb;
-  /* 语义色 + 软底 */
-  --cb-ok: #1e9e50;
-  --cb-badge-ok: var(--cb-ok);
-  --cb-warn: #b45309;
-  --cb-danger: #dc2626;
-  --cb-ok-soft: color-mix(in srgb, var(--cb-ok) 10%, var(--cb-surface));
-  --cb-warn-soft: color-mix(in srgb, var(--cb-warn) 10%, var(--cb-surface));
-  --cb-danger-soft: color-mix(in srgb, var(--cb-danger) 8%, var(--cb-surface));
-  --cb-danger-line: color-mix(in srgb, var(--cb-danger) 28%, transparent);
-  /* 圆角刻度 */
-  --cb-radius-control: 6px;
-  --cb-radius-card: 8px;
-  --cb-radius-hero: 22px;
-  --cb-radius-pill: 999px;
-  /* 阴影（墨色 tint 三档）*/
-  --cb-shadow-surface: 0 2px 8px rgba(28, 27, 25, 0.04);
-  --cb-shadow-hero: 0 8px 24px rgba(28, 27, 25, 0.06);
-  --cb-shadow-overlay: 0 12px 28px rgba(28, 27, 25, 0.1);
-  /* 字体四族：品牌字标 / 衬线标题 / 无衬线正文 / 等宽 label */
-  --cb-font-brand: 'Fraunces', 'Noto Serif SC', serif;
-  --cb-font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
-  --cb-font-sans:
-    'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --cb-font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', 'Roboto Mono', monospace;
+  /* 全部 --cb-* 设计 token 由入口 main.tsx 引入的 @cb/ds-tokens/tokens.css 的 :root 提供（唯一源头），
+     本文件只保留试用端独有、tokens.css 里没有的变量。 */
   --rt-sidebar-w: 244px;
 }
 
