@@ -7,7 +7,10 @@ COPY packages ./packages
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile=false
 # 同镜像同时构建创作者中心（web）与试用端（runtime-web，base=/try/）静态产物。
-RUN pnpm -F @cb/shared build && pnpm -F @cb/web build && pnpm -F @cb/runtime-web build
+# "..." 依赖闭包过滤：连同各 app 的 workspace 依赖（@cb/ds-tokens、@cb/ds、@cb/shared）
+# 一起、按拓扑序构建。显式只列 @cb/shared 会漏掉 ds-tokens/ds 的 dist 产物，
+# 导致 vite 解析 @cb/ds-tokens/tokens.css 失败（往后新增依赖也不必再改这行）。
+RUN pnpm --filter "@cb/web..." --filter "@cb/runtime-web..." build
 
 FROM nginx:alpine AS runtime
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
