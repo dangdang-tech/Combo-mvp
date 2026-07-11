@@ -2,6 +2,7 @@
 //   成功响应统一轻包络 { data, meta } → 此处解包直接返回 data；
 //   失败响应统一 ErrorEnvelope → 只读 userMessage（绝不暴露内部 code/状态码给用户）。
 import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
+import { refreshSession } from './sessionRefresh.js';
 
 const API_PREFIX = '/api/v1';
 
@@ -30,25 +31,36 @@ function buildUrl(path: string): string {
 async function doFetch(method: string, path: string, body?: unknown): Promise<Response> {
   const trace = clientTraceHeaders();
   const url = buildUrl(path);
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method,
-      credentials: 'include',
-      headers:
-        body === undefined
-          ? trace.headers
-          : { 'content-type': 'application/json', ...trace.headers },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (cause) {
-    reportClientEvent('api_error', {
-      traceId: trace.traceId,
-      message: cause instanceof Error ? cause.message : 'network error',
-      stack: cause instanceof Error ? cause.stack : undefined,
-      url,
-    });
-    throw new ApiError('网络好像不太稳，检查连接后重试。', 0, trace.traceId);
+  const fetchOnce = async (): Promise<Response> => {
+    try {
+      return await fetch(url, {
+        method,
+        credentials: 'include',
+        headers:
+          body === undefined
+            ? trace.headers
+            : { 'content-type': 'application/json', ...trace.headers },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch (cause) {
+      reportClientEvent('api_error', {
+        traceId: trace.traceId,
+        message: cause instanceof Error ? cause.message : 'network error',
+        stack: cause instanceof Error ? cause.stack : undefined,
+        url,
+      });
+      throw new ApiError('网络好像不太稳，检查连接后重试。', 0, trace.traceId);
+    }
+  };
+
+  let res = await fetchOnce();
+  if (res.status === 401) {
+    const refreshed = await refreshSession();
+    if (refreshed === 'refreshed') {
+      res = await fetchOnce();
+    } else if (refreshed === 'error') {
+      throw new ApiError('登录状态暂时无法续期，请稍后重试。', 503, trace.traceId);
+    }
   }
   if (!res.ok) {
     let userMessage = res.status === 401 ? '请先登录。' : '请求失败，请稍后重试。';

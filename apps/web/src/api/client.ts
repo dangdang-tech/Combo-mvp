@@ -17,6 +17,7 @@ import {
   type Meta,
 } from '@cb/shared';
 import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
+import { refreshSession } from './sessionRefresh.js';
 
 /**
  * 统一前端错误：内部承载完整对外 ErrorEnvelope（不含 code）。
@@ -140,24 +141,39 @@ async function request<T>(path: string, opts: RawRequestOptions): Promise<Envelo
   if (hasBody) headers['Content-Type'] = 'application/json';
 
   const url = buildUrl(path, opts.query);
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: opts.method,
-      credentials: 'include',
-      headers,
-      ...(hasBody ? { body: JSON.stringify(opts.body) } : {}),
-      ...(opts.signal ? { signal: opts.signal } : {}),
-    });
-  } catch (cause) {
-    // 网络层失败：abort 透传给调用方（react-query 不当错误处理），其余包成人话信封。
-    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
-    reportClientEvent('api_error', {
-      traceId: trace.traceId,
-      message: cause instanceof Error ? cause.message : 'network error',
-      url,
-    });
-    throw new ApiError({ error: fallbackErrorBody('网络好像不太稳，检查连接后重试。') });
+  const fetchOnce = async (): Promise<Response> => {
+    try {
+      return await fetch(url, {
+        method: opts.method,
+        credentials: 'include',
+        headers,
+        ...(hasBody ? { body: JSON.stringify(opts.body) } : {}),
+        ...(opts.signal ? { signal: opts.signal } : {}),
+      });
+    } catch (cause) {
+      // 网络层失败：abort 透传给调用方（react-query 不当错误处理），其余包成人话信封。
+      if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+      reportClientEvent('api_error', {
+        traceId: trace.traceId,
+        message: cause instanceof Error ? cause.message : 'network error',
+        url,
+      });
+      throw new ApiError({ error: fallbackErrorBody('网络好像不太稳，检查连接后重试。') });
+    }
+  };
+
+  let res = await fetchOnce();
+  if (res.status === 401) {
+    // 业务 API 与路由守卫共用同一 single-flight + Web Lock 续期；成功后原请求只重放一次。
+    const refreshed = await refreshSession();
+    if (refreshed === 'refreshed') {
+      if (opts.signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+      res = await fetchOnce();
+    } else if (refreshed === 'error') {
+      throw new ApiError({
+        error: fallbackErrorBody('登录状态暂时无法续期，请稍后重试。'),
+      });
+    }
   }
 
   let body: unknown;

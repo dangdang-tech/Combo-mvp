@@ -144,13 +144,19 @@ export function TaskDetailPage(): ReactElement {
 
 /** 上传阶段卡：分片进度 + 配对提示。 */
 function UploadCard({ task }: { task: TaskView }): ReactElement {
-  const waiting = task.currentStep === 'upload' && task.status === 'running';
+  const waiting =
+    task.currentStep === 'upload' && task.status === 'running' && task.upload.status === 'pending';
+  const expired = task.upload.status === 'expired';
   const hasProgress = task.upload.partsExpected != null && task.upload.partsExpected > 0;
   const progressRatio = hasProgress
     ? Math.min(1, task.upload.partsLanded / task.upload.partsExpected!)
     : 0;
   const detailLine = uploadDetailLine(task);
-  const statusLine = waiting && !hasProgress ? '等待本机助手连接' : '正在接收对话历史';
+  const statusLine = expired
+    ? '上传已超时，任务已停止'
+    : waiting && !hasProgress
+      ? '等待本机助手连接'
+      : '正在接收对话历史';
   return (
     <div
       className={`cb-card cb-upload-card${waiting ? ' cb-upload-card--waiting' : ''}`}
@@ -193,6 +199,13 @@ function UploadCard({ task }: { task: TaskView }): ReactElement {
 
 function uploadDetailLine(task: TaskView): string {
   const { partsExpected, partsLanded, status } = task.upload;
+  if (status === 'expired') {
+    if (partsExpected != null) {
+      return `上传已超时；已接收 ${partsLanded} / ${partsExpected} 片，任务已停止`;
+    }
+    if (partsLanded > 0) return `上传已超时；已接收 ${partsLanded} 片，任务已停止`;
+    return '上传已超时，任务已停止';
+  }
   if (status === 'processed') {
     if (partsExpected != null) return `已接收 ${partsLanded} / ${partsExpected} 片，进入提取阶段`;
     return '上传内容已接收，进入提取阶段';
@@ -270,6 +283,7 @@ function FailedCard({
   retryPending: boolean;
   retryError: unknown;
 }): ReactElement {
+  const uploadExpired = task.currentStep === 'upload';
   return (
     <div className="cb-card cb-card--failed">
       <h3 className="cb-card__title">这次没成功</h3>
@@ -279,10 +293,16 @@ function FailedCard({
         <p className="cb-card__line cb-task-error">任务失败了，可以重试一次。</p>
       )}
       {task.retryCount > 0 && <p className="cb-card__hint">已重试 {task.retryCount} 次。</p>}
-      <button type="button" className="cb-primary-btn" onClick={onRetry} disabled={retryPending}>
-        {retryPending ? '正在重试…' : '重试'}
-      </button>
-      {retryError != null && <ErrorState error={retryError} onRetry={onRetry} />}
+      {uploadExpired ? (
+        <Link className="cb-primary-btn" to="/tasks">
+          重新上传
+        </Link>
+      ) : (
+        <button type="button" className="cb-primary-btn" onClick={onRetry} disabled={retryPending}>
+          {retryPending ? '正在重试…' : '重试'}
+        </button>
+      )}
+      {!uploadExpired && retryError != null && <ErrorState error={retryError} onRetry={onRetry} />}
     </div>
   );
 }

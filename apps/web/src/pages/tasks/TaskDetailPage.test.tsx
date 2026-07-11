@@ -36,6 +36,36 @@ function renderDetail(): void {
 }
 
 describe('TaskDetailPage — SSE 实时进度', () => {
+  it('上传收齐后由轮询自动切到提取加载态，不需要手动刷新', async () => {
+    restoreSse = __setFetchEventSourceForTests(MockFetchEventSource.impl);
+    const uploading = makeTask({
+      id: 't-1',
+      description: '正在上传的任务',
+      currentStep: 'upload',
+      status: 'running',
+      upload: {
+        status: 'pending',
+        partsExpected: 5,
+        partsLanded: 4,
+        pairingExpiresAt: '2026-07-14T12:00:00.000Z',
+      },
+    });
+    fm = installFetchMock([
+      { match: /\/tasks\/t-1$/, status: 200, json: envelopeBody(uploading) },
+      { match: /\/tasks\/t-1$/, status: 200, json: envelopeBody(RUNNING) },
+      { match: '/capabilities', status: 200, json: envelopeBody([]) },
+    ]);
+
+    renderDetail();
+
+    expect(await screen.findByText('本机助手正在上传 4 / 5 片')).toBeInTheDocument();
+    // running 任务每 3 秒自动重拉；服务端进入 extract 后，同一路由自动挂提取 SSE 与骨架加载态。
+    expect(
+      await screen.findByRole('status', { name: '正在连接进度流' }, { timeout: 4_500 }),
+    ).toBeInTheDocument();
+    expect(MockFetchEventSource.last?.url).toBe('/api/v1/tasks/t-1/events');
+  }, 6_000);
+
   it('state_snapshot 点亮子任务 → progress 更新 → item-appended 逐个显示 → done 终态刷新', async () => {
     restoreSse = __setFetchEventSourceForTests(MockFetchEventSource.impl);
     const succeeded = makeTask({ ...RUNNING, status: 'succeeded', capabilityCount: 2 });
@@ -52,6 +82,8 @@ describe('TaskDetailPage — SSE 实时进度', () => {
 
     await screen.findByText('提取我的对话历史');
     expect(screen.getByText('上传完成')).toBeInTheDocument();
+    // SSE 首帧到达前也有结构化加载反馈，不出现空白等待区。
+    expect(screen.getByRole('status', { name: '正在连接进度流' })).toBeInTheDocument();
 
     // 跑着的任务建了 SSE 流。
     const conn = MockFetchEventSource.last!;
@@ -189,5 +221,37 @@ describe('TaskDetailPage — 失败与重试', () => {
     // 重试成功 → 任务回 running（badge 变提取中），重新建流。
     expect(await screen.findByText('提取中')).toBeInTheDocument();
     expect(MockFetchEventSource.connections.length).toBeGreaterThan(0);
+  });
+
+  it('过期上传任务显示失败原因与重新上传出口，不把旧配对码原地重试回 running', async () => {
+    const expiredUpload = makeTask({
+      id: 't-1',
+      currentStep: 'upload',
+      status: 'failed',
+      lastError: {
+        userMessage: '上传等待已超时，请重新上传。',
+        retriable: false,
+        action: 'change_input',
+        traceId: 't-upload-expired',
+      },
+      upload: {
+        status: 'expired',
+        partsExpected: 505,
+        partsLanded: 322,
+        pairingExpiresAt: '2026-07-08T12:00:00.000Z',
+      },
+    });
+    fm = installFetchMock({ status: 200, json: envelopeBody(expiredUpload) });
+
+    renderDetail();
+
+    expect(await screen.findByText('上传等待已超时，请重新上传。')).toBeInTheDocument();
+    expect(screen.getByText('上传已超时；已接收 322 / 505 片，任务已停止')).toBeInTheDocument();
+    expect(screen.getByLabelText('上传状态：上传已超时，任务已停止')).toBeInTheDocument();
+    expect(screen.queryByText(/本机助手正在上传/)).toBeNull();
+    expect(screen.getByText('失败')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '重新上传' })).toHaveAttribute('href', '/tasks');
+    expect(screen.queryByRole('button', { name: '重试' })).toBeNull();
+    expect(fm.calls.every((call) => call.method === 'GET')).toBe(true);
   });
 });

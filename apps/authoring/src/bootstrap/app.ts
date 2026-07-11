@@ -24,6 +24,7 @@ import { registerDevAccountRoutes } from '../modules/account/routes.js';
 import { provisionUser } from '../modules/account/repo.js';
 import type { ProvisionUserFn } from '../platform/middleware/auth.js';
 import { devLoginAvailable } from '../platform/infra/dev-session.js';
+import { corsOriginPolicy } from '../platform/http/browser-origin.js';
 import {
   currentTraceId,
   currentTraceLogFields,
@@ -73,7 +74,12 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // —— 全局插件 ——
   await app.register(helmet, { contentSecurityPolicy: false });
-  await app.register(cors, { origin: true, credentials: true }); // 同源 Cookie 会话需 credentials
+  await app.register(cors, {
+    // 生产只允许 LOGTO_REDIRECT_URI 推导出的 canonical origin；dev/test 只额外允许固定 Vite origin。
+    // 无 Origin 的服务端/CLI 请求不受影响。Cookie 变更端点另有服务端来源守卫，不能只依赖 CORS。
+    origin: corsOriginPolicy(env),
+    credentials: true,
+  });
   await app.register(cookie);
   await app.register(rateLimit, {
     global: false, // 默认不全局限流

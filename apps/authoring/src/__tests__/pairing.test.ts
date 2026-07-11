@@ -1,6 +1,10 @@
 // 配对上传自检：验码、分片登记、收齐自动流转。忠实假 PG + 假对象存储/队列。
 import { describe, it, expect } from 'vitest';
-import { createTask } from '../modules/task/service.js';
+import {
+  createTask,
+  purgeExpiredUploadParts,
+  reconcileExpiredUploadTasks,
+} from '../modules/task/service.js';
 import {
   RAW_BUCKET,
   landPart,
@@ -127,5 +131,77 @@ describe('landPart', () => {
         })
       ).kind,
     ).toBe('expired');
+  });
+
+  it('putObject 后登记恰逢过期：返回 expired 并 best-effort 删除未登记孤儿 key', async () => {
+    const { deps, taskId, code } = await setup();
+    const originalQuery = deps.db.query.bind(deps.db);
+    deps.db.query = async (...args: Parameters<typeof deps.db.query>) => {
+      const sql = args[0].replace(/\s+/g, ' ').trim();
+      if (sql.includes('jsonb_build_object')) {
+        deps.db.uploads.get(taskId)!.pairing_expires_at = new Date(Date.now() - 1).toISOString();
+      }
+      return originalQuery(...args);
+    };
+
+    const out = await landPart(deps, {
+      pairingCode: code,
+      partIndex: 0,
+      totalParts: 2,
+      content: 'orphan candidate',
+      traceId: 't-expire-after-put',
+    });
+
+    expect(out.kind).toBe('expired');
+    await expect(
+      deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0)),
+    ).rejects.toThrow();
+    expect(deps.db.uploads.get(taskId)!.parts).toEqual({});
+  });
+
+  it('孤儿 key 立即删除失败仍持久追踪，worker 下一轮真删并打清理戳', async () => {
+    const { deps, taskId, code } = await setup();
+    const originalQuery = deps.db.query.bind(deps.db);
+    deps.db.query = async (...args: Parameters<typeof deps.db.query>) => {
+      const sql = args[0].replace(/\s+/g, ' ').trim();
+      if (sql.includes('jsonb_build_object')) {
+        deps.db.uploads.get(taskId)!.pairing_expires_at = new Date(Date.now() - 1).toISOString();
+      }
+      return originalQuery(...args);
+    };
+    const realDelete = deps.objectStore.delete.bind(deps.objectStore);
+    deps.objectStore.delete = async () => {
+      throw new Error('minio unavailable');
+    };
+
+    const out = await landPart(deps, {
+      pairingCode: code,
+      partIndex: 0,
+      totalParts: 2,
+      content: 'still return expired',
+      traceId: 't-orphan-delete-failed',
+    });
+
+    expect(out.kind).toBe('expired');
+    await expect(
+      deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0)),
+    ).resolves.toBe('still return expired');
+    expect(deps.db.uploads.get(taskId)!.meta).toMatchObject({
+      expired_orphan_keys: [partObjectKey(taskId, 0)],
+      expired_cleanup_version: 1,
+    });
+
+    expect(await reconcileExpiredUploadTasks(deps.db, { traceId: 't-orphan-reconcile' })).toBe(1);
+    expect(deps.db.uploads.get(taskId)!.status).toBe('expired');
+    deps.objectStore.delete = realDelete;
+
+    await expect(purgeExpiredUploadParts(deps.db, deps.objectStore)).resolves.toEqual({
+      purged: 1,
+      failedTaskIds: [],
+    });
+    await expect(
+      deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0)),
+    ).rejects.toThrow();
+    expect(deps.db.uploads.get(taskId)!.raw_purged_at).not.toBeNull();
   });
 });

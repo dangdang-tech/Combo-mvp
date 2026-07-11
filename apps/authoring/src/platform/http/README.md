@@ -5,6 +5,7 @@
 ## 文件
 
 - `_helpers.ts` 提供 sendError（按内部错误码组装对外错误信封并回复，绝不裸露内部码和堆栈）、EndpointDecl 端点声明类型和 registerEndpoints 批量注册函数，是各模块 routes.ts 的统一注册方式。
+- `browser-origin.ts` 从 `LOGTO_REDIRECT_URI` 推导生产 canonical origin，为 CORS 做精确白名单；dev/test 仅额外放行 5173/5174 的 localhost/127.0.0.1。它还为 refresh/logout/dev-login 提供 Cookie 变更来源守卫，通过 Origin + `Sec-Fetch-Site` 在执行 handler 前拒绝未获准的同站跨源与跨站请求；无 Origin 的服务端/CLI 仍兼容。
 - `health.ts` 注册两个不带 /api/v1 前缀的探针路由：GET /health 只报进程活着；GET /ready 并发探测数据库、两个 Redis、MinIO、Logto 五个必需依赖，任一挂了返回 503；大模型只标降级不影响就绪判定。
 - `client-events.ts` 注册 POST /client-events：接收浏览器上报的接口报错、SSE 断流、window 错误等事件，截断后只写结构化日志（按 traceId 关联），一律返回 204。
 - `fastify.ts` 是纯类型文件：给 Fastify 声明 app.infra（基础设施容器）和 req.auth（鉴权上下文）两个装饰字段，由 `bootstrap/app.ts` 以副作用 import 引入。

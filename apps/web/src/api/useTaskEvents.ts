@@ -18,7 +18,8 @@ import {
   type SlowHintPayload,
   type StateSnapshotPayload,
 } from '@cb/shared';
-import { unwrapErrorBody } from './client.js';
+import { fallbackErrorBody, unwrapErrorBody } from './client.js';
+import { refreshSession } from './sessionRefresh.js';
 import { clientTraceHeaders, reportClientEvent } from './telemetry.js';
 
 /** 连接级状态机：UI 据此区分「连接中 / 流动中 / 重连中 / 已完成 / 错误」，永不裸转圈。 */
@@ -149,6 +150,7 @@ export function __setFetchEventSourceForTests(fn: FetchEventSourceFn): () => voi
 
 /** 致命错误：onerror 抛它即停止库内自动重连（鉴权失败 / done 后不该再连）。 */
 class SSEFatalError extends Error {}
+class SSERetryAfterRefresh extends Error {}
 
 export interface UseTaskEventsOptions {
   /** false 时不建流（任务已终态等场景）。 */
@@ -174,6 +176,7 @@ export function useTaskEvents(
     doneRef.current = false;
     lastEventIdRef.current = '';
     let closed = false;
+    let authRefreshAttempted = false;
     const trace = clientTraceHeaders();
     let ctrl = new AbortController();
 
@@ -220,6 +223,22 @@ export function useTaskEvents(
           if (closed) return;
           const contentType = response.headers.get('content-type') ?? '';
           if (!response.ok || !contentType.includes('text/event-stream')) {
+            if (response.status === 401 && !authRefreshAttempted) {
+              authRefreshAttempted = true;
+              const refreshed = await refreshSession();
+              if (refreshed === 'refreshed') {
+                dispatch({ type: 'reconnecting' });
+                throw new SSERetryAfterRefresh('retry after session refresh');
+              }
+              if (refreshed === 'error') {
+                const error = fallbackErrorBody('登录状态暂时无法续期，请稍后重试。');
+                reportSseError(error);
+                doneRef.current = true;
+                clearWatchdog();
+                dispatch({ type: 'localError', error });
+                throw new SSEFatalError('session refresh unavailable');
+              }
+            }
             // 建流前 HTTP 失败（401/404 等）：解析 body 为 ErrorEnvelope 进统一错误态，不重连。
             let body: unknown;
             try {
@@ -234,6 +253,7 @@ export function useTaskEvents(
             dispatch({ type: 'localError', error });
             throw new SSEFatalError('sse open failed');
           }
+          authRefreshAttempted = false;
           dispatch({ type: 'open' });
           armWatchdog();
         },
@@ -262,6 +282,7 @@ export function useTaskEvents(
         },
 
         onerror(err) {
+          if (err instanceof SSERetryAfterRefresh) return 0;
           if (err instanceof SSEFatalError) throw err;
           if (closed || doneRef.current) throw new SSEFatalError('closed');
           // 网络/流中断：库自动带 Last-Event-ID 重连；UI 标 reconnecting。

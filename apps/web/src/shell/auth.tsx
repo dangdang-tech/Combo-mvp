@@ -3,9 +3,8 @@
 // 四态收敛（永不裸转圈 / 绝不裸露错误码）：
 //   loading → 「正在确认登录状态…」诚实加载文案（非工作台骨架、非 Wayne 外壳）。
 //   anon    → 裸登录闸门（无创作者外壳/侧栏/账号）：人话 + 「去登录」（跳后端登录端点，带 returnTo）。
-//   error   → 登录服务暂时不可用（503/500/403/网络）≠「请先登录」：人话 ErrorState + 「重试」重拉 /me，
-//             绝不伪装成 anon 给错误的去登录动作，也绝不把 HTTP/状态码渲染到 UI（D1）。
-//   authed  → 放行 <Outlet/>，且把真实 MeView 喂给外壳账号区（不再是 persona Wayne）。
+//   error   → 初次探针时登录服务暂时不可用（503/500/403/网络）：人话 + 「重试」，不伪装成 anon。
+//   authed  → 放行 <Outlet/>，且把真实 MeView 喂给外壳账号区；后续短暂探针错误保留此态，只有 401 撤销。
 //
 // 401 与其它错误的区分只在内部按 HTTP status 判定：apiGet 抛的 ApiError 丢弃了 status，故这里用专用
 // fetchMe()（fetch + credentials:'include' + 同 API_PREFIX）直接读 res.status，绝不把 status 漏到 UI。
@@ -13,9 +12,16 @@
 // 登录是后端 302 重定向端点（非 SPA 路由）：用 window.location.assign 整页跳转，浏览器随重定向去 Logto。
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
 import { Outlet } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_PREFIX, MeViewSchema, envelopeSchema, type MeView } from '@cb/shared';
-import { ComboMark, ComboWordmark } from './brand.js';
+import { refreshSession } from '../api/sessionRefresh.js';
+import { ComboWordmark } from './brand.js';
+
+export {
+  AUTH_REFRESH_PATH,
+  refreshSession,
+  type SessionRefreshResult,
+} from '../api/sessionRefresh.js';
 
 /** /me 200 包络 schema：与后端一致返回 Envelope<MeView>（{ data, meta? }），解析后读 .data。 */
 const MeEnvelopeSchema = envelopeSchema(MeViewSchema);
@@ -36,8 +42,11 @@ export function loginUrl(returnTo?: string): string {
 }
 
 /** 跳转后端登录端点（整页重定向；非 react-router 导航）。可带 returnTo 站内回跳路径。 */
-export function goToLogin(returnTo?: string): void {
-  window.location.assign(loginUrl(returnTo));
+export function goToLogin(
+  returnTo?: string,
+  navigate: (url: string) => void = (url) => window.location.assign(url),
+): void {
+  navigate(loginUrl(returnTo));
 }
 
 /** 登录后回跳的「当前位置」：path + query（站内相对，后端再做开放重定向防护）。 */
@@ -49,13 +58,23 @@ function currentReturnTo(): string {
 export type MeProbe = { status: 'authed'; me: MeView } | { status: 'anon' } | { status: 'error' };
 
 /**
+ * /me 短暂失败不应撤销已经确认的会话。只有明确 401 才会以 anon 覆盖旧身份；
+ * 5xx / 网络 / 异常响应保留上一次 authed 结果，让用户继续留在已登录界面。
+ * 初次探针失败时没有可保留的身份，仍返回 error 显示可重试错误态。
+ */
+export function reconcileMeProbe(previous: MeProbe | undefined, next: MeProbe): MeProbe {
+  if (next.status === 'error' && previous?.status === 'authed') return previous;
+  return next;
+}
+
+/**
  * 专用 /me 探针：直接读 res.status 区分 401（anon）与其它错误（error），apiGet 的 ApiError 会丢 status 故不用。
  *   200 → authed（按 shared schema 解析 MeView；解析失败按 error 处理，不当成已登录）。
  *   401 → anon（真·未登录 / 会话过期，唯一该给「去登录」的情形）。
  *   其它（403 disabled / 500 / 503 登录服务不可用 / 网络）→ error（人话 + 重试，绝非「请先登录」）。
  * 与 client.ts 一致：同 API_PREFIX、credentials:'include'。status 只在本函数内消费，外部只见四态。
  */
-export async function fetchMe(signal?: AbortSignal): Promise<MeProbe> {
+async function fetchMeOnce(signal?: AbortSignal): Promise<MeProbe> {
   let res: Response;
   try {
     res = await fetch(`${API_PREFIX}/me`, {
@@ -81,15 +100,36 @@ export async function fetchMe(signal?: AbortSignal): Promise<MeProbe> {
 }
 
 /**
- * /me 拉取：探针自身把 401/其它错误收敛成 MeProbe（不抛），故任一结果都是「成功 resolve 一个态」。
- * retry:false——单次尝试即定四态，绝不裸自旋（401/其它错误都不该重试探针）。身份变更不频繁，缓存几分钟。
+ * /me 完整探针：第一次 401 时最多尝试一次 refresh，成功后只再试一次 /me。
+ * 第二次仍 401 或 refresh 失败直接 anon，不递归、不循环；非 401 仍按原四态收敛。
+ */
+export async function fetchMe(signal?: AbortSignal): Promise<MeProbe> {
+  const first = await fetchMeOnce(signal);
+  if (first.status !== 'anon') return first;
+  // refresh 一旦发出不跟随页面 abort，避免 Logto 已旋转 RT 但 Set-Cookie 未到达。
+  const refreshed = await refreshSession();
+  if (refreshed === 'rejected') return { status: 'anon' };
+  if (refreshed === 'error') return { status: 'error' };
+  return fetchMeOnce(signal);
+}
+
+/**
+ * /me 拉取：探针自身把 401/其它错误收敛成 MeProbe（不抛）；查询层再把已认证后的短暂 error
+ * 与上一次 authed 结果合并。retry:false——单次尝试即收敛，绝不裸自旋；身份变更不频繁，缓存几分钟。
  */
 export function useMe(): ReturnType<typeof useQuery<MeProbe>> {
+  const queryClient = useQueryClient();
   return useQuery<MeProbe>({
     queryKey: ['me'],
-    queryFn: ({ signal }) => fetchMe(signal),
+    queryFn: async ({ signal }) => {
+      const next = await fetchMe(signal);
+      return reconcileMeProbe(queryClient.getQueryData<MeProbe>(['me']), next);
+    },
     retry: false,
     staleTime: 5 * 60_000,
+    // 长页面 / SSE 打开期间也定期探针；access 过期后在业务请求前尽快续期。
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
   });
 }
 
@@ -141,7 +181,6 @@ function GatePanel({
     <div className="cb-auth-gate" role={role} aria-live={role === 'status' ? 'polite' : undefined}>
       <div className="cb-auth-gate__panel">
         <span className="cb-auth-gate__brand" aria-hidden="true">
-          <ComboMark />
           <ComboWordmark className="cb-auth-gate__brand-word" />
         </span>
         <p className="cb-auth-gate__eyebrow">CREATOR STUDIO</p>
