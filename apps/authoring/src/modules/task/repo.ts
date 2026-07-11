@@ -1,5 +1,6 @@
 // tasks / uploads 两表 SQL + TaskView 组装。本模块所有落库语句收在这里；
-// 状态轴（current_step/status）的变更不在此——唯一入口是 service.transition。
+// 常规任务状态轴变更走 service.transition；过期上传是跨 tasks/uploads 的一致性例外，
+// 由本文件的加锁 CTE 原子落 upload=expired + task=failed，避免两表间 TOCTOU。
 import type { ErrorBody, TaskStatus, TaskStep, TaskView, UploadStatus } from '@cb/shared';
 import { toIso, type Queryable } from '../../platform/infra/db.js';
 import type { Tx } from '../../platform/infra/db-tx.js';
@@ -179,6 +180,159 @@ export async function listTaskViews(
   return { items: res.rows.slice(0, input.limit).map(toTaskView), hasMore };
 }
 
+/**
+ * parts 清单是否已经完整的 SQL 判定。
+ *
+ * 与 partsState 保持同一语义：total 为正整数、landed 键数恰等于 total，且 0..total-1
+ * 连续存在。用 CASE 保护 int cast，旧脏数据只会被视为“不完整”，不会让整轮对账报错。
+ */
+const COMPLETE_PARTS_SQL = `
+  CASE
+    WHEN jsonb_typeof(u.parts->'total') = 'number'
+      AND COALESCE(u.parts->>'total', '') ~ '^[1-9][0-9]*$'
+      AND COALESCE(jsonb_typeof(u.parts->'landed'), 'object') = 'object' THEN
+      (SELECT count(*) FROM jsonb_object_keys(COALESCE(u.parts->'landed', '{}'::jsonb)))
+        = (u.parts->>'total')::int
+      AND NOT EXISTS (
+        SELECT 1
+          FROM generate_series(0, (u.parts->>'total')::int - 1) AS expected(idx)
+         WHERE NOT (COALESCE(u.parts->'landed', '{}'::jsonb) ? expected.idx::text)
+      )
+    ELSE false
+  END`;
+
+/**
+ * 原子收口配对窗口已结束且清单未收齐的 upload/running 任务。
+ *
+ * 单条 PostgreSQL 语句先 FOR UPDATE 同时锁住 tasks/uploads 候选，再把 upload 置 expired、
+ * task 置 failed。这样 registerPart、收齐流转和配对码延期都会在锁后重新判断条件，不会出现
+ * “SELECT 时过期、UPDATE 前已 raw/已延期”却仍覆盖成功上传的 TOCTOU 竞态。完整清单即使仍是
+ * pending 也明确排除，给 landPart 的 mark raw/transition 窗口留出恢复空间。
+ */
+export async function expireIncompleteUploadTasks(
+  db: Queryable,
+  input: {
+    lastError: ErrorBody;
+    ownerUserId?: string;
+    taskId?: string;
+    limit?: number;
+  },
+): Promise<string[]> {
+  const res = await db.query<{ id: string }>(
+    `WITH candidates AS MATERIALIZED (
+       SELECT t.id
+         FROM tasks t
+         JOIN uploads u ON u.task_id = t.id
+        WHERE t.status = 'running'
+          AND t.current_step = 'upload'
+          AND u.status = 'pending'
+          AND u.pairing_expires_at <= now()
+          AND NOT (${COMPLETE_PARTS_SQL})
+          AND ($1::uuid IS NULL OR t.owner_user_id = $1)
+          AND ($2::uuid IS NULL OR t.id = $2)
+        ORDER BY u.pairing_expires_at ASC
+        LIMIT $3
+        FOR UPDATE OF t, u SKIP LOCKED
+     ), expired_uploads AS (
+       UPDATE uploads u
+          SET status = 'expired', updated_at = now()
+         FROM candidates c
+        WHERE u.task_id = c.id
+          AND u.status = 'pending'
+          AND u.pairing_expires_at <= now()
+       RETURNING u.task_id
+     )
+     UPDATE tasks t
+        SET status = 'failed',
+            last_error = $4::jsonb,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            updated_at = now()
+       FROM expired_uploads e
+      WHERE t.id = e.task_id
+        AND t.status = 'running'
+        AND t.current_step = 'upload'
+     RETURNING t.id`,
+    [
+      input.ownerUserId ?? null,
+      input.taskId ?? null,
+      input.limit ?? 100,
+      JSON.stringify(input.lastError),
+    ],
+  );
+  return res.rows.map((row) => row.id);
+}
+
+export interface ExpiredUploadPurgeCandidate {
+  taskId: string;
+  objectKeys: string[];
+  cleanupVersion: number;
+}
+
+function expiredOrphanKeys(meta: Record<string, unknown> | null): string[] {
+  const value = meta?.expired_orphan_keys;
+  return Array.isArray(value)
+    ? value.filter((key): key is string => typeof key === 'string' && key.length > 0)
+    : [];
+}
+
+/** 仍需清理原始对象的 expired 上传；raw_purged_at 为空就是可重试追踪真源。 */
+export async function listExpiredUploadPurgeCandidates(
+  db: Queryable,
+  limit = 100,
+): Promise<ExpiredUploadPurgeCandidate[]> {
+  const res = await db.query<{
+    task_id: string;
+    storage_key: string | null;
+    parts: PartsManifest | null;
+    meta: Record<string, unknown> | null;
+    cleanup_version: number | string;
+  }>(
+    `SELECT task_id, storage_key, parts, meta,
+            CASE
+              WHEN COALESCE(meta->>'expired_cleanup_version', '') ~ '^[0-9]+$'
+                THEN (meta->>'expired_cleanup_version')::bigint
+              ELSE 0
+            END AS cleanup_version
+       FROM uploads
+      WHERE status = 'expired' AND raw_purged_at IS NULL
+      ORDER BY updated_at ASC
+      LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((row) => ({
+    taskId: row.task_id,
+    objectKeys: [
+      ...(row.storage_key ? [row.storage_key] : []),
+      ...partsState(row.parts).orderedKeys,
+      ...expiredOrphanKeys(row.meta),
+    ],
+    cleanupVersion: Number(row.cleanup_version),
+  }));
+}
+
+/** 全部对象真删成功后才打清理戳；expired 状态保留，便于失败任务诊断。 */
+export async function markExpiredUploadPurged(
+  db: Queryable,
+  taskId: string,
+  expectedCleanupVersion: number,
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE uploads
+        SET raw_purged_at = now(), updated_at = now()
+      WHERE task_id = $1
+        AND status = 'expired'
+        AND raw_purged_at IS NULL
+        AND CASE
+              WHEN COALESCE(meta->>'expired_cleanup_version', '') ~ '^[0-9]+$'
+                THEN (meta->>'expired_cleanup_version')::bigint
+              ELSE 0
+            END = $2`,
+    [taskId, expectedCleanupVersion],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
 /** 读任务 owner + 状态轴（SSE 建流 owner 校验 / retry 前置检查用）。 */
 export async function readTaskCore(
   db: Queryable,
@@ -279,6 +433,79 @@ export async function registerPart(
     [input.taskId, String(input.partIndex), input.objectKey, input.totalParts],
   );
   return res.rows[0]?.parts ?? null;
+}
+
+/**
+ * putObject 已成功但 registerPart 因到期/expired 失败时，把当前 key 持久登记进可重试清理清单。
+ * 每次追加都递增 cleanup version 并清 raw_purged_at：worker 若正拿旧清单清理，其打戳会因
+ * version 不匹配而失败，下一轮必须重读并删除新 key。pending+已过期先只登记，随后原子对账
+ * 会把它置 expired；旧版已 task.failed/upload.pending 的行在这里顺带归一为 expired。
+ */
+export async function trackExpiredUploadOrphanKey(
+  db: Queryable,
+  input: { taskId: string; objectKey: string },
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE uploads u
+        SET meta = jsonb_set(
+              jsonb_set(
+                u.meta,
+                '{expired_orphan_keys}',
+                CASE
+                  WHEN (
+                    CASE
+                      WHEN jsonb_typeof(u.meta->'expired_orphan_keys') = 'array'
+                        THEN u.meta->'expired_orphan_keys'
+                      ELSE '[]'::jsonb
+                    END
+                  ) @> jsonb_build_array($2::text)
+                    THEN CASE
+                      WHEN jsonb_typeof(u.meta->'expired_orphan_keys') = 'array'
+                        THEN u.meta->'expired_orphan_keys'
+                      ELSE '[]'::jsonb
+                    END
+                  ELSE (
+                    CASE
+                      WHEN jsonb_typeof(u.meta->'expired_orphan_keys') = 'array'
+                        THEN u.meta->'expired_orphan_keys'
+                      ELSE '[]'::jsonb
+                    END
+                  ) || jsonb_build_array($2::text)
+                END,
+                true
+              ),
+              '{expired_cleanup_version}',
+              to_jsonb(
+                CASE
+                  WHEN COALESCE(u.meta->>'expired_cleanup_version', '') ~ '^[0-9]+$'
+                    THEN (u.meta->>'expired_cleanup_version')::bigint + 1
+                  ELSE 1
+                END
+              ),
+              true
+            ),
+            status = CASE
+              WHEN t.status = 'failed' AND t.current_step = 'upload' AND u.status = 'pending'
+                THEN 'expired'
+              ELSE u.status
+            END,
+            raw_purged_at = NULL,
+            updated_at = now()
+       FROM tasks t
+      WHERE u.task_id = $1
+        AND t.id = u.task_id
+        AND (
+          u.status = 'expired'
+          OR (
+            u.status = 'pending'
+            AND u.pairing_expires_at <= now()
+            AND t.current_step = 'upload'
+            AND t.status IN ('running', 'failed')
+          )
+        )`,
+    [input.taskId, input.objectKey],
+  );
+  return (res.rowCount ?? 0) > 0;
 }
 
 /**

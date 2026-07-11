@@ -16,7 +16,7 @@ import {
 } from '@cb/shared';
 import { sendError } from '../../platform/http/_helpers.js';
 import { asTxPool } from '../../platform/infra/db-tx.js';
-import { createTask, retryTask } from './service.js';
+import { createTask, reconcileExpiredUploadTasks, retryTask } from './service.js';
 import { listTaskViews, readTaskView } from './repo.js';
 import { landPart, verifyPairingCode } from './pairing.js';
 import { renderConnectScript, renderExpiredScript } from './connect-script.js';
@@ -93,6 +93,12 @@ export function listTasksHandler(): RouteHandlerMethod {
 
     let page;
     try {
+      // 读修复：旧 upload/running 若配对窗口已过，先持久化为 failed，再组装列表。
+      // worker 也会周期对账；这里保证用户首次打开页面就拿到真实终态，不等下一轮后台巡查。
+      await reconcileExpiredUploadTasks(req.server.infra.db, {
+        ownerUserId: userId,
+        traceId: req.id,
+      });
       page = await listTaskViews(req.server.infra.db, {
         ownerUserId: userId,
         limit: limitRaw,
@@ -131,6 +137,12 @@ export function getTaskHandler(): RouteHandlerMethod {
 
     let view: TaskView | null;
     try {
+      await reconcileExpiredUploadTasks(req.server.infra.db, {
+        ownerUserId: userId,
+        taskId,
+        traceId: req.id,
+        limit: 1,
+      });
       view = await readTaskView(req.server.infra.db, taskId, userId);
     } catch (err) {
       req.log.error({ err, traceId: req.id }, 'read task failed');

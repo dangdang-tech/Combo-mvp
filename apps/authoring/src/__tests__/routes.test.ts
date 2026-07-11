@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { ALL_ENDPOINTS } from '../bootstrap/routes.js';
 
 describe('route registry self-check', () => {
-  it('registers exactly 15 endpoints (account 4 + task 7 + capability 4;dev-login 条件注册不进表)', () => {
-    expect(ALL_ENDPOINTS).toHaveLength(15);
+  it('registers exactly 16 endpoints (account 5 + task 7 + capability 4;dev-login 条件注册不进表)', () => {
+    expect(ALL_ENDPOINTS).toHaveLength(16);
   });
 
   it('no duplicate (method,url) pairs', () => {
@@ -16,9 +16,10 @@ describe('route registry self-check', () => {
     }
   });
 
-  it('写命令（非 GET）除登录/助手上传外都带守卫链', () => {
+  it('写命令（非 GET）除助手上传外都带守卫链', () => {
     // /auth/*：登录流程本身；/connect/upload：助手侧凭配对码鉴权（handler 内验码），无登录态。
-    const exempt = new Set(['/auth/logout', '/connect/upload']);
+    // refresh/logout 不挂 requireAuth，但必须挂 Cookie 变更来源守卫。
+    const exempt = new Set(['/connect/upload']);
     for (const ep of ALL_ENDPOINTS) {
       if (ep.method === 'GET' || exempt.has(ep.url)) continue;
       expect(
@@ -34,5 +35,13 @@ describe('route registry self-check', () => {
     for (const ep of connect) {
       expect(ep.preHandlers ?? []).toHaveLength(0);
     }
+  });
+
+  it('Cookie 变更来源守卫排在 refresh/logout 的 handler 与宽松鉴权之前', () => {
+    const refresh = ALL_ENDPOINTS.find((ep) => ep.url === '/auth/refresh');
+    const logout = ALL_ENDPOINTS.find((ep) => ep.url === '/auth/logout');
+
+    expect(refresh?.preHandlers).toHaveLength(1);
+    expect(logout?.preHandlers).toHaveLength(2);
   });
 });

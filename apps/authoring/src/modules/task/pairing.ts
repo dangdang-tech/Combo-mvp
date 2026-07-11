@@ -9,10 +9,16 @@ import type { Queryable } from '../../platform/infra/db.js';
 import { TASK_PIPELINE_QUEUE } from '../../platform/infra/queue.js';
 import { hashPairingCode } from './pairing-code.js';
 import { transition } from './service.js';
-import { findUploadByCodeHash, markUploadRaw, partsState, registerPart } from './repo.js';
+import {
+  findUploadByCodeHash,
+  markUploadRaw,
+  partsState,
+  registerPart,
+  trackExpiredUploadOrphanKey,
+} from './repo.js';
+import { RAW_BUCKET } from './raw-purge.js';
 
-/** 上传原始件所在桶（处理完即清，不落正式盘）。 */
-export const RAW_BUCKET = 'combo-raw' as const;
+export { RAW_BUCKET } from './raw-purge.js';
 
 /** 分片对象键。 */
 export function partObjectKey(taskId: string, partIndex: number): string {
@@ -85,7 +91,14 @@ export async function landPart(deps: LandPartDeps, input: LandPartInput): Promis
     objectKey: key,
     totalParts: input.totalParts,
   });
-  if (!parts) return { kind: 'expired' };
+  if (!parts) {
+    // putObject 先于登记，若恰在两步之间过期/被对账接管，这一片不会进入 parts 清单。
+    // 先把 key 持久登记进 expired 清理清单（并推进 cleanup version），再立即 best-effort
+    // 删除；即使 MinIO 此刻失败，worker 下一轮也能重读真删，且不会拿旧清单误打清理戳。
+    await trackExpiredUploadOrphanKey(deps.db, { taskId, objectKey: key }).catch(() => undefined);
+    await deps.objectStore.delete(RAW_BUCKET, key).catch(() => undefined);
+    return { kind: 'expired' };
+  }
 
   const state = partsState(parts);
   // 声明总数与登记表里首次声明不一致（助手换了切法重传）→ 按登记表为准；越界分片已在上面拒掉。

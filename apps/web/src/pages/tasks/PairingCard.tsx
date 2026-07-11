@@ -2,17 +2,42 @@
 // 附本机助手一条命令（GET /connect/script?code=<配对码> 下发脚本，`| sh` 直跑）。
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import type { CreateTaskResult } from '@cb/shared';
+import type { CreateTaskResult, TaskView } from '@cb/shared';
 import { connectCommand } from '../../api/index.js';
 import { CopyButton } from '../../components/CopyButton.js';
 import { formatTime } from './taskPresent.js';
 
 export interface PairingCardProps {
   created: CreateTaskResult;
+  /** 新建后轮询到的实时任务；用于等待反馈，第一片落地后由父页自动进详情。 */
+  liveTask?: TaskView;
+  /** 本拍查询失败时的非阻断提示；watcher 会继续自动重试。 */
+  progressUnavailable?: boolean;
   onDismiss: () => void;
 }
 
-export function PairingCard({ created, onDismiss }: PairingCardProps): ReactElement {
+/** 配对等待区的人话反馈（纯函数，便于状态回归测试）。 */
+export function pairingProgressLabel(task: TaskView, progressUnavailable = false): string {
+  if (task.status === 'failed') return '任务已停止，正在打开详情…';
+  if (task.currentStep === 'extract' || task.upload.status !== 'pending') {
+    return '上传完成，正在进入提取…';
+  }
+  if (task.upload.partsLanded > 0) {
+    const total = task.upload.partsExpected;
+    return total === null
+      ? `已接收 ${task.upload.partsLanded} 片，正在打开进度页…`
+      : `已接收 ${task.upload.partsLanded} / ${total} 片，正在打开进度页…`;
+  }
+  if (progressUnavailable) return '暂时没拿到上传进度，正在自动重试…';
+  return '等待本机助手连接，上传开始后会自动打开进度页。';
+}
+
+export function PairingCard({
+  created,
+  liveTask = created.task,
+  progressUnavailable = false,
+  onDismiss,
+}: PairingCardProps): ReactElement {
   const command = connectCommand(created.pairingCode);
   return (
     <section className="cb-pairing" aria-labelledby="cb-pairing-title">
@@ -50,7 +75,12 @@ export function PairingCard({ created, onDismiss }: PairingCardProps): ReactElem
       </div>
 
       <div className="cb-pairing__actions">
-        <p className="cb-pairing__phase">命令中断后重跑同一条即可续传。</p>
+        <div>
+          <p className="cb-pairing__phase" role="status" aria-live="polite">
+            {pairingProgressLabel(liveTask, progressUnavailable)}
+          </p>
+          <p className="cb-pairing__note">命令中断后重跑同一条即可续传。</p>
+        </div>
         <button type="button" className="cb-pairing__dismiss" onClick={onDismiss}>
           我已复制，关闭
         </button>

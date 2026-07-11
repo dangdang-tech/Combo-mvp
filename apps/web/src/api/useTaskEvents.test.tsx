@@ -119,6 +119,7 @@ describe('useTaskEvents — 连接语义（MockFetchEventSource）', () => {
     restore?.();
     restore = undefined;
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('建流 → 帧驱动状态 → done 后 abort 关流', () => {
@@ -180,7 +181,33 @@ describe('useTaskEvents — 连接语义（MockFetchEventSource）', () => {
     expect(result.current.progress?.subtasks).toEqual(PROGRESS.subtasks);
   });
 
-  it('建流前 HTTP 401（非 event-stream）→ 统一错误态，不重连', async () => {
+  it('建流前 HTTP 401 → refresh 成功后只重连一次', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 204 })),
+    );
+    restore = __setFetchEventSourceForTests(MockFetchEventSource.impl);
+    const { result } = renderHook(() => useTaskEvents('/api/v1/tasks/t1/events'));
+    const conn = MockFetchEventSource.last!;
+    await act(async () => {
+      conn.open(new Response(null, { status: 401 }));
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/auth/refresh',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+    expect(result.current.status).toBe('reconnecting');
+
+    act(() => conn.open());
+    expect(result.current.status).toBe('open');
+  });
+
+  it('建流前 HTTP 401 且 refresh 被拒 → 统一错误态，不循环', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 401 })),
+    );
     restore = __setFetchEventSourceForTests(MockFetchEventSource.impl);
     const { result } = renderHook(() => useTaskEvents('/api/v1/tasks/t1/events'));
     const conn = MockFetchEventSource.last!;

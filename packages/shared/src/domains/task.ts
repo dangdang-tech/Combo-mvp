@@ -10,7 +10,8 @@ export type TaskStep = z.infer<typeof TaskStepSchema>;
 export const TaskStatusSchema = z.enum(['running', 'succeeded', 'failed']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
-export const UploadStatusSchema = z.enum(['pending', 'raw', 'processed']);
+// expired = 配对窗口结束且清单未收齐；原始分片清理进度另由 raw_purged_at 持久追踪。
+export const UploadStatusSchema = z.enum(['pending', 'raw', 'processed', 'expired']);
 export type UploadStatus = z.infer<typeof UploadStatusSchema>;
 
 // ---------- 请求 ----------

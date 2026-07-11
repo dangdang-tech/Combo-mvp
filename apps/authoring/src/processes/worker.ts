@@ -22,6 +22,7 @@ import { createPgAuditSink } from '../platform/infra/llm/audit.js';
 import { RedisEventStream } from '../platform/sse/event-stream.js';
 import { runPipeline, type PipelineDeps } from '../modules/task/pipeline.js';
 import { findStalledExtractTasks } from '../modules/task/repo.js';
+import { purgeExpiredUploadParts, reconcileExpiredUploadTasks } from '../modules/task/service.js';
 
 /** 租约对账周期。 */
 const RECONCILE_INTERVAL_MS = 60_000;
@@ -85,6 +86,22 @@ async function main(): Promise<void> {
   const queue = createBullQueuePort(env);
   const reconcile = async (): Promise<void> => {
     try {
+      const expiredUploads = await reconcileExpiredUploadTasks(db, {
+        traceId: 'worker-upload-reconcile',
+      });
+      if (expiredUploads > 0) {
+        log.warn({ count: expiredUploads }, 'reconcile: expired upload tasks marked failed');
+      }
+      const purge = await purgeExpiredUploadParts(db, deps.objectStore);
+      if (purge.purged > 0) {
+        log.info({ count: purge.purged }, 'reconcile: expired upload raw parts purged');
+      }
+      if (purge.failedTaskIds.length > 0) {
+        log.warn(
+          { taskIds: purge.failedTaskIds },
+          'reconcile: expired upload purge failed (will retry next round)',
+        );
+      }
       const stalled = await findStalledExtractTasks(db);
       for (const taskId of stalled) {
         await queue.enqueue(TASK_PIPELINE_QUEUE, taskId);

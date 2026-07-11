@@ -4,6 +4,30 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCreateSession } from '../api/runtime.js';
 
+export interface CapabilityDeepLinkGuard {
+  current: boolean;
+}
+
+/**
+ * 深链副作用的可测收口：同步占 guard 后只 POST 一次；成功 replace 到会话，失败 replace 回市集。
+ * React StrictMode 重跑 effect 时复用同一 ref，第二次会在发请求前退出。
+ */
+export async function runCapabilityDeepLink(input: {
+  capabilityId: string | undefined;
+  guard: CapabilityDeepLinkGuard;
+  createSession: (capabilityId: string) => Promise<{ id: string }>;
+  navigate: (to: string, options: { replace: true }) => void;
+}): Promise<void> {
+  if (!input.capabilityId || input.guard.current) return;
+  input.guard.current = true;
+  try {
+    const session = await input.createSession(input.capabilityId);
+    input.navigate(`/session/${session.id}`, { replace: true });
+  } catch {
+    input.navigate('/market', { replace: true });
+  }
+}
+
 export function CapabilityDeepLink() {
   const { capabilityId } = useParams<{ capabilityId: string }>();
   const navigate = useNavigate();
@@ -16,12 +40,12 @@ export function CapabilityDeepLink() {
   // 却永不跳转。mutateAsync 的 promise 不依赖组件挂载态，dev/prod 都可靠。
   // fired ref 防重复建会话；不用 cancelled 标志（否则首跑 cleanup 会把唯一一次跳转也吞掉）。
   useEffect(() => {
-    if (!capabilityId || fired.current) return;
-    fired.current = true;
-    createSession
-      .mutateAsync(capabilityId)
-      .then((session) => navigate(`/session/${session.id}`, { replace: true }))
-      .catch(() => navigate('/market', { replace: true }));
+    void runCapabilityDeepLink({
+      capabilityId,
+      guard: fired,
+      createSession: (id) => createSession.mutateAsync(id),
+      navigate,
+    });
   }, [capabilityId, createSession, navigate]);
 
   return <p className="rt-deeplink">正在为你打开试用会话…</p>;

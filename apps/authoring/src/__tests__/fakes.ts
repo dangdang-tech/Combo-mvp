@@ -11,7 +11,7 @@ import type {
 import type { QueryResultLike } from '../platform/infra/db.js';
 import type { TxConn, TxPool } from '../platform/infra/db-tx.js';
 import type { TaskEventBridge } from '../platform/sse/event-stream.js';
-import type { PartsManifest } from '../modules/task/repo.js';
+import { partsState, type PartsManifest } from '../modules/task/repo.js';
 
 let seq = 0;
 /** 递增的假 UUID（保持 id 可比较排序，模拟 UUID v7 时间有序）。 */
@@ -226,6 +226,51 @@ export class FakeDb implements TxPool {
       };
     }
 
+    // expireIncompleteUploadTasks：单条 CTE 原子置 upload=expired + task=failed；完整清单排除。
+    if (
+      s.startsWith('WITH candidates AS MATERIALIZED') &&
+      s.includes("SET status = 'expired'") &&
+      s.includes("SET status = 'failed'")
+    ) {
+      const [owner, taskId, limit, lastErrorJson] = params as [
+        string | null,
+        string | null,
+        number,
+        string,
+      ];
+      const candidates = [...this.tasks.values()]
+        .filter((t) => {
+          const u = this.uploads.get(t.id);
+          return (
+            !!u &&
+            t.status === 'running' &&
+            t.current_step === 'upload' &&
+            u.status === 'pending' &&
+            new Date(u.pairing_expires_at).getTime() <= Date.now() &&
+            !partsState(u.parts).complete &&
+            (owner === null || t.owner_user_id === owner) &&
+            (taskId === null || t.id === taskId)
+          );
+        })
+        .sort(
+          (a, b) =>
+            new Date(this.uploads.get(a.id)!.pairing_expires_at).getTime() -
+            new Date(this.uploads.get(b.id)!.pairing_expires_at).getTime(),
+        )
+        .slice(0, limit);
+      const rows = candidates.map((t) => {
+        const u = this.uploads.get(t.id)!;
+        u.status = 'expired';
+        t.status = 'failed';
+        t.last_error = JSON.parse(lastErrorJson);
+        t.lease_owner = null;
+        t.lease_expires_at = null;
+        t.updated_at = nowIso();
+        return { id: t.id };
+      });
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
     // findStalledExtractTasks
     if (
       s.startsWith("SELECT id FROM tasks WHERE status = 'running' AND current_step = 'extract'")
@@ -327,6 +372,42 @@ export class FakeDb implements TxPool {
       return { rows: [], rowCount: 1 };
     }
 
+    // registerPart=null 后持久追踪 orphan key；追加推进 cleanup version 并清 purge 戳。
+    if (
+      s.includes('UPDATE uploads u') &&
+      s.includes("'{expired_orphan_keys}'") &&
+      s.includes("'{expired_cleanup_version}'")
+    ) {
+      const [taskId, objectKey] = params as [string, string];
+      const u = this.uploads.get(taskId);
+      const t = this.tasks.get(taskId);
+      const trackable =
+        !!u &&
+        !!t &&
+        (u.status === 'expired' ||
+          (u.status === 'pending' &&
+            new Date(u.pairing_expires_at).getTime() <= Date.now() &&
+            t.current_step === 'upload' &&
+            (t.status === 'running' || t.status === 'failed')));
+      if (!trackable || !u || !t) return { rows: [], rowCount: 0 };
+      const existing = Array.isArray(u.meta.expired_orphan_keys)
+        ? u.meta.expired_orphan_keys.filter((key): key is string => typeof key === 'string')
+        : [];
+      u.meta = {
+        ...u.meta,
+        expired_orphan_keys: existing.includes(objectKey) ? existing : [...existing, objectKey],
+        expired_cleanup_version:
+          typeof u.meta.expired_cleanup_version === 'number'
+            ? u.meta.expired_cleanup_version + 1
+            : 1,
+      };
+      if (t.status === 'failed' && t.current_step === 'upload' && u.status === 'pending') {
+        u.status = 'expired';
+      }
+      u.raw_purged_at = null;
+      return { rows: [], rowCount: 1 };
+    }
+
     // registerPart：landed 合并 + total 首次声明为准；仅 pending 且未过期。
     if (s.includes('UPDATE uploads') && s.includes('jsonb_build_object')) {
       const [taskId, idx, key, total] = params as [string, string, string, number];
@@ -370,6 +451,19 @@ export class FakeDb implements TxPool {
       return { rows: [], rowCount: 1 };
     }
 
+    // expired 原始对象清理成功戳；状态保留 expired 供诊断。
+    if (s.includes('UPDATE uploads') && s.includes('SET raw_purged_at = now()')) {
+      const [taskId, expectedVersion] = params as [string, number];
+      const u = this.uploads.get(taskId);
+      const version =
+        typeof u?.meta.expired_cleanup_version === 'number' ? u.meta.expired_cleanup_version : 0;
+      if (!u || u.status !== 'expired' || u.raw_purged_at !== null || version !== expectedVersion) {
+        return { rows: [], rowCount: 0 };
+      }
+      u.raw_purged_at = nowIso();
+      return { rows: [], rowCount: 1 };
+    }
+
     // mergeUploadMeta
     if (s.includes('UPDATE uploads') && s.includes('SET meta = meta ||')) {
       const [taskId, patch] = params as [string, string];
@@ -387,6 +481,26 @@ export class FakeDb implements TxPool {
         rows: [{ storage_key: u.storage_key, status: u.status, parts: u.parts }] as R[],
         rowCount: 1,
       };
+    }
+
+    // expired 且未打清理戳的持久重试队列。
+    if (
+      s.startsWith('SELECT task_id, storage_key, parts, meta,') &&
+      s.includes("status = 'expired'")
+    ) {
+      const limit = params[0] as number;
+      const rows = [...this.uploads.values()]
+        .filter((u) => u.status === 'expired' && u.raw_purged_at === null)
+        .slice(0, limit)
+        .map((u) => ({
+          task_id: u.task_id,
+          storage_key: u.storage_key,
+          parts: u.parts,
+          meta: u.meta,
+          cleanup_version:
+            typeof u.meta.expired_cleanup_version === 'number' ? u.meta.expired_cleanup_version : 0,
+        }));
+      return { rows: rows as R[], rowCount: rows.length };
     }
 
     // ---------- capabilities ----------

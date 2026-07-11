@@ -10,6 +10,7 @@ import { ApiError, isUnauthenticated } from './client.js';
 import { loginUrl } from '../navigation/login.js';
 import { interruptSession, sendSessionMessage } from './runtime.js';
 import { reportClientEvent } from './telemetry.js';
+import { refreshSession } from './sessionRefresh.js';
 import {
   initialStreamUiState,
   isTerminalEvent,
@@ -24,6 +25,54 @@ export interface SessionStream extends StreamUiState {
   selectArtifact: (id: string) => void;
   send: (text: string) => void;
   interrupt: () => void;
+}
+
+interface SessionEventSubscription {
+  onMessage: (data: string) => void;
+  onFatal: () => void;
+}
+
+/** 原生 EventSource 无法读取 HTTP 状态；CLOSED 时只做一次续期并重建，避免无限循环。 */
+export function subscribeSessionEvents(
+  url: string,
+  callbacks: SessionEventSubscription,
+): () => void {
+  let source: EventSource | null = null;
+  let stopped = false;
+  let refreshAttempted = false;
+
+  const connect = () => {
+    if (stopped) return;
+    source?.close();
+    const current = new EventSource(url, { withCredentials: true });
+    source = current;
+    current.onopen = () => {
+      if (current === source) refreshAttempted = false;
+    };
+    current.onmessage = (raw) => {
+      if (current === source) callbacks.onMessage(raw.data as string);
+    };
+    current.onerror = () => {
+      if (current !== source || current.readyState !== EventSource.CLOSED) return;
+      current.close();
+      if (refreshAttempted) {
+        callbacks.onFatal();
+        return;
+      }
+      refreshAttempted = true;
+      void refreshSession().then((result) => {
+        if (stopped) return;
+        if (result === 'refreshed') connect();
+        else callbacks.onFatal();
+      });
+    };
+  };
+
+  connect();
+  return () => {
+    stopped = true;
+    source?.close();
+  };
 }
 
 export function useSessionStream(
@@ -42,25 +91,21 @@ export function useSessionStream(
     if (!sessionId) return;
     dispatch({ kind: 'reset' });
     const url = `/api/v1/runtime/sessions/${sessionId}/stream`;
-    const source = new EventSource(url, { withCredentials: true });
-
-    source.onmessage = (raw) => {
-      const event = parseStreamEvent(raw.data as string);
-      if (!event) return;
-      dispatch({ kind: 'stream-event', event });
-      if (isTerminalEvent(event)) {
-        void qc.invalidateQueries({ queryKey: ['session', sessionId] });
-        void qc.invalidateQueries({ queryKey: ['sessions'] });
-      }
-    };
-    source.onerror = () => {
-      // readyState CONNECTING = 浏览器在自动重连（带 Last-Event-ID），不打扰；
-      // CLOSED = 致命（如 401/404），提示刷新。
-      if (source.readyState !== EventSource.CLOSED) return;
-      reportClientEvent('sse_error', { message: 'session stream closed', url });
-      dispatch({ kind: 'error', message: '事件流连接不上，请刷新页面重试。' });
-    };
-    return () => source.close();
+    return subscribeSessionEvents(url, {
+      onMessage: (data) => {
+        const event = parseStreamEvent(data);
+        if (!event) return;
+        dispatch({ kind: 'stream-event', event });
+        if (isTerminalEvent(event)) {
+          void qc.invalidateQueries({ queryKey: ['session', sessionId] });
+          void qc.invalidateQueries({ queryKey: ['sessions'] });
+        }
+      },
+      onFatal: () => {
+        reportClientEvent('sse_error', { message: 'session stream closed', url });
+        dispatch({ kind: 'error', message: '事件流连接不上，请刷新页面重试。' });
+      },
+    });
   }, [sessionId, qc]);
 
   const send = (text: string): void => {

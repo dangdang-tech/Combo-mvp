@@ -3,19 +3,32 @@
 //     0 行即拒（状态已被并发变更/接管，调用方按 0 行安全退出，绝不覆盖别人的终态）。
 //   - createTask：一个事务插 tasks+uploads；幂等键 ON CONFLICT DO NOTHING 后回读返回已存在任务。
 //   - retryTask：failed 才可重试——retry_count+1、重置 running、重新入队。
-import type { ErrorBody, QueuePort, TaskStatus, TaskStep, TaskView } from '@cb/shared';
+import {
+  ErrorCode,
+  errorBodyFor,
+  type ErrorBody,
+  type ObjectStorePort,
+  type QueuePort,
+  type TaskStatus,
+  type TaskStep,
+  type TaskView,
+} from '@cb/shared';
 import type { Queryable } from '../../platform/infra/db.js';
 import { withTransaction, type TxPool } from '../../platform/infra/db-tx.js';
 import { TASK_PIPELINE_QUEUE } from '../../platform/infra/queue.js';
 import { generatePairingCode, hashPairingCode, pairingExpiresAt } from './pairing-code.js';
 import {
+  expireIncompleteUploadTasks,
   findTaskByIdempotencyKey,
   insertTask,
   insertUpload,
+  listExpiredUploadPurgeCandidates,
+  markExpiredUploadPurged,
   readTaskCore,
   readTaskView,
   rotatePairingCode,
 } from './repo.js';
+import { purgeRawObjects } from './raw-purge.js';
 
 /** transition 的期望现态（乐观锁条件）。 */
 export interface TaskExpect {
@@ -143,7 +156,11 @@ export async function retryTask(
 ): Promise<RetryOutcome> {
   const core = await readTaskCore(db, input.taskId);
   if (!core || core.ownerUserId !== input.ownerUserId) return { kind: 'not_found' };
-  if (core.status !== 'failed') return { kind: 'not_retriable' };
+  // upload 失败（目前即配对窗口已过期）不能原地重试：明文配对码不可恢复，且旧 parts 清单
+  // 不能安全套用到一次新的本机扫描。前端会引导“重新上传”建新任务；这里只允许 extract 重跑。
+  if (core.status !== 'failed' || core.currentStep !== 'extract') {
+    return { kind: 'not_retriable' };
+  }
 
   const ok = await transition(
     db,
@@ -159,4 +176,58 @@ export async function retryTask(
   const view = await readTaskView(db, input.taskId, input.ownerUserId);
   if (!view) return { kind: 'not_found' };
   return { kind: 'ok', view };
+}
+
+// ---------------------------------------------------------------------------
+// 历史上传任务状态修复
+// ---------------------------------------------------------------------------
+
+/**
+ * 把已经不可能继续收片的 upload/running 任务持久化为 failed。
+ *
+ * 这是后端状态归一，不是前端按时间猜状态：列表、详情、SSE 和后续 API 都会看到同一终态。
+ * repo 用单条加锁 CTE 同时验证 expiry/manifest/status 并落 upload=expired + task=failed，
+ * 不存在候选 SELECT 与状态转换之间的 TOCTOU 窗口。
+ */
+export async function reconcileExpiredUploadTasks(
+  db: Queryable,
+  input: { traceId: string; ownerUserId?: string; taskId?: string; limit?: number },
+): Promise<number> {
+  const lastError = errorBodyFor(ErrorCode.PAIRING_EXPIRED, input.traceId, {
+    userMessage: '上传等待已超时，请重新上传。',
+  }).body;
+  const ids = await expireIncompleteUploadTasks(db, { ...input, lastError });
+  return ids.length;
+}
+
+export interface ExpiredUploadPurgeResult {
+  purged: number;
+  failedTaskIds: string[];
+}
+
+/**
+ * 清理 expired 上传已经登记的原始对象。
+ *
+ * raw_purged_at 为空就是持久重试队列：只有全部 key 删除成功才打戳；任一删除或打戳失败都
+ * 保持为空，worker 下一轮会重做（DeleteObject 幂等），不会先丢追踪状态。
+ */
+export async function purgeExpiredUploadParts(
+  db: Queryable,
+  objectStore: ObjectStorePort,
+  input: { limit?: number } = {},
+): Promise<ExpiredUploadPurgeResult> {
+  const candidates = await listExpiredUploadPurgeCandidates(db, input.limit ?? 100);
+  let purged = 0;
+  const failedTaskIds: string[] = [];
+  for (const candidate of candidates) {
+    try {
+      await purgeRawObjects(objectStore, candidate.objectKeys);
+      if (await markExpiredUploadPurged(db, candidate.taskId, candidate.cleanupVersion)) {
+        purged += 1;
+      }
+    } catch {
+      failedTaskIds.push(candidate.taskId);
+    }
+  }
+  return { purged, failedTaskIds };
 }

@@ -1,10 +1,10 @@
 // 任务页（默认页）：「新建上传任务」+ 任务列表（游标分页）。
 // 建任务成功 → PairingCard 展示配对码（明文仅此一次）+ 助手连接命令；行点入任务详情看实时进度。
-import { useState, type ReactElement, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateTaskResult, TaskView } from '@cb/shared';
-import { createTask, listTasks } from '../../api/index.js';
+import { createTask, getTask, listTasks } from '../../api/index.js';
 import { ErrorState, Skeleton } from '../../components/index.js';
 import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { PairingCard } from './PairingCard.js';
@@ -19,7 +19,9 @@ import {
 export function TasksPage(): ReactElement {
   useDocumentTitle('上传任务 · Combo');
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [created, setCreated] = useState<CreateTaskResult | null>(null);
+  const [pairingVisible, setPairingVisible] = useState(false);
 
   const tasksQuery = useInfiniteQuery({
     queryKey: ['tasks'],
@@ -32,9 +34,34 @@ export function TasksPage(): ReactElement {
     mutationFn: () => createTask(),
     onSuccess: (result) => {
       setCreated(result);
+      setPairingVisible(true);
       void qc.invalidateQueries({ queryKey: ['tasks'] });
     },
   });
+
+  // 新建后持续观察这个任务：配对卡给“等待助手连接”的明确反馈；第一片一落地就自动进入
+  // 任务详情，让用户连续看到上传进度与随后自动出现的提取进度，无需刷新或手动点“查看进度”。
+  // pairingVisible 与 watcher 分离——用户收起明文配对码后，自动承接仍继续生效。
+  const watchedTaskQuery = useQuery({
+    queryKey: ['task', created?.task.id],
+    queryFn: () => getTask(created!.task.id),
+    enabled: created !== null,
+    initialData: created?.task,
+    refetchInterval: (query) => {
+      const task = query.state.data;
+      return task?.status === 'running' && task.currentStep === 'upload' ? 1_500 : false;
+    },
+  });
+  const watchedTask = watchedTaskQuery.data ?? created?.task;
+  useEffect(() => {
+    if (!created || !watchedTask) return;
+    const uploadStarted = watchedTask.upload.partsLanded > 0;
+    const leftWaitingState =
+      watchedTask.currentStep !== 'upload' || watchedTask.status !== 'running';
+    if (uploadStarted || leftWaitingState) {
+      navigate(`/tasks/${created.task.id}`);
+    }
+  }, [created, navigate, watchedTask]);
 
   const tasks = tasksQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const runningCount = tasks.filter((task) => task.status === 'running').length;
@@ -122,7 +149,14 @@ export function TasksPage(): ReactElement {
       {createMutation.isError && (
         <ErrorState error={createMutation.error} onRetry={() => createMutation.mutate()} />
       )}
-      {created && <PairingCard created={created} onDismiss={() => setCreated(null)} />}
+      {created && pairingVisible && (
+        <PairingCard
+          created={created}
+          liveTask={watchedTask}
+          progressUnavailable={watchedTaskQuery.isError || watchedTaskQuery.isRefetchError}
+          onDismiss={() => setPairingVisible(false)}
+        />
+      )}
 
       <div className="cb-tasks-panel">
         <div className="cb-tasks-panel__header">

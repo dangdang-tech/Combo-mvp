@@ -50,6 +50,47 @@ describe('apiPost — JSON body', () => {
   });
 });
 
+describe('401 session refresh — 单次续期与原请求重放', () => {
+  it('refresh 204 后把原 GET 重放一次', async () => {
+    fm = installFetchMock([
+      { status: 401, json: { error: { userMessage: 'expired' } } },
+      { status: 204, match: '/auth/refresh' },
+      { status: 200, json: { data: { ok: true } } },
+    ]);
+
+    await expect(apiGet<{ ok: boolean }>('/tasks')).resolves.toEqual({ ok: true });
+    expect(fm.calls.map((call) => call.url)).toEqual([
+      '/api/v1/tasks',
+      '/api/v1/auth/refresh',
+      '/api/v1/tasks',
+    ]);
+  });
+
+  it('refresh 204 后重放 POST 时保留原始 JSON body', async () => {
+    fm = installFetchMock([
+      { status: 401, json: { error: { userMessage: 'expired' } } },
+      { status: 204, match: '/auth/refresh' },
+      { status: 200, json: { data: { id: 't1' } } },
+    ]);
+    const body = { idempotencyKey: 'key-12345678' };
+
+    await expect(apiPost('/tasks', body)).resolves.toEqual({ id: 't1' });
+    expect(fm.calls[0]?.body).toEqual(body);
+    expect(fm.calls[2]?.body).toEqual(body);
+  });
+
+  it('只有 refresh 401 视为匿名；403 保持可重试错误且不重放业务请求', async () => {
+    fm = installFetchMock([
+      { status: 401, json: { error: { userMessage: 'expired' } } },
+      { status: 403, match: '/auth/refresh' },
+    ]);
+    const err = (await apiGet('/tasks').catch((cause: unknown) => cause)) as ApiError;
+    expect(err.userMessage).toBe('登录状态暂时无法续期，请稍后重试。');
+    expect(err.retriable).toBe(true);
+    expect(fm.calls).toHaveLength(2);
+  });
+});
+
 describe('非 2xx — ErrorEnvelope 白名单重建，绝不裸露错误码', () => {
   it('契约信封 → ApiError（userMessage/action/retriable/traceId）', async () => {
     fm = installFetchMock({

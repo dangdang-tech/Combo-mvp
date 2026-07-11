@@ -2,7 +2,8 @@
 //   GET  /auth/login    → 302 跳 Logto 授权端点（PKCE S256 + state + nonce，落短时 auth_tx cookie）。
 //   GET  /auth/callback → 校 state、code 换 token、验 id_token（aud=LOGTO_APP_ID + nonce）、
 //                         验 access_token（aud=LOGTO_AUDIENCE）、首登 provision、种 cb_session、302 回站内。
-//   POST /auth/logout   → 清 cb_session（+ 可选 Logto end_session URL），200 幂等。
+//   POST /auth/refresh  → 用独立 HttpOnly refresh cookie 续期并旋转两个 Cookie。
+//   POST /auth/logout   → 清 cb_session + cb_refresh（+ 可选 Logto end_session URL），200 幂等。
 //   GET  /me            → requireAuth：读 MeView。
 //
 // 会话模型（cb_session）：HttpOnly + Secure(prod) + SameSite=Lax Cookie，承载 Logto access_token（JWT）。
@@ -13,6 +14,7 @@
 //   原始报错）；服务端把 failureId → 内部 code + traceId 落日志。
 import type { FastifyReply, FastifyRequest, RouteHandlerMethod } from 'fastify';
 import {
+  API_PREFIX,
   ErrorCode,
   RoleSchema,
   type Envelope,
@@ -37,6 +39,7 @@ import {
   pkceChallengeS256,
   randomToken,
   readNonceFromIdToken,
+  refreshAccessToken,
   sanitizeReturnTo,
   type AuthTx,
 } from '../../platform/infra/logto-oidc.js';
@@ -45,10 +48,16 @@ import { SESSION_COOKIE } from '../../platform/middleware/auth.js';
 /** 短时登录事务 Cookie 名（HttpOnly，TTL ≤10min，存 state/nonce/code_verifier/returnTo）。 */
 export const AUTH_TX_COOKIE = 'cb_auth_tx';
 
+/** 长会话凭据：只在 /api/v1/auth 下发送，永不暴露给 JavaScript。 */
+export const REFRESH_COOKIE = 'cb_refresh';
+
 const AUTH_TX_MAX_AGE = 600;
 
 /** cb_session cookie TTL（秒）：会话 Cookie 承载 access_token，给到 8h（token 自带 exp，过期由验签拦）。 */
 const SESSION_MAX_AGE = 8 * 60 * 60;
+
+/** refresh cookie 的本地上限；上游 refresh token 的实际过期/撤销仍是最终权威。 */
+const REFRESH_MAX_AGE = 30 * 24 * 60 * 60;
 
 /** 登录失败重定向落点（/login?failureId=<opaque>）。 */
 const LOGIN_PATH = '/login';
@@ -65,6 +74,19 @@ function cookieOpts(req: FastifyRequest, maxAge?: number) {
     path: '/',
     ...(maxAge !== undefined ? { maxAge } : {}),
   };
+}
+
+/** refresh token 仅需发给 callback/refresh/logout，缩小 Cookie 暴露面。 */
+function refreshCookieOpts(req: FastifyRequest, maxAge?: number) {
+  return {
+    ...cookieOpts(req, maxAge),
+    path: `${API_PREFIX}/auth`,
+  };
+}
+
+function clearSessionCookies(req: FastifyRequest, reply: FastifyReply): void {
+  reply.clearCookie(SESSION_COOKIE, cookieOpts(req));
+  reply.clearCookie(REFRESH_COOKIE, refreshCookieOpts(req));
 }
 
 /** 读 auth_tx（回调比对 state/nonce + 取 code_verifier/returnTo）；缺失/畸形 → null。 */
@@ -232,10 +254,89 @@ export function callbackHandler(): RouteHandlerMethod {
       return redirectFailure(req, reply, ErrorCode.AUTH_UPSTREAM_UNAVAILABLE);
     }
 
-    // 7) 种 cb_session（承载 access_token JWT），清 auth_tx，302 回站内 returnTo。
+    // 7) 种 cb_session + 独立 cb_refresh，清 auth_tx，302 回站内 returnTo。
     reply.setCookie(SESSION_COOKIE, exchanged.accessToken, cookieOpts(req, SESSION_MAX_AGE));
+    // 新一轮登录不得沿用上一身份的旧 refresh token；本次未签发则显式清掉。
+    if (exchanged.refreshToken) {
+      reply.setCookie(
+        REFRESH_COOKIE,
+        exchanged.refreshToken,
+        refreshCookieOpts(req, REFRESH_MAX_AGE),
+      );
+    } else {
+      reply.clearCookie(REFRESH_COOKIE, refreshCookieOpts(req));
+    }
     reply.clearCookie(AUTH_TX_COOKIE, cookieOpts(req));
     reply.redirect(tx.returnTo, 302);
+    return reply;
+  };
+}
+
+// ===========================================================================
+// POST /auth/refresh — 用 refresh cookie 续期（204）
+// ===========================================================================
+
+/**
+ * 续期失败的统一收口：不在 refresh 失败响应里清 Cookie。
+ * 原因是多 tab 可能并发携带同一旧 RT：先到请求已旋转成新 RT 后，晚到的 invalid_grant
+ * 若再 Set-Cookie 清理，会把浏览器刚收到的有效新 Cookie 一并覆盖。失效凭据由显式
+ * logout 或下一次成功 login 覆盖；对外始终只返安全错误信封。
+ */
+function failRefresh(req: FastifyRequest, reply: FastifyReply, code: ErrorCodeValue): FastifyReply {
+  req.log.warn({ code, traceId: req.id }, 'auth refresh failed');
+  return sendError(req, reply, code);
+}
+
+/**
+ * access token 过期时本端点仍必须可调，因此不挂 requireAuth，
+ * 只接受 SameSite + HttpOnly refresh cookie。新 access token 验签/验 aud 成功后才写 Cookie；
+ * Logto 返回旋转后 refresh token 则覆盖旧值，未返则安全保留旧值。
+ */
+export function refreshHandler(): RouteHandlerMethod {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE];
+    if (!refreshToken) return failRefresh(req, reply, ErrorCode.UNAUTHENTICATED);
+
+    const refreshed = await refreshAccessToken(req.server.infra.env, refreshToken);
+    if (refreshed.kind === 'upstream_unavailable') {
+      return failRefresh(req, reply, ErrorCode.AUTH_UPSTREAM_UNAVAILABLE);
+    }
+    if (refreshed.kind === 'invalid_grant') {
+      return failRefresh(req, reply, ErrorCode.UNAUTHENTICATED);
+    }
+
+    // 在任何 Cookie 旋转之前验新 access token（iss/aud/exp/JWKS）。
+    const verified = await verifyLogtoJwt(refreshed.accessToken, req.server.infra.env);
+    if (verified.kind === 'upstream_unavailable') {
+      // token endpoint 可能已作废旧 refresh token。即便 JWKS 短时不可达，
+      // 也必须先保存上游旋转后的新值，否则下次重试将永久失败。
+      // 但绝不写入未验签的 access token。
+      if (refreshed.refreshToken) {
+        reply.setCookie(
+          REFRESH_COOKIE,
+          refreshed.refreshToken,
+          refreshCookieOpts(req, REFRESH_MAX_AGE),
+        );
+      }
+      return failRefresh(req, reply, ErrorCode.AUTH_UPSTREAM_UNAVAILABLE);
+    }
+    if (verified.kind === 'invalid') {
+      // 上游已接受 RT 时，invalid 也可能是新 kid 在 JOSE cooldown 窗口内尚未刷新。
+      // 保留旋转后 RT、不写未验 access，返 503 给客户端重试，避免不可逆掉线。
+      if (refreshed.refreshToken) {
+        reply.setCookie(
+          REFRESH_COOKIE,
+          refreshed.refreshToken,
+          refreshCookieOpts(req, REFRESH_MAX_AGE),
+        );
+      }
+      return failRefresh(req, reply, ErrorCode.AUTH_UPSTREAM_UNAVAILABLE);
+    }
+
+    const nextRefreshToken = refreshed.refreshToken ?? refreshToken;
+    reply.setCookie(SESSION_COOKIE, refreshed.accessToken, cookieOpts(req, SESSION_MAX_AGE));
+    reply.setCookie(REFRESH_COOKIE, nextRefreshToken, refreshCookieOpts(req, REFRESH_MAX_AGE));
+    reply.code(204).send();
     return reply;
   };
 }
@@ -248,7 +349,7 @@ export function callbackHandler(): RouteHandlerMethod {
 export function logoutHandler(): RouteHandlerMethod {
   return async function (req: FastifyRequest, reply: FastifyReply) {
     const env = req.server.infra.env;
-    reply.clearCookie(SESSION_COOKIE, cookieOpts(req));
+    clearSessionCookies(req, reply);
     // 兜带清残留 auth_tx（防中断的登录事务遗留）。
     reply.clearCookie(AUTH_TX_COOKIE, cookieOpts(req));
 
@@ -360,6 +461,8 @@ export function devLoginHandler(): RouteHandlerMethod {
       email,
     });
     reply.setCookie(SESSION_COOKIE, token, cookieOpts(req, DEV_SESSION_MAX_AGE));
+    // dev 会话不能混用浏览器中残留的真实 Logto refresh token。
+    reply.clearCookie(REFRESH_COOKIE, refreshCookieOpts(req));
 
     let row: MeRow | null;
     try {

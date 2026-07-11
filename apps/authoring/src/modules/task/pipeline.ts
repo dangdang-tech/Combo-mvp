@@ -35,7 +35,7 @@ import {
   renewLease,
   saveTaskProgress,
 } from './repo.js';
-import { RAW_BUCKET } from './pairing.js';
+import { purgeRawObjects, RAW_BUCKET } from './raw-purge.js';
 import {
   detectSessionSource,
   parseSessions,
@@ -419,9 +419,7 @@ async function execute(
   let purged = false;
   try {
     const legacyRaw = upload?.storageKey ? [upload.storageKey] : [];
-    for (const key of [...legacyRaw, ...partKeys]) {
-      await deps.objectStore.delete(RAW_BUCKET, key);
-    }
+    await purgeRawObjects(deps.objectStore, [...legacyRaw, ...partKeys]);
     purged = true;
   } catch (err) {
     deps.log?.error({ err, taskId }, 'raw purge failed (task still succeeds)');
