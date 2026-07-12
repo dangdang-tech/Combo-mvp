@@ -45,12 +45,11 @@ describe('CapabilitiesPage — 列表渲染', () => {
     expect(within(rowB).getByText((text) => text.includes('/try/c/cap-b'))).toBeInTheDocument();
   });
 
-  it('?taskId= 过滤：请求带 taskId，可清除过滤', async () => {
+  it('?taskId= 过滤：请求带 taskId', async () => {
     fm = installFetchMock({ status: 200, json: paginatedBody([DRAFT]) });
     renderPage(<CapabilitiesPage />, { route: '/capabilities?taskId=task-1' });
     await screen.findByText('周报整理');
     expect(fm.calls[0]?.url).toContain('taskId=task-1');
-    expect(screen.getByRole('button', { name: /只看单个任务/ })).toBeInTheDocument();
   });
 
   it('空列表 → 引导去任务页', async () => {

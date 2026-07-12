@@ -48,9 +48,9 @@ export function mergePublishResult(
 }
 
 export function CapabilitiesPage(): ReactElement {
-  useDocumentTitle('我的能力 · Combo');
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const taskId = params.get('taskId') ?? undefined;
+  useDocumentTitle(taskId ? '本次提取结果 · Combo' : '我的能力 · Combo');
   const qc = useQueryClient();
 
   const capsQuery = useInfiniteQuery({
@@ -126,19 +126,13 @@ export function CapabilitiesPage(): ReactElement {
     <section className="cb-page" aria-labelledby="cb-caps-title">
       <div className="cb-page__head">
         <h2 className="cb-page__title" id="cb-caps-title">
-          我的能力
+          {taskId ? '本次提取结果' : '我的能力'}
         </h2>
-        <p className="cb-page__lead">从你的对话历史提取出的能力项：发布拿分享令牌，或先去试用。</p>
-        {taskId && (
-          <button
-            type="button"
-            className="cb-filter-chip cb-filter-chip--active"
-            onClick={() => setParams({})}
-            title="清除过滤，查看全部能力项"
-          >
-            只看单个任务的能力项 ✕
-          </button>
-        )}
+        <p className="cb-page__lead">
+          {taskId
+            ? '这次上传提取出的能力项：发布拿分享令牌，或先去试用。'
+            : '从你的对话历史提取出的能力项：发布拿分享令牌，或先去试用。'}
+        </p>
       </div>
 
       {toggleMutation.isError && <ErrorState error={toggleMutation.error} />}

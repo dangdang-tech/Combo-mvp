@@ -1348,24 +1348,6 @@ body {
   margin: 0;
 }
 
-/* ---------- 过滤 chip ---------- */
-.cb-filter-chip {
-  border: 1px solid var(--cb-border);
-  background: var(--cb-surface);
-  color: var(--cb-fg);
-  border-radius: var(--cb-radius-pill);
-  padding: 5px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.cb-filter-chip--active {
-  border-color: var(--cb-accent);
-  color: var(--cb-accent);
-  background: var(--cb-accent-soft);
-  font-weight: 500;
-}
-
 /* ---------- 任务详情：边提取边显示的新能力项 ---------- */
 .cb-newitems {
   list-style: none;
@@ -2492,7 +2474,6 @@ body {
 /* 描边/幽灵控件：hover 转品牌描边（对齐 runtime 端 .rt-btn:hover 行为）。 */
 .cb-empty__action:hover,
 .cb-pager__more:hover:not(:disabled),
-.cb-filter-chip:hover,
 .cb-pairing__dismiss:hover,
 .cb-caps__toggle:hover:not(:disabled),
 .cb-copy:hover,
