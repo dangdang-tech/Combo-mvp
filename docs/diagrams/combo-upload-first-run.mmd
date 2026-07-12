@@ -1,0 +1,31 @@
+sequenceDiagram
+    autonumber
+    actor User as 用户终端
+    participant Cache as 本地安全缓存
+    participant Proxy as Nginx / API
+    participant DB as 上传清单数据库
+    participant Store as 对象存储
+    participant Worker as 提取 Worker
+
+    User->>Cache: 扫描会话并流式写入 2 MiB 分片
+    Cache->>Cache: 校验每片 SHA-256 并计算 bundleId
+    User->>Proxy: prepare(bundleId, totalParts)
+    Proxy->>DB: 建立 v2 快照清单
+    DB-->>Proxy: 已落地片序号
+    Proxy-->>User: 返回缺片范围
+
+    loop 每个缺失分片
+        User->>Proxy: upload(bundleId, partIndex, content)
+        Proxy->>DB: 写前校验快照和总片数
+        Proxy->>Store: 写入带 bundleId 的对象键
+        Proxy->>DB: 按相同快照条件登记分片
+        DB-->>Proxy: 返回已落地片数
+        Proxy-->>User: 返回上传进度
+    end
+
+    Proxy->>DB: 清单收齐，任务进入提取阶段
+    Proxy->>Worker: 任务恰好入队一次
+    Worker->>Store: 逐片读取原始内容
+    Worker->>Worker: 解析、去敏并提取能力
+    Worker->>Store: 删除当前分片和旧快照对象
+    User->>Cache: 删除已完成的本地缓存

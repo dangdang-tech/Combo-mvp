@@ -1,0 +1,42 @@
+sequenceDiagram
+    autonumber
+    actor User as 用户终端
+    participant Cache as 本地安全缓存
+    participant Proxy as Nginx / API
+    participant DB as 上传清单数据库
+    participant Store as 对象存储
+    participant Cleaner as 清理 Worker
+
+    User->>Proxy: 上传当前分片
+    Proxy->>Store: 写入对象
+    Proxy->>DB: 登记分片
+    Note over User,Proxy: 网络中断，客户端没有拿到响应
+    User->>Proxy: prepare 确认服务端状态
+    Proxy->>DB: 查询 bundleId 和已落地片
+
+    alt 当前片已经落地
+        DB-->>User: 当前片已收到
+        User->>Cache: 读取下一片继续上传
+    else 当前片尚未落地
+        DB-->>User: 当前片缺失
+        User->>User: 指数退避后重发相同请求
+    else 最后一片已收齐
+        DB-->>User: complete = true
+        User->>Cache: 删除本地缓存并成功退出
+    end
+
+    opt 进程退出后重跑
+        User->>Cache: 校验清单和所有分片哈希
+        User->>Proxy: prepare 同一个 bundleId
+        Proxy-->>User: 返回已落地片序号
+        User->>Proxy: 只续传缺失分片
+    end
+
+    opt 缓存丢失或损坏
+        User->>Cache: 重新生成完整快照
+        User->>Proxy: prepare(new bundleId, replaceExisting = true)
+        Proxy->>DB: 原子切换到新快照
+        DB->>DB: 旧对象键进入持久清理清单
+        Cleaner->>Store: 重试删除旧分片和竞态孤儿对象
+        Cleaner->>DB: 真正删除后清除追踪记录
+    end

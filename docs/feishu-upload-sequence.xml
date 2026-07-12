@@ -1,0 +1,123 @@
+<title>Combo 分片上传与断点续传时序</title>
+
+<p><b>结论：一次上传对应一份不可变快照。</b> 客户端只补发服务端缺少的分片；请求结果不确定时，先确认服务端状态，再决定是否重发。</p>
+
+<h1>每个参与方负责什么</h1>
+
+<table>
+  <colgroup><col width="130"/><col width="360"/></colgroup>
+  <thead><tr><th background-color="light-gray">参与方</th><th background-color="light-gray">负责什么</th></tr></thead>
+  <tbody>
+    <tr><td>用户终端</td><td>执行连接命令，并按服务端返回的缺片范围继续上传。</td></tr>
+    <tr><td>本地安全缓存</td><td>保存本次不可变快照，校验分片哈希，上传成功后立即删除。</td></tr>
+    <tr><td>Nginx 和 API</td><td>接收慢速请求，校验配对码、快照身份、总片数和分片序号。</td></tr>
+    <tr><td>上传清单数据库</td><td>记录快照身份、总片数、已落地序号和待清理对象。</td></tr>
+    <tr><td>对象存储</td><td>按快照身份隔离保存原始分片，处理完成后删除。</td></tr>
+    <tr><td>提取 Worker</td><td>逐片读取、解析和去敏，并周期清理旧快照与孤儿对象。</td></tr>
+  </tbody>
+</table>
+
+<h1>首次上传怎么完成</h1>
+
+<p>客户端先把本次扫描固化到本地缓存，再建立服务端清单。服务端只在清单连续收齐后启动提取。</p>
+
+<whiteboard type="mermaid">
+sequenceDiagram
+    autonumber
+    actor User as 用户终端
+    participant Cache as 本地安全缓存
+    participant Proxy as Nginx / API
+    participant DB as 上传清单数据库
+    participant Store as 对象存储
+    participant Worker as 提取 Worker
+
+    User-&gt;&gt;Cache: 扫描会话并流式写入 2 MiB 分片
+    Cache-&gt;&gt;Cache: 校验每片 SHA-256 并计算 bundleId
+    User-&gt;&gt;Proxy: prepare(bundleId, totalParts)
+    Proxy-&gt;&gt;DB: 建立 v2 快照清单
+    DB--&gt;&gt;Proxy: 已落地片序号
+    Proxy--&gt;&gt;User: 返回缺片范围
+
+    loop 每个缺失分片
+        User-&gt;&gt;Proxy: upload(bundleId, partIndex, content)
+        Proxy-&gt;&gt;DB: 写前校验快照和总片数
+        Proxy-&gt;&gt;Store: 写入带 bundleId 的对象键
+        Proxy-&gt;&gt;DB: 按相同快照条件登记分片
+        DB--&gt;&gt;Proxy: 返回已落地片数
+        Proxy--&gt;&gt;User: 返回上传进度
+    end
+
+    Proxy-&gt;&gt;DB: 清单收齐，任务进入提取阶段
+    Proxy-&gt;&gt;Worker: 任务恰好入队一次
+    Worker-&gt;&gt;Store: 逐片读取原始内容
+    Worker-&gt;&gt;Worker: 解析、去敏并提取能力
+    Worker-&gt;&gt;Store: 删除当前分片和旧快照对象
+    User-&gt;&gt;Cache: 删除已完成的本地缓存
+</whiteboard>
+
+<h1>超时和重跑怎么恢复</h1>
+
+<p>网络中断不代表服务端没有收到数据。客户端会先查询清单；已经落地的分片不再发送，真正缺失的分片才进入有限重试。</p>
+
+<whiteboard type="mermaid">
+sequenceDiagram
+    autonumber
+    actor User as 用户终端
+    participant Cache as 本地安全缓存
+    participant Proxy as Nginx / API
+    participant DB as 上传清单数据库
+    participant Store as 对象存储
+    participant Cleaner as 清理 Worker
+
+    User-&gt;&gt;Proxy: 上传当前分片
+    Proxy-&gt;&gt;Store: 写入对象
+    Proxy-&gt;&gt;DB: 登记分片
+    Note over User,Proxy: 网络中断，客户端没有拿到响应
+    User-&gt;&gt;Proxy: prepare 确认服务端状态
+    Proxy-&gt;&gt;DB: 查询 bundleId 和已落地片
+
+    alt 当前片已经落地
+        DB--&gt;&gt;User: 当前片已收到
+        User-&gt;&gt;Cache: 读取下一片继续上传
+    else 当前片尚未落地
+        DB--&gt;&gt;User: 当前片缺失
+        User-&gt;&gt;User: 指数退避后重发相同请求
+    else 最后一片已收齐
+        DB--&gt;&gt;User: complete = true
+        User-&gt;&gt;Cache: 删除本地缓存并成功退出
+    end
+
+    opt 进程退出后重跑
+        User-&gt;&gt;Cache: 校验清单和所有分片哈希
+        User-&gt;&gt;Proxy: prepare 同一个 bundleId
+        Proxy--&gt;&gt;User: 返回已落地片序号
+        User-&gt;&gt;Proxy: 只续传缺失分片
+    end
+
+    opt 缓存丢失或损坏
+        User-&gt;&gt;Cache: 重新生成完整快照
+        User-&gt;&gt;Proxy: prepare(new bundleId, replaceExisting = true)
+        Proxy-&gt;&gt;DB: 原子切换到新快照
+        DB-&gt;&gt;DB: 旧对象键进入持久清理清单
+        Cleaner-&gt;&gt;Store: 重试删除旧分片和竞态孤儿对象
+        Cleaner-&gt;&gt;DB: 真正删除后清除追踪记录
+    end
+</whiteboard>
+
+<h1>不会混拼或少传的约束</h1>
+
+<ul>
+  <li>每次扫描生成唯一的 <code>bundleId</code>，不同快照使用不同对象目录。</li>
+  <li>服务端在写对象前和登记分片时都核对快照身份与总片数。</li>
+  <li>旧协议首次声明总片数后不得变化，避免按旧总数提前判定完成。</li>
+  <li>完成态不能被重置；最后一片响应丢失时，重跑命令只确认结果。</li>
+  <li>替换片和竞态孤儿对象都有持久清理记录，删除失败会在下一轮继续。</li>
+</ul>
+
+<h1>本机验证结果</h1>
+
+<p>2026 年 7 月 12 日使用隔离的临时 HOME，通过本机 Nginx 执行真实连接命令。测试生成 3 个分片，数据库清单和对象存储都确认收到 3 个。</p>
+
+<p>原命令重跑后，服务端直接返回完成，本地缓存剩余 0 项。测试任务、对象和临时目录随后全部清理，API、web 和 worker 保持健康。</p>
+
+<blockquote>自动化检查覆盖请求超时、502 和 429、不可重试错误、响应丢失、进程中断续传、缓存损坏、旧协议冲突、快照替换和清理重试。</blockquote>
