@@ -1,4 +1,4 @@
-// 能力项行：名称/类型/发布状态 + 分享令牌 + 「去试用」「发布/下架」动作。
+// 能力项行：名称/发布状态 + 分享令牌 + 「去试用」「发布/下架」动作。
 // 能力页与任务详情页（提取完就地展示）共用。
 import { type ReactElement } from 'react';
 import type { CapabilityView } from '@cb/shared';
@@ -24,7 +24,6 @@ export function CapabilityRow({
       <div className="cb-caps__main">
         <p className="cb-caps__name">
           {cap.name}
-          <span className="cb-caps__kind">{cap.kind}</span>
           <span className={`cb-status-badge is-${cap.published ? 'published' : 'unpublished'}`}>
             {cap.published ? '已发布' : '未发布'}
           </span>

@@ -1402,13 +1402,6 @@ body {
   font-weight: 600;
 }
 
-.cb-caps__kind {
-  font-family: var(--cb-font-mono);
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--cb-muted);
-}
-
 .cb-caps__summary {
   margin: 0;
   font-size: 13px;

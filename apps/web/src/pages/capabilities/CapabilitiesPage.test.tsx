@@ -1,4 +1,4 @@
-// 能力页测试：列表渲染（名称/简介/类型/发布状态/分享令牌/试用链接）+ 发布/下架交互。
+// 能力页测试：列表渲染（名称/简介/发布状态/分享令牌/试用链接）+ 发布/下架交互。
 import { describe, it, expect, afterEach } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -25,13 +25,13 @@ const PUBLISHED = makeCapability({
 });
 
 describe('CapabilitiesPage — 列表渲染', () => {
-  it('显示名称/简介/类型/发布状态；已发布的显示分享令牌；每项有试用链接', async () => {
+  it('显示名称/简介/发布状态但不显示类型后缀；已发布的显示分享令牌；每项有试用链接', async () => {
     fm = installFetchMock({ status: 200, json: paginatedBody([DRAFT, PUBLISHED]) });
     renderPage(<CapabilitiesPage />, { route: '/capabilities' });
 
     const rowA = (await screen.findByText('周报整理')).closest('li')!;
     expect(within(rowA).getByText('未发布')).toBeInTheDocument();
-    expect(within(rowA).getByText('workflow')).toBeInTheDocument();
+    expect(within(rowA).queryByText('workflow')).toBeNull();
     expect(within(rowA).queryByText(/分享令牌/)).toBeNull();
     expect(within(rowA).getByRole('link', { name: '去试用' })).toHaveAttribute(
       'href',
