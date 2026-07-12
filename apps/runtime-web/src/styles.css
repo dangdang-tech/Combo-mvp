@@ -105,42 +105,11 @@ body {
   background: var(--cb-accent);
 }
 
-/* —— Shell / topbar —— */
+/* —— Shell —— */
 .rt-shell {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-}
-.rt-topbar {
-  height: 40px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  padding: 0 20px;
-  background: var(--cb-surface);
-  border-bottom: 1px solid var(--cb-border);
-}
-.rt-window-dots {
-  position: absolute;
-  left: 20px;
-  top: 50%;
-  display: flex;
-  gap: 10px;
-  transform: translateY(-50%);
-}
-.rt-window-dots span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--cb-accent);
-}
-.rt-window-dots span:nth-child(2) {
-  background: var(--cb-warn);
-}
-.rt-window-dots span:nth-child(3) {
-  background: var(--cb-ok);
 }
 .rt-brand {
   display: flex;
@@ -169,14 +138,6 @@ body {
 .rt-brand__sub {
   color: var(--cb-muted);
   font-size: 13px;
-}
-.rt-topbar__eyebrow {
-  font-family: var(--cb-font-mono);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  color: var(--cb-muted);
 }
 .rt-shell__main {
   flex: 1 1 auto;
@@ -1866,12 +1827,6 @@ body {
   .rt-example-card__facts div {
     grid-template-columns: 1fr;
     gap: 2px;
-  }
-  .rt-window-dots {
-    display: none;
-  }
-  .rt-topbar__eyebrow {
-    letter-spacing: 2px;
   }
   .rt-trial-app {
     grid-template-columns: 1fr;
