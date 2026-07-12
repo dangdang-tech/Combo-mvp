@@ -385,6 +385,11 @@ body {
   margin: 0 auto;
 }
 
+.cb-page--tasks .cb-primary-btn,
+.cb-tasks-panel .cb-pager__more {
+  min-height: 44px;
+}
+
 /* 页头左标题右主按钮。 */
 .cb-page__head--split {
   display: flex;
@@ -808,6 +813,8 @@ body {
 
 /* ---------- 任务列表 ---------- */
 .cb-tasks-panel {
+  container-name: tasks-panel;
+  container-type: inline-size;
   border: 1px solid var(--cb-border);
   border-radius: var(--cb-radius-card);
   background: var(--cb-surface);
@@ -953,6 +960,22 @@ body {
   margin-top: 4px;
 }
 
+.cb-task-row {
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.cb-task-row:hover,
+.cb-task-row:focus-within {
+  background: var(--cb-surface-raised);
+  box-shadow: inset 3px 0 var(--cb-accent);
+}
+
+.cb-task-cell__label {
+  display: none;
+}
+
 .cb-table th {
   text-align: left;
   font-weight: 500;
@@ -1046,24 +1069,164 @@ body {
 }
 
 .cb-task-link {
-  color: var(--cb-fg);
-  font-weight: 500;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border-radius: var(--cb-radius-control);
+  color: var(--cb-accent);
   text-decoration: none;
 }
 
 .cb-task-link:hover {
+  background: color-mix(in srgb, var(--cb-accent) 7%, transparent);
+}
+
+.cb-task-link__copy {
+  min-width: 0;
+}
+
+.cb-task-link__title {
+  display: block;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--cb-accent) 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.cb-task-link__arrow {
+  color: var(--cb-muted);
+  transition:
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.cb-task-link:hover .cb-task-link__arrow {
   color: var(--cb-accent);
+  transform: translateX(2px);
 }
 
 .cb-task-time {
-  margin: 4px 0 0;
+  display: block;
+  margin-top: 4px;
   font-size: 12px;
   color: var(--cb-muted);
+}
+
+.cb-task-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--cb-accent) 34%, var(--cb-border));
+  border-radius: var(--cb-radius-control);
+  background: var(--cb-surface-raised);
+  color: var(--cb-accent);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.cb-task-action:hover {
+  border-color: var(--cb-accent);
+  background: color-mix(in srgb, var(--cb-accent) 7%, transparent);
 }
 
 .cb-task-error {
   color: var(--cb-danger);
   font-size: 13px;
+  line-height: 1.5;
+}
+
+@container tasks-panel (max-width: 680px) {
+  .cb-tasks-table {
+    display: block;
+    margin-top: 0;
+  }
+
+  .cb-tasks-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .cb-tasks-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .cb-tasks-table .cb-task-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    padding: 14px;
+    border: 1px solid var(--cb-border);
+    border-radius: var(--cb-radius-card);
+    background: var(--cb-surface-raised);
+  }
+
+  .cb-tasks-table .cb-task-row:hover,
+  .cb-tasks-table .cb-task-row:focus-within {
+    box-shadow: inset 3px 0 var(--cb-accent);
+  }
+
+  .cb-tasks-table .cb-task-cell {
+    display: block;
+    min-width: 0;
+    padding: 7px 0;
+    border-bottom: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cb-tasks-table .cb-task-cell__label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--cb-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .cb-tasks-table .cb-task-cell--primary,
+  .cb-tasks-table .cb-task-cell--progress,
+  .cb-tasks-table .cb-task-cell--note {
+    grid-column: 1 / -1;
+  }
+
+  .cb-tasks-table .cb-task-cell--primary {
+    margin-bottom: 4px;
+    padding-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--cb-border);
+  }
+
+  .cb-tasks-table .cb-task-cell--note {
+    padding-bottom: 0;
+  }
+
+  .cb-task-link {
+    width: 100%;
+    margin: 0;
+  }
+
+  .cb-task-action {
+    width: 100%;
+  }
 }
 
 /* ---------- 状态徽章 ---------- */

@@ -98,7 +98,7 @@ export function TasksPage(): ReactElement {
               <th scope="col">状态</th>
               <th scope="col">上传进度</th>
               <th scope="col">能力项</th>
-              <th scope="col">说明</th>
+              <th scope="col">下一步</th>
             </tr>
           </thead>
           <tbody>
@@ -190,25 +190,56 @@ export function TasksPage(): ReactElement {
 
 function TaskRow({ task }: { task: TaskView }): ReactElement {
   return (
-    <tr>
-      <td>
-        <Link className="cb-task-link" to={`/tasks/${task.id}`}>
-          {taskTitle(task)}
+    <tr className="cb-task-row">
+      <td className="cb-task-cell cb-task-cell--primary" data-label="任务">
+        <span className="cb-task-cell__label" aria-hidden="true">
+          任务
+        </span>
+        <Link
+          className="cb-task-link"
+          to={`/tasks/${task.id}`}
+          aria-label={`查看任务：${taskTitle(task)}`}
+        >
+          <span className="cb-task-link__copy">
+            <span className="cb-task-link__title">{taskTitle(task)}</span>
+            <span className="cb-task-time">{formatTime(task.createdAt)}</span>
+          </span>
+          <span className="cb-task-link__arrow" aria-hidden="true">
+            →
+          </span>
         </Link>
-        <p className="cb-task-time">{formatTime(task.createdAt)}</p>
       </td>
-      <td>
+      <td className="cb-task-cell cb-task-cell--status" data-label="状态">
+        <span className="cb-task-cell__label" aria-hidden="true">
+          状态
+        </span>
         <span className={`cb-status-badge is-${taskStatusVariant(task)}`}>
           {taskStatusLabel(task)}
         </span>
       </td>
-      <td>{uploadProgressLabel(task)}</td>
-      <td>{task.capabilityCount > 0 ? `${task.capabilityCount} 个` : '—'}</td>
-      <td className="cb-task-note">
+      <td className="cb-task-cell cb-task-cell--progress" data-label="上传进度">
+        <span className="cb-task-cell__label" aria-hidden="true">
+          上传进度
+        </span>
+        {uploadProgressLabel(task)}
+      </td>
+      <td className="cb-task-cell cb-task-cell--capability" data-label="能力项">
+        <span className="cb-task-cell__label" aria-hidden="true">
+          能力项
+        </span>
+        {task.capabilityCount > 0 ? `${task.capabilityCount} 个` : '—'}
+      </td>
+      <td className="cb-task-cell cb-task-cell--note cb-task-note" data-label="下一步">
+        <span className="cb-task-cell__label" aria-hidden="true">
+          下一步
+        </span>
         {task.status === 'failed' && task.lastError ? (
           <span className="cb-task-error">{task.lastError.userMessage}</span>
         ) : task.status === 'succeeded' ? (
-          <Link to={`/capabilities?taskId=${task.id}`}>查看能力项</Link>
+          <Link className="cb-task-action" to={`/capabilities?taskId=${task.id}`}>
+            <span>查看能力项</span>
+            <span aria-hidden="true">→</span>
+          </Link>
         ) : (
           '—'
         )}
