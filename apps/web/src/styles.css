@@ -1131,9 +1131,11 @@ body {
   color: var(--cb-accent);
   font-size: 13px;
   font-weight: 600;
+  font-family: inherit;
   line-height: 1.25;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
   transition:
     background-color 0.12s ease,
     border-color 0.12s ease;
@@ -1144,10 +1146,36 @@ body {
   background: color-mix(in srgb, var(--cb-accent) 7%, transparent);
 }
 
+.cb-task-action:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.cb-task-action--recovery {
+  border-color: color-mix(in srgb, var(--cb-danger) 32%, var(--cb-border));
+  color: var(--cb-danger);
+}
+
+.cb-task-action--recovery:hover:not(:disabled) {
+  border-color: var(--cb-danger);
+  background: var(--cb-danger-soft);
+}
+
+.cb-task-next-step {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .cb-task-error {
   color: var(--cb-danger);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.cb-create-result:focus {
+  outline: none;
 }
 
 @container tasks-panel (max-width: 680px) {

@@ -1,6 +1,6 @@
 // 任务页（默认页）：「新建上传任务」+ 任务列表（游标分页）。
 // 建任务成功 → PairingCard 展示配对码（明文仅此一次）+ 助手连接命令；行点入任务详情看实时进度。
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateTaskResult, TaskView } from '@cb/shared';
@@ -22,6 +22,7 @@ export function TasksPage(): ReactElement {
   const navigate = useNavigate();
   const [created, setCreated] = useState<CreateTaskResult | null>(null);
   const [pairingVisible, setPairingVisible] = useState(false);
+  const createResultRef = useRef<HTMLDivElement>(null);
 
   const tasksQuery = useInfiniteQuery({
     queryKey: ['tasks'],
@@ -63,6 +64,16 @@ export function TasksPage(): ReactElement {
     }
   }, [created, navigate, watchedTask]);
 
+  // 从失败任务行发起“重新上传”时，新配对卡会插到列表上方。主动把结果带回视野，
+  // 避免用户点完按钮后仍停在旧任务行，以为没有发生任何事情。
+  useEffect(() => {
+    if (!createMutation.isError && !(created && pairingVisible)) return;
+    const result = createResultRef.current;
+    if (!result) return;
+    result.scrollIntoView?.({ block: 'start' });
+    result.focus({ preventScroll: true });
+  }, [createMutation.isError, created, pairingVisible]);
+
   const tasks = tasksQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const runningCount = tasks.filter((task) => task.status === 'running').length;
   const completedCount = tasks.filter((task) => task.status === 'succeeded').length;
@@ -103,7 +114,12 @@ export function TasksPage(): ReactElement {
           </thead>
           <tbody>
             {tasks.map((t) => (
-              <TaskRow key={t.id} task={t} />
+              <TaskRow
+                key={t.id}
+                task={t}
+                createPending={createMutation.isPending}
+                onCreateUpload={() => createMutation.mutate()}
+              />
             ))}
           </tbody>
         </table>
@@ -146,17 +162,19 @@ export function TasksPage(): ReactElement {
         </button>
       </div>
 
-      {createMutation.isError && (
-        <ErrorState error={createMutation.error} onRetry={() => createMutation.mutate()} />
-      )}
-      {created && pairingVisible && (
-        <PairingCard
-          created={created}
-          liveTask={watchedTask}
-          progressUnavailable={watchedTaskQuery.isError || watchedTaskQuery.isRefetchError}
-          onDismiss={() => setPairingVisible(false)}
-        />
-      )}
+      <div ref={createResultRef} tabIndex={-1} className="cb-create-result">
+        {createMutation.isError && (
+          <ErrorState error={createMutation.error} onRetry={() => createMutation.mutate()} />
+        )}
+        {created && pairingVisible && (
+          <PairingCard
+            created={created}
+            liveTask={watchedTask}
+            progressUnavailable={watchedTaskQuery.isError || watchedTaskQuery.isRefetchError}
+            onDismiss={() => setPairingVisible(false)}
+          />
+        )}
+      </div>
 
       <div className="cb-tasks-panel">
         <div className="cb-tasks-panel__header">
@@ -188,7 +206,20 @@ export function TasksPage(): ReactElement {
   );
 }
 
-function TaskRow({ task }: { task: TaskView }): ReactElement {
+function TaskRow({
+  task,
+  createPending,
+  onCreateUpload,
+}: {
+  task: TaskView;
+  createPending: boolean;
+  onCreateUpload: () => void;
+}): ReactElement {
+  const uploadExpired =
+    task.currentStep === 'upload' ||
+    task.upload.status === 'expired' ||
+    task.lastError?.action === 'change_input';
+
   return (
     <tr className="cb-task-row">
       <td className="cb-task-cell cb-task-cell--primary" data-label="任务">
@@ -233,8 +264,29 @@ function TaskRow({ task }: { task: TaskView }): ReactElement {
         <span className="cb-task-cell__label" aria-hidden="true">
           下一步
         </span>
-        {task.status === 'failed' && task.lastError ? (
-          <span className="cb-task-error">{task.lastError.userMessage}</span>
+        {task.status === 'failed' ? (
+          <div className="cb-task-next-step cb-task-next-step--failed">
+            <span className="cb-task-error">
+              {task.lastError?.userMessage ?? '任务未完成，请查看失败详情。'}
+            </span>
+            {uploadExpired ? (
+              <button
+                type="button"
+                className="cb-task-action cb-task-action--recovery"
+                onClick={onCreateUpload}
+                disabled={createPending}
+                aria-label={`为${taskTitle(task)}新建上传任务`}
+              >
+                <span>{createPending ? '正在新建…' : '重新上传'}</span>
+                {!createPending && <span aria-hidden="true">→</span>}
+              </button>
+            ) : (
+              <Link className="cb-task-action" to={`/tasks/${task.id}`}>
+                <span>{task.lastError?.action === 'retry' ? '查看并重试' : '查看失败详情'}</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
+          </div>
         ) : task.status === 'succeeded' ? (
           <Link className="cb-task-action" to={`/capabilities?taskId=${task.id}`}>
             <span>查看能力项</span>
