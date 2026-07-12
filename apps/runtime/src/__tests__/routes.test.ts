@@ -49,7 +49,7 @@ interface Captured {
   body: unknown;
 }
 
-function makeReply(): FastifyReply & Captured {
+function makeReply(): FastifyReply {
   const reply = {
     statusCode: 0,
     body: undefined as unknown,
@@ -65,7 +65,7 @@ function makeReply(): FastifyReply & Captured {
       return this;
     },
   };
-  return reply as unknown as FastifyReply & Captured;
+  return reply as unknown as FastifyReply;
 }
 
 function makeReq(input: {
@@ -97,16 +97,13 @@ function makeReq(input: {
   } as unknown as FastifyRequest;
 }
 
-async function call(
-  handler: RouteHandlerMethod,
-  req: FastifyRequest,
-): Promise<FastifyReply & Captured> {
+async function call(handler: RouteHandlerMethod, req: FastifyRequest): Promise<Captured> {
   const reply = makeReply();
   await (handler as unknown as (rq: FastifyRequest, rp: FastifyReply) => Promise<unknown>)(
     req,
     reply,
   );
-  return reply;
+  return reply as unknown as Captured;
 }
 
 async function seedOwnedSession(db: FakeDb, owner: string): Promise<string> {

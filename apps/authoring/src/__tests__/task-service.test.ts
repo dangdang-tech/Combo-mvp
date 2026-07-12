@@ -227,11 +227,11 @@ describe('reconcileExpiredUploadTasks', () => {
 
     const originalQuery = db.query.bind(db);
     const statements: string[] = [];
-    db.query = async (...args: Parameters<typeof db.query>) => {
-      const sql = args[0].replace(/\s+/g, ' ').trim();
-      if (sql.includes("SET status = 'expired'")) statements.push(sql);
-      return originalQuery(...args);
-    };
+    db.query = (async (sql: string, params?: unknown[]) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (normalized.includes("SET status = 'expired'")) statements.push(normalized);
+      return originalQuery(sql, params);
+    }) as typeof db.query;
 
     const repaired = await reconcileExpiredUploadTasks(db, { traceId: 'trace-atomic' });
 

@@ -1,6 +1,7 @@
 // 测试共用假件：忠实假 PG（按 repo/service 的真实 SQL 形态逐条模拟）+ 假对象存储 / 队列 / 事件流 / LLM。
 // 「忠实」指：守卫条件（owner/状态/过期/乐观锁）与真实 SQL 语义一致，命中/未命中行数可断言。
 import type {
+  Bucket,
   LlmCallOptions,
   LlmGatewayPort,
   LlmResult,
@@ -611,21 +612,21 @@ export class FakeObjectStore implements ObjectStorePort {
   private k(bucket: string, key: string): string {
     return `${bucket}/${key}`;
   }
-  async putObject(bucket: never, key: string, body: Uint8Array): Promise<{ key: string }> {
+  async putObject(bucket: Bucket, key: string, body: Uint8Array): Promise<{ key: string }> {
     this.objects.set(this.k(bucket, key), body);
     return { key };
   }
-  async getObjectText(bucket: never, key: string): Promise<string> {
+  async getObjectText(bucket: Bucket, key: string): Promise<string> {
     const v = this.objects.get(this.k(bucket, key));
     if (!v) throw new Error(`FakeObjectStore: missing ${bucket}/${key}`);
     return new TextDecoder().decode(v);
   }
-  async getObject(bucket: never, key: string): Promise<Uint8Array> {
+  async getObject(bucket: Bucket, key: string): Promise<Uint8Array> {
     const v = this.objects.get(this.k(bucket, key));
     if (!v) throw new Error(`FakeObjectStore: missing ${bucket}/${key}`);
     return v;
   }
-  async delete(bucket: never, key: string): Promise<void> {
+  async delete(bucket: Bucket, key: string): Promise<void> {
     this.objects.delete(this.k(bucket, key));
   }
   async presignPut(): Promise<{ url: string; key: string }> {

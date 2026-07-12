@@ -136,13 +136,13 @@ describe('landPart', () => {
   it('putObject 后登记恰逢过期：返回 expired 并 best-effort 删除未登记孤儿 key', async () => {
     const { deps, taskId, code } = await setup();
     const originalQuery = deps.db.query.bind(deps.db);
-    deps.db.query = async (...args: Parameters<typeof deps.db.query>) => {
-      const sql = args[0].replace(/\s+/g, ' ').trim();
-      if (sql.includes('jsonb_build_object')) {
+    deps.db.query = (async (sql: string, params?: unknown[]) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (normalized.includes('jsonb_build_object')) {
         deps.db.uploads.get(taskId)!.pairing_expires_at = new Date(Date.now() - 1).toISOString();
       }
-      return originalQuery(...args);
-    };
+      return originalQuery(sql, params);
+    }) as typeof deps.db.query;
 
     const out = await landPart(deps, {
       pairingCode: code,
@@ -162,13 +162,13 @@ describe('landPart', () => {
   it('孤儿 key 立即删除失败仍持久追踪，worker 下一轮真删并打清理戳', async () => {
     const { deps, taskId, code } = await setup();
     const originalQuery = deps.db.query.bind(deps.db);
-    deps.db.query = async (...args: Parameters<typeof deps.db.query>) => {
-      const sql = args[0].replace(/\s+/g, ' ').trim();
-      if (sql.includes('jsonb_build_object')) {
+    deps.db.query = (async (sql: string, params?: unknown[]) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (normalized.includes('jsonb_build_object')) {
         deps.db.uploads.get(taskId)!.pairing_expires_at = new Date(Date.now() - 1).toISOString();
       }
-      return originalQuery(...args);
-    };
+      return originalQuery(sql, params);
+    }) as typeof deps.db.query;
     const realDelete = deps.objectStore.delete.bind(deps.objectStore);
     deps.objectStore.delete = async () => {
       throw new Error('minio unavailable');

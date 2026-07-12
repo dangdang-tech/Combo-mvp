@@ -18,6 +18,7 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc -b --noEmit false",
+    "typecheck:test": "tsc -p tsconfig.vitest.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist tsconfig.tsbuildinfo"

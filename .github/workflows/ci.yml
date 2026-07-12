@@ -48,8 +48,14 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Typecheck tests
+        run: pnpm typecheck:test
+
       - name: Build (all packages + apps)
         run: pnpm build
+
+      - name: Verify production artifacts
+        run: bash scripts/check-production-artifacts.sh
 
       - name: Test
         run: pnpm test

@@ -22,6 +22,8 @@ const DEFINITION: CapabilityDefinition = {
   summary: '把速记变成结构化纪要',
   kind: 'writing',
   instructions: '你是一名会议纪要专家。',
+  inputs: [],
+  starterPrompts: [],
   meta: {},
 };
 

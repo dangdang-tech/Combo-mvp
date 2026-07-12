@@ -13,6 +13,7 @@
     "build": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" run build",
     "build:shared": "pnpm -F @cb/shared run build",
     "typecheck": "pnpm -r run typecheck",
+    "typecheck:test": "pnpm -r --if-present run typecheck:test",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

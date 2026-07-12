@@ -1,5 +1,6 @@
 // 测试共用假件：忠实假 PG（按 repo 的真实 SQL 形态逐条模拟）+ 假对象存储 + 假 agent 工厂。
 // 「忠实」指：守卫条件（owner/唯一约束/过滤）与真实 SQL 语义一致，命中/未命中行数可断言。
+import type { Bucket } from '@cb/shared';
 import type { Queryable, QueryResultLike, TxConn, TxPool } from '../platform/infra/db.js';
 import type { RuntimeObjectStore } from '../platform/infra/object-store.js';
 import type { TurnAgent, TurnAgentFactory, TurnAgentInput } from '../modules/agent/run-turn.js';
@@ -349,16 +350,16 @@ export class FakeObjectStore implements RuntimeObjectStore {
   private k(bucket: string, key: string): string {
     return `${bucket}/${key}`;
   }
-  async putObject(bucket: never, key: string, body: Uint8Array): Promise<{ key: string }> {
+  async putObject(bucket: Bucket, key: string, body: Uint8Array): Promise<{ key: string }> {
     this.objects.set(this.k(bucket, key), body);
     return { key };
   }
-  async getObjectText(bucket: never, key: string): Promise<string> {
+  async getObjectText(bucket: Bucket, key: string): Promise<string> {
     const v = this.objects.get(this.k(bucket, key));
     if (!v) throw new Error(`FakeObjectStore: missing ${bucket}/${key}`);
     return new TextDecoder().decode(v);
   }
-  async getObject(bucket: never, key: string): Promise<Uint8Array> {
+  async getObject(bucket: Bucket, key: string): Promise<Uint8Array> {
     const v = this.objects.get(this.k(bucket, key));
     if (!v) throw new Error(`FakeObjectStore: missing ${bucket}/${key}`);
     return v;
