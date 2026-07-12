@@ -172,14 +172,23 @@ export function useAuth(): AuthState {
 /** 闸门裸页外壳：网格纸底 + 居中 Combo 面板，三态（加载/匿名/错误）共用。 */
 function GatePanel({
   role,
+  variant = 'compact',
+  labelledBy,
   children,
 }: {
   role: 'status' | 'alert';
+  variant?: 'compact' | 'login';
+  labelledBy?: string;
   children: ReactNode;
 }): ReactElement {
   return (
-    <div className="cb-auth-gate" role={role} aria-live={role === 'status' ? 'polite' : undefined}>
-      <div className="cb-auth-gate__panel">
+    <div
+      className="cb-auth-gate"
+      role={role}
+      aria-live={role === 'status' ? 'polite' : undefined}
+      aria-labelledby={labelledBy}
+    >
+      <div className={`cb-auth-gate__panel cb-auth-gate__panel--${variant}`}>
         <span className="cb-auth-gate__brand" aria-hidden="true">
           <ComboWordmark className="cb-auth-gate__brand-word" />
         </span>
@@ -202,9 +211,22 @@ function AuthLoading(): ReactElement {
 /** 匿名闸门：裸页（无创作者外壳/侧栏/账号），人话 + 「去登录」（带 returnTo 回当前页）。 */
 function AuthLoginGate(): ReactElement {
   return (
-    <GatePanel role="alert">
-      <p className="cb-auth-gate__msg">请先登录后进入创作者中心。</p>
-      <div className="cb-auth-gate__actions">
+    <GatePanel role="alert" variant="login" labelledBy="creator-login-title">
+      <p className="cb-auth-gate__msg cb-auth-gate__msg--login">请先登录后进入创作者中心。</p>
+      <h1 id="creator-login-title" className="cb-auth-gate__title">
+        继续创建你的能力
+      </h1>
+      <p className="cb-auth-gate__intro">上传真实会话，提取可复用的能力项，并继续未完成的任务。</p>
+      <ol className="cb-auth-gate__flow" aria-label="创作者中心流程">
+        <li>上传会话</li>
+        <li>提取能力</li>
+        <li>确认发布</li>
+      </ol>
+      <p className="cb-auth-gate__trust">
+        <strong>公开边界</strong>
+        <span>只有你确认发布的能力会出现在试用页，原始会话不会进入试用页。</span>
+      </p>
+      <div className="cb-auth-gate__actions cb-auth-gate__actions--login">
         <button
           type="button"
           className="cb-auth-gate__action"
@@ -212,6 +234,7 @@ function AuthLoginGate(): ReactElement {
         >
           去登录
         </button>
+        <p className="cb-auth-gate__return-note">登录完成后，将回到你刚才访问的页面。</p>
       </div>
     </GatePanel>
   );

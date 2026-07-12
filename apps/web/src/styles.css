@@ -1468,6 +1468,7 @@ body {
 /* ---------- 登录守卫闸门（裸页：无创作者外壳/侧栏/账号）——网格纸底 + 居中 Combo 面板 ---------- */
 .cb-auth-gate {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1491,6 +1492,14 @@ body {
   border-radius: 8px;
 }
 
+.cb-auth-gate__panel--login {
+  width: min(100%, 520px);
+  align-items: stretch;
+  gap: 0;
+  padding: 36px 40px 32px;
+  text-align: left;
+}
+
 .cb-auth-gate__brand {
   display: inline-flex;
   align-items: center;
@@ -1501,6 +1510,11 @@ body {
 .cb-auth-gate__brand-word {
   font-size: 34px;
   line-height: 0.86;
+}
+
+.cb-auth-gate__panel--login .cb-auth-gate__brand,
+.cb-auth-gate__panel--login .cb-auth-gate__eyebrow {
+  align-self: center;
 }
 
 .cb-auth-gate__eyebrow {
@@ -1519,6 +1533,81 @@ body {
   color: var(--cb-fg);
 }
 
+.cb-auth-gate__msg--login {
+  margin: 26px 0 6px;
+  font-family: var(--cb-font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--cb-accent);
+}
+
+.cb-auth-gate__title {
+  margin: 0;
+  font-family: var(--cb-font-serif);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+.cb-auth-gate__intro {
+  margin: 10px 0 0;
+  max-width: 32em;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--cb-muted);
+}
+
+.cb-auth-gate__flow {
+  counter-reset: auth-step;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 15px 0;
+  border-top: 1px solid var(--cb-line-2);
+  border-bottom: 1px solid var(--cb-line-2);
+}
+
+.cb-auth-gate__flow li {
+  counter-increment: auth-step;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.cb-auth-gate__flow li::before {
+  content: '0' counter(auth-step);
+  font-family: var(--cb-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cb-accent);
+}
+
+.cb-auth-gate__trust {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 18px 0 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.cb-auth-gate__trust strong {
+  font-weight: 700;
+  color: var(--cb-fg);
+}
+
+.cb-auth-gate__trust span {
+  color: var(--cb-muted);
+}
+
 .cb-auth-gate__actions {
   display: flex;
   justify-content: center;
@@ -1532,7 +1621,7 @@ body {
   color: #fff;
   border-radius: 6px;
   min-width: 72px;
-  height: 36px;
+  height: 44px;
   padding: 0 22px;
   font-size: 14px;
   font-weight: 700;
@@ -1542,6 +1631,60 @@ body {
 
 .cb-auth-gate__action:hover {
   background: var(--cb-accent-strong);
+}
+
+.cb-auth-gate__action:active {
+  background: var(--cb-accent-pressed);
+}
+
+.cb-auth-gate__actions--login {
+  display: block;
+  margin-top: 22px;
+}
+
+.cb-auth-gate__actions--login .cb-auth-gate__action {
+  width: 100%;
+  height: 48px;
+}
+
+.cb-auth-gate__return-note {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--cb-muted);
+}
+
+@media (max-width: 480px) {
+  .cb-auth-gate {
+    padding: 16px;
+  }
+
+  .cb-auth-gate__panel--login {
+    padding: 28px 24px 24px;
+  }
+
+  .cb-auth-gate__msg--login {
+    margin-top: 22px;
+  }
+
+  .cb-auth-gate__title {
+    font-size: 24px;
+  }
+
+  .cb-auth-gate__flow {
+    gap: 8px;
+  }
+
+  .cb-auth-gate__trust {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 640px) {
+  .cb-auth-gate {
+    align-items: flex-start;
+  }
 }
 
 /* ---------- 对外裸壳 PublicLayout ---------- */
