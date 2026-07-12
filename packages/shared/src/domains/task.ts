@@ -55,12 +55,36 @@ export const CreateTaskResultSchema = z.object({
 export type CreateTaskResult = z.infer<typeof CreateTaskResultSchema>;
 
 // ---------- 助手上传（配对路径，唯一上传路径）----------
+export const UploadBundleIdSchema = z.string().regex(/^[a-f0-9]{64}$/);
+
+export const ConnectPrepareBodySchema = z
+  .object({
+    pairingCode: z.string().min(1),
+    protocolVersion: z.literal(2),
+    bundleId: UploadBundleIdSchema,
+    totalParts: z.number().int().min(1).max(10_000),
+    replaceExisting: z.boolean().default(false),
+  })
+  .strict();
+export type ConnectPrepareBody = z.infer<typeof ConnectPrepareBodySchema>;
+
+export const ConnectPrepareResultSchema = z.object({
+  protocolVersion: z.literal(2),
+  bundleId: UploadBundleIdSchema,
+  totalParts: z.number().int().min(1),
+  landedParts: z.array(z.number().int().min(0)),
+  complete: z.boolean(),
+});
+export type ConnectPrepareResult = z.infer<typeof ConnectPrepareResultSchema>;
+
 /**
  * 助手每传一个分片调一次 POST /connect/upload。首个分片必须带 totalParts 声明总数，
  * 服务端以此对账「收齐没有」；全部收齐自动流转提取。
  */
 export const ConnectUploadBodySchema = z.object({
   pairingCode: z.string().min(1),
+  /** v2 助手必传；省略仅用于兼容已在运行的 legacy 脚本。 */
+  bundleId: UploadBundleIdSchema.optional(),
   partIndex: z.number().int().min(0),
   totalParts: z.number().int().min(1).max(10_000),
   /** 分片内容，utf-8 文本（聊天记录导出格式）。 */

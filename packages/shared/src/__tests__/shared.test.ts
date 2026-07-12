@@ -10,6 +10,7 @@ import {
   CreateTaskBodySchema,
   TaskViewSchema,
   ConnectUploadBodySchema,
+  ConnectPrepareBodySchema,
   CapabilityDefinitionSchema,
   MessageViewSchema,
   SendMessageBodySchema,
@@ -95,6 +96,25 @@ describe('任务域 DTO', () => {
     expect(ok.success).toBe(true);
     expect(
       ConnectUploadBodySchema.safeParse({ pairingCode: 'x', partIndex: 0, content: 'y' }).success,
+    ).toBe(false);
+  });
+
+  it('v2 上传准备：bundleId 必须是 sha256，最多 10000 片', () => {
+    expect(
+      ConnectPrepareBodySchema.safeParse({
+        pairingCode: 'ABCD-1234',
+        protocolVersion: 2,
+        bundleId: 'a'.repeat(64),
+        totalParts: 3,
+      }).success,
+    ).toBe(true);
+    expect(
+      ConnectPrepareBodySchema.safeParse({
+        pairingCode: 'ABCD-1234',
+        protocolVersion: 2,
+        bundleId: 'not-a-hash',
+        totalParts: 3,
+      }).success,
     ).toBe(false);
   });
 });

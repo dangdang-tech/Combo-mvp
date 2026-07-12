@@ -22,7 +22,11 @@ import { createPgAuditSink } from '../platform/infra/llm/audit.js';
 import { RedisEventStream } from '../platform/sse/event-stream.js';
 import { runPipeline, type PipelineDeps } from '../modules/task/pipeline.js';
 import { findStalledExtractTasks } from '../modules/task/repo.js';
-import { purgeExpiredUploadParts, reconcileExpiredUploadTasks } from '../modules/task/service.js';
+import {
+  purgeExpiredUploadParts,
+  purgeStaleUploadParts,
+  reconcileExpiredUploadTasks,
+} from '../modules/task/service.js';
 
 /** 租约对账周期。 */
 const RECONCILE_INTERVAL_MS = 60_000;
@@ -100,6 +104,16 @@ async function main(): Promise<void> {
         log.warn(
           { taskIds: purge.failedTaskIds },
           'reconcile: expired upload purge failed (will retry next round)',
+        );
+      }
+      const stale = await purgeStaleUploadParts(db, deps.objectStore);
+      if (stale.purged > 0) {
+        log.info({ count: stale.purged }, 'reconcile: replaced upload parts purged');
+      }
+      if (stale.failedTaskIds.length > 0) {
+        log.warn(
+          { taskIds: stale.failedTaskIds },
+          'reconcile: replaced upload purge failed (will retry next round)',
         );
       }
       const stalled = await findStalledExtractTasks(db);

@@ -353,10 +353,57 @@ export class FakeDb implements TxPool {
             expired: new Date(u.pairing_expires_at).getTime() <= Date.now(),
             current_step: t.current_step,
             status: t.status,
+            parts: u.parts,
           },
         ] as R[],
         rowCount: 1,
       };
+    }
+
+    // v2 prepare：切换清单并把旧对象键登记为 stale。
+    if (
+      s.includes('UPDATE uploads') &&
+      s.includes("'protocolVersion', 2") &&
+      s.includes("'bundleId', $2")
+    ) {
+      const [taskId, bundleId, total] = params as [string, string, number];
+      const u = this.uploads.get(taskId);
+      if (!u || u.status !== 'pending' || new Date(u.pairing_expires_at).getTime() <= Date.now()) {
+        return { rows: [], rowCount: 0 };
+      }
+      const stale = Array.isArray(u.meta.stale_object_keys)
+        ? u.meta.stale_object_keys.filter((key): key is string => typeof key === 'string')
+        : [];
+      const oldKeys = Object.values(u.parts.landed ?? {});
+      u.meta = {
+        ...u.meta,
+        stale_object_keys: [...stale, ...oldKeys],
+        stale_cleanup_version:
+          typeof u.meta.stale_cleanup_version === 'number' ? u.meta.stale_cleanup_version + 1 : 1,
+      };
+      u.parts = { protocolVersion: 2, bundleId, total, landed: {} };
+      return { rows: [{ parts: u.parts }] as R[], rowCount: 1 };
+    }
+
+    // 写桶后未登记的通用 stale key 追踪。
+    if (
+      s.includes('UPDATE uploads') &&
+      s.includes("'{stale_object_keys}'") &&
+      !s.includes("'{stale_object_keys}', '[]'::jsonb")
+    ) {
+      const [taskId, objectKey] = params as [string, string];
+      const u = this.uploads.get(taskId);
+      if (!u) return { rows: [], rowCount: 0 };
+      const existing = Array.isArray(u.meta.stale_object_keys)
+        ? u.meta.stale_object_keys.filter((key): key is string => typeof key === 'string')
+        : [];
+      u.meta = {
+        ...u.meta,
+        stale_object_keys: existing.includes(objectKey) ? existing : [...existing, objectKey],
+        stale_cleanup_version:
+          typeof u.meta.stale_cleanup_version === 'number' ? u.meta.stale_cleanup_version + 1 : 1,
+      };
+      return { rows: [], rowCount: 1 };
     }
 
     // rotatePairingCode
@@ -411,13 +458,30 @@ export class FakeDb implements TxPool {
 
     // registerPart：landed 合并 + total 首次声明为准；仅 pending 且未过期。
     if (s.includes('UPDATE uploads') && s.includes('jsonb_build_object')) {
-      const [taskId, idx, key, total] = params as [string, string, string, number];
+      const [taskId, idx, key, total, bundleId] = params as [
+        string,
+        string,
+        string,
+        number,
+        string | null,
+      ];
       const u = this.uploads.get(taskId);
-      if (!u || u.status !== 'pending' || new Date(u.pairing_expires_at).getTime() <= Date.now()) {
+      const declared = typeof u?.parts.total === 'number' ? u.parts.total : null;
+      const compatible = bundleId
+        ? u?.parts.bundleId === bundleId && declared === total
+        : !u?.parts.bundleId && (declared === null || declared === total);
+      if (
+        !u ||
+        u.status !== 'pending' ||
+        new Date(u.pairing_expires_at).getTime() <= Date.now() ||
+        !compatible
+      ) {
         this.updateRowCounts.push(0);
         return { rows: [], rowCount: 0 };
       }
       u.parts = {
+        ...(u.parts.protocolVersion ? { protocolVersion: u.parts.protocolVersion } : {}),
+        ...(u.parts.bundleId ? { bundleId: u.parts.bundleId } : {}),
         total: typeof u.parts.total === 'number' ? u.parts.total : total,
         landed: { ...(u.parts.landed ?? {}), [idx]: key },
       };
@@ -465,6 +529,17 @@ export class FakeDb implements TxPool {
       return { rows: [], rowCount: 1 };
     }
 
+    // stale 对象清理成功后按版本清空追踪清单。
+    if (s.includes('UPDATE uploads') && s.includes("'{stale_object_keys}', '[]'::jsonb")) {
+      const [taskId, expectedVersion] = params as [string, number];
+      const u = this.uploads.get(taskId);
+      const version =
+        typeof u?.meta.stale_cleanup_version === 'number' ? u.meta.stale_cleanup_version : 0;
+      if (!u || version !== expectedVersion) return { rows: [], rowCount: 0 };
+      u.meta = { ...u.meta, stale_object_keys: [] };
+      return { rows: [], rowCount: 1 };
+    }
+
     // mergeUploadMeta
     if (s.includes('UPDATE uploads') && s.includes('SET meta = meta ||')) {
       const [taskId, patch] = params as [string, string];
@@ -500,6 +575,23 @@ export class FakeDb implements TxPool {
           meta: u.meta,
           cleanup_version:
             typeof u.meta.expired_cleanup_version === 'number' ? u.meta.expired_cleanup_version : 0,
+        }));
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    // 任意状态下 stale 对象的持久重试队列。
+    if (s.startsWith('SELECT task_id, meta,') && s.includes("meta->'stale_object_keys'")) {
+      const limit = params[0] as number;
+      const rows = [...this.uploads.values()]
+        .filter(
+          (u) => Array.isArray(u.meta.stale_object_keys) && u.meta.stale_object_keys.length > 0,
+        )
+        .slice(0, limit)
+        .map((u) => ({
+          task_id: u.task_id,
+          meta: u.meta,
+          cleanup_version:
+            typeof u.meta.stale_cleanup_version === 'number' ? u.meta.stale_cleanup_version : 0,
         }));
       return { rows: rows as R[], rowCount: rows.length };
     }

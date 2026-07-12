@@ -4,7 +4,12 @@
 //     transition 任务到 extract 步、入队。并发收齐由 transition 乐观锁保证只入队一次。
 //   - 收齐时【不】把分片拼接成完整原始件：真实规模（上百分片、数百 MB）把全部分片读回
 //     内存 join 曾把 api 进程撑爆（issue #25）。worker 直接按 parts 登记表逐片消费。
-import type { ConnectUploadResult, ObjectStorePort, QueuePort } from '@cb/shared';
+import type {
+  ConnectPrepareResult,
+  ConnectUploadResult,
+  ObjectStorePort,
+  QueuePort,
+} from '@cb/shared';
 import type { Queryable } from '../../platform/infra/db.js';
 import { TASK_PIPELINE_QUEUE } from '../../platform/infra/queue.js';
 import { hashPairingCode } from './pairing-code.js';
@@ -14,19 +19,24 @@ import {
   markUploadRaw,
   partsState,
   registerPart,
+  replaceUploadManifest,
+  trackStaleUploadObject,
   trackExpiredUploadOrphanKey,
+  type PartsManifest,
 } from './repo.js';
 import { RAW_BUCKET } from './raw-purge.js';
 
 export { RAW_BUCKET } from './raw-purge.js';
 
 /** 分片对象键。 */
-export function partObjectKey(taskId: string, partIndex: number): string {
-  return `uploads/${taskId}/part-${partIndex}`;
+export function partObjectKey(taskId: string, partIndex: number, bundleId?: string): string {
+  return bundleId
+    ? `uploads/${taskId}/${bundleId}/part-${partIndex}`
+    : `uploads/${taskId}/part-${partIndex}`;
 }
 
 export type PairingVerification =
-  | { ok: true; taskId: string; ownerUserId: string }
+  | { ok: true; taskId: string; ownerUserId: string; parts: PartsManifest }
   | { ok: false; reason: 'invalid' | 'expired' };
 
 /**
@@ -41,7 +51,111 @@ export async function verifyPairingCode(db: Queryable, code: string): Promise<Pa
   if (row.taskStep !== 'upload' || row.taskStatus !== 'running') {
     return { ok: false, reason: 'expired' };
   }
-  return { ok: true, taskId: row.taskId, ownerUserId: row.ownerUserId };
+  return { ok: true, taskId: row.taskId, ownerUserId: row.ownerUserId, parts: row.parts };
+}
+
+/** 脚本下发允许 pending 上传，也允许有效期内的已收齐任务做最终确认。 */
+export async function canFetchConnectScript(db: Queryable, code: string): Promise<boolean> {
+  const row = await findUploadByCodeHash(db, hashPairingCode(code));
+  if (!row || row.expired) return false;
+  if (partsState(row.parts).complete) return true;
+  return (
+    row.uploadStatus === 'pending' && row.taskStep === 'upload' && row.taskStatus === 'running'
+  );
+}
+
+export interface PrepareUploadInput {
+  pairingCode: string;
+  protocolVersion: 2;
+  bundleId: string;
+  totalParts: number;
+  replaceExisting: boolean;
+}
+
+export type PrepareUploadOutcome =
+  | { kind: 'ok'; result: ConnectPrepareResult }
+  | { kind: 'invalid_code' }
+  | { kind: 'expired' }
+  | { kind: 'manifest_conflict' };
+
+function landedIndices(parts: PartsManifest): number[] {
+  return Object.keys(parts.landed ?? {})
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n >= 0)
+    .sort((a, b) => a - b);
+}
+
+/** 建立 v2 快照清单；同 bundle 幂等，完成态只做确认，绝不被重置。 */
+export async function prepareUpload(
+  db: Queryable,
+  input: PrepareUploadInput,
+): Promise<PrepareUploadOutcome> {
+  const row = await findUploadByCodeHash(db, hashPairingCode(input.pairingCode));
+  if (!row) return { kind: 'invalid_code' };
+  if (row.expired) return { kind: 'expired' };
+
+  const current = partsState(row.parts);
+  if (row.uploadStatus !== 'pending' || row.taskStep !== 'upload' || row.taskStatus !== 'running') {
+    if (!current.complete) return { kind: 'expired' };
+    return {
+      kind: 'ok',
+      result: {
+        protocolVersion: 2,
+        bundleId: input.bundleId,
+        totalParts: input.totalParts,
+        landedParts: Array.from({ length: input.totalParts }, (_, i) => i),
+        complete: true,
+      },
+    };
+  }
+
+  if (row.parts.bundleId === input.bundleId && current.total === input.totalParts) {
+    return {
+      kind: 'ok',
+      result: {
+        protocolVersion: 2,
+        bundleId: input.bundleId,
+        totalParts: input.totalParts,
+        landedParts: landedIndices(row.parts),
+        complete: current.complete,
+      },
+    };
+  }
+
+  const hasExisting = current.total !== null || current.landed > 0 || Boolean(row.parts.bundleId);
+  if (hasExisting && !input.replaceExisting) return { kind: 'manifest_conflict' };
+
+  const replaced = await replaceUploadManifest(db, {
+    taskId: row.taskId,
+    bundleId: input.bundleId,
+    totalParts: input.totalParts,
+  });
+  if (!replaced) {
+    const latest = await findUploadByCodeHash(db, hashPairingCode(input.pairingCode));
+    if (latest && partsState(latest.parts).complete) {
+      return {
+        kind: 'ok',
+        result: {
+          protocolVersion: 2,
+          bundleId: input.bundleId,
+          totalParts: input.totalParts,
+          landedParts: Array.from({ length: input.totalParts }, (_, i) => i),
+          complete: true,
+        },
+      };
+    }
+    return { kind: 'expired' };
+  }
+  return {
+    kind: 'ok',
+    result: {
+      protocolVersion: 2,
+      bundleId: input.bundleId,
+      totalParts: input.totalParts,
+      landedParts: [],
+      complete: false,
+    },
+  };
 }
 
 export interface LandPartDeps {
@@ -52,6 +166,7 @@ export interface LandPartDeps {
 
 export interface LandPartInput {
   pairingCode: string;
+  bundleId?: string;
   partIndex: number;
   totalParts: number;
   /** 分片内容（utf-8 文本）。 */
@@ -78,8 +193,23 @@ export async function landPart(deps: LandPartDeps, input: LandPartInput): Promis
   if (input.partIndex >= input.totalParts) return { kind: 'bad_part' };
   const { taskId } = verified;
 
+  const declaredTotal =
+    typeof verified.parts.total === 'number' && verified.parts.total > 0
+      ? verified.parts.total
+      : null;
+  if (input.bundleId) {
+    if (verified.parts.bundleId !== input.bundleId || declaredTotal !== input.totalParts) {
+      return { kind: 'bad_part' };
+    }
+  } else if (
+    verified.parts.bundleId ||
+    (declaredTotal !== null && declaredTotal !== input.totalParts)
+  ) {
+    return { kind: 'bad_part' };
+  }
+
   // ① 分片内容落桶（先写桶再登记：登记过的分片必已可读，收齐拼接不会扑空）。
-  const key = partObjectKey(taskId, input.partIndex);
+  const key = partObjectKey(taskId, input.partIndex, input.bundleId);
   await deps.objectStore.putObject(RAW_BUCKET, key, new TextEncoder().encode(input.content), {
     contentType: 'text/plain; charset=utf-8',
   });
@@ -90,14 +220,19 @@ export async function landPart(deps: LandPartDeps, input: LandPartInput): Promis
     partIndex: input.partIndex,
     objectKey: key,
     totalParts: input.totalParts,
+    ...(input.bundleId ? { bundleId: input.bundleId } : {}),
   });
   if (!parts) {
     // putObject 先于登记，若恰在两步之间过期/被对账接管，这一片不会进入 parts 清单。
     // 先把 key 持久登记进 expired 清理清单（并推进 cleanup version），再立即 best-effort
     // 删除；即使 MinIO 此刻失败，worker 下一轮也能重读真删，且不会拿旧清单误打清理戳。
+    await trackStaleUploadObject(deps.db, { taskId, objectKey: key }).catch(() => undefined);
     await trackExpiredUploadOrphanKey(deps.db, { taskId, objectKey: key }).catch(() => undefined);
     await deps.objectStore.delete(RAW_BUCKET, key).catch(() => undefined);
-    return { kind: 'expired' };
+    const latest = await findUploadByCodeHash(deps.db, hashPairingCode(input.pairingCode));
+    return latest && !latest.expired && latest.uploadStatus === 'pending'
+      ? { kind: 'bad_part' }
+      : { kind: 'expired' };
   }
 
   const state = partsState(parts);

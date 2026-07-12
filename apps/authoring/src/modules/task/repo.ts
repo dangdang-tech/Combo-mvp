@@ -7,6 +7,8 @@ import type { Tx } from '../../platform/infra/db-tx.js';
 
 /** uploads.parts 登记表形态：声明总数 + 已落地分片（index → MinIO 对象键）。 */
 export interface PartsManifest {
+  protocolVersion?: 2;
+  bundleId?: string;
   total?: number | null;
   landed?: Record<string, string>;
 }
@@ -276,6 +278,13 @@ function expiredOrphanKeys(meta: Record<string, unknown> | null): string[] {
     : [];
 }
 
+function staleObjectKeys(meta: Record<string, unknown> | null): string[] {
+  const value = meta?.stale_object_keys;
+  return Array.isArray(value)
+    ? value.filter((key): key is string => typeof key === 'string' && key.length > 0)
+    : [];
+}
+
 /** 仍需清理原始对象的 expired 上传；raw_purged_at 为空就是可重试追踪真源。 */
 export async function listExpiredUploadPurgeCandidates(
   db: Queryable,
@@ -306,9 +315,66 @@ export async function listExpiredUploadPurgeCandidates(
       ...(row.storage_key ? [row.storage_key] : []),
       ...partsState(row.parts).orderedKeys,
       ...expiredOrphanKeys(row.meta),
+      ...staleObjectKeys(row.meta),
     ],
     cleanupVersion: Number(row.cleanup_version),
   }));
+}
+
+export interface StaleUploadPurgeCandidate {
+  taskId: string;
+  objectKeys: string[];
+  cleanupVersion: number;
+}
+
+/** 任意状态下由快照替换/登记竞态产生的旧对象；版本号保证清理期间新增 key 不会丢。 */
+export async function listStaleUploadPurgeCandidates(
+  db: Queryable,
+  limit = 100,
+): Promise<StaleUploadPurgeCandidate[]> {
+  const res = await db.query<{
+    task_id: string;
+    meta: Record<string, unknown> | null;
+    cleanup_version: number | string;
+  }>(
+    `SELECT task_id, meta,
+            CASE
+              WHEN COALESCE(meta->>'stale_cleanup_version', '') ~ '^[0-9]+$'
+                THEN (meta->>'stale_cleanup_version')::bigint
+              ELSE 0
+            END AS cleanup_version
+       FROM uploads
+      WHERE jsonb_typeof(meta->'stale_object_keys') = 'array'
+        AND jsonb_array_length(meta->'stale_object_keys') > 0
+      ORDER BY updated_at ASC
+      LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((row) => ({
+    taskId: row.task_id,
+    objectKeys: staleObjectKeys(row.meta),
+    cleanupVersion: Number(row.cleanup_version),
+  }));
+}
+
+export async function clearStaleUploadObjects(
+  db: Queryable,
+  taskId: string,
+  expectedCleanupVersion: number,
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE uploads
+        SET meta = jsonb_set(meta, '{stale_object_keys}', '[]'::jsonb, true),
+            updated_at = now()
+      WHERE task_id = $1
+        AND CASE
+              WHEN COALESCE(meta->>'stale_cleanup_version', '') ~ '^[0-9]+$'
+                THEN (meta->>'stale_cleanup_version')::bigint
+              ELSE 0
+            END = $2`,
+    [taskId, expectedCleanupVersion],
+  );
+  return (res.rowCount ?? 0) > 0;
 }
 
 /** 全部对象真删成功后才打清理戳；expired 状态保留，便于失败任务诊断。 */
@@ -382,6 +448,7 @@ export async function findUploadByCodeHash(
   expired: boolean;
   taskStep: TaskStep;
   taskStatus: TaskStatus;
+  parts: PartsManifest;
 } | null> {
   const res = await db.query<{
     task_id: string;
@@ -390,10 +457,11 @@ export async function findUploadByCodeHash(
     expired: boolean;
     current_step: string;
     status: string;
+    parts: PartsManifest | null;
   }>(
     `SELECT u.task_id, t.owner_user_id, u.status AS upload_status,
             (u.pairing_expires_at <= now()) AS expired,
-            t.current_step, t.status
+            t.current_step, t.status, u.parts
        FROM uploads u
        JOIN tasks t ON t.id = u.task_id
       WHERE u.pairing_code_hash = $1`,
@@ -408,7 +476,51 @@ export async function findUploadByCodeHash(
     expired: row.expired,
     taskStep: row.current_step as TaskStep,
     taskStatus: row.status as TaskStatus,
+    parts: row.parts ?? {},
   };
+}
+
+/** 建立或替换 v2 上传清单；替换时把旧对象键持久登记为待清理对象。 */
+export async function replaceUploadManifest(
+  db: Queryable,
+  input: { taskId: string; bundleId: string; totalParts: number },
+): Promise<PartsManifest | null> {
+  const res = await db.query<{ parts: PartsManifest }>(
+    `UPDATE uploads
+        SET meta = jsonb_set(
+              jsonb_set(
+                meta,
+                '{stale_object_keys}',
+                COALESCE(meta->'stale_object_keys', '[]'::jsonb)
+                  || COALESCE(
+                       (SELECT jsonb_agg(value)
+                          FROM jsonb_each_text(COALESCE(parts->'landed', '{}'::jsonb))),
+                       '[]'::jsonb
+                     ),
+                true
+              ),
+              '{stale_cleanup_version}',
+              to_jsonb(
+                CASE
+                  WHEN COALESCE(meta->>'stale_cleanup_version', '') ~ '^[0-9]+$'
+                    THEN (meta->>'stale_cleanup_version')::bigint + 1
+                  ELSE 1
+                END
+              ),
+              true
+            ),
+            parts = jsonb_build_object(
+              'protocolVersion', 2,
+              'bundleId', $2::text,
+              'total', $3::int,
+              'landed', '{}'::jsonb
+            ),
+            updated_at = now()
+      WHERE task_id = $1 AND status = 'pending' AND pairing_expires_at > now()
+      RETURNING parts`,
+    [input.taskId, input.bundleId, input.totalParts],
+  );
+  return res.rows[0]?.parts ?? null;
 }
 
 /**
@@ -418,21 +530,81 @@ export async function findUploadByCodeHash(
  */
 export async function registerPart(
   db: Queryable,
-  input: { taskId: string; partIndex: number; objectKey: string; totalParts: number },
+  input: {
+    taskId: string;
+    partIndex: number;
+    objectKey: string;
+    totalParts: number;
+    bundleId?: string;
+  },
 ): Promise<PartsManifest | null> {
   const res = await db.query<{ parts: PartsManifest }>(
     `UPDATE uploads
-        SET parts = jsonb_build_object(
+        SET parts = parts || jsonb_build_object(
               'total', COALESCE(parts->'total', to_jsonb($4::int)),
               'landed', COALESCE(parts->'landed', '{}'::jsonb)
                         || jsonb_build_object($2::text, $3::text)
             ),
             updated_at = now()
       WHERE task_id = $1 AND status = 'pending' AND pairing_expires_at > now()
+        AND (
+          (
+            $5::text IS NULL
+            AND NOT (parts ? 'bundleId')
+            AND (NOT (parts ? 'total') OR (parts->'total')::int = $4::int)
+          )
+          OR (
+            parts->>'bundleId' = $5::text
+            AND (parts->'total')::int = $4::int
+          )
+        )
       RETURNING parts`,
-    [input.taskId, String(input.partIndex), input.objectKey, input.totalParts],
+    [
+      input.taskId,
+      String(input.partIndex),
+      input.objectKey,
+      input.totalParts,
+      input.bundleId ?? null,
+    ],
   );
   return res.rows[0]?.parts ?? null;
+}
+
+/** 任何写桶后未登记的对象都进入持久清理清单，避免并发替换留下原文。 */
+export async function trackStaleUploadObject(
+  db: Queryable,
+  input: { taskId: string; objectKey: string },
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE uploads
+        SET meta = jsonb_set(
+              jsonb_set(
+                meta,
+                '{stale_object_keys}',
+                CASE
+                  WHEN COALESCE(meta->'stale_object_keys', '[]'::jsonb)
+                         @> jsonb_build_array($2::text)
+                    THEN COALESCE(meta->'stale_object_keys', '[]'::jsonb)
+                  ELSE COALESCE(meta->'stale_object_keys', '[]'::jsonb)
+                         || jsonb_build_array($2::text)
+                END,
+                true
+              ),
+              '{stale_cleanup_version}',
+              to_jsonb(
+                CASE
+                  WHEN COALESCE(meta->>'stale_cleanup_version', '') ~ '^[0-9]+$'
+                    THEN (meta->>'stale_cleanup_version')::bigint + 1
+                  ELSE 1
+                END
+              ),
+              true
+            ),
+            updated_at = now()
+      WHERE task_id = $1`,
+    [input.taskId, input.objectKey],
+  );
+  return (res.rowCount ?? 0) > 0;
 }
 
 /**

@@ -3,12 +3,15 @@ import { describe, it, expect } from 'vitest';
 import {
   createTask,
   purgeExpiredUploadParts,
+  purgeStaleUploadParts,
   reconcileExpiredUploadTasks,
 } from '../modules/task/service.js';
 import {
   RAW_BUCKET,
+  canFetchConnectScript,
   landPart,
   partObjectKey,
+  prepareUpload,
   verifyPairingCode,
   type LandPartDeps,
 } from '../modules/task/pairing.js';
@@ -203,5 +206,144 @@ describe('landPart', () => {
       deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0)),
     ).rejects.toThrow();
     expect(deps.db.uploads.get(taskId)!.raw_purged_at).not.toBeNull();
+  });
+});
+
+describe('prepareUpload v2', () => {
+  const BUNDLE_A = 'a'.repeat(64);
+  const BUNDLE_B = 'b'.repeat(64);
+
+  it('首次建立清单，同 bundle 重入返回已落地片', async () => {
+    const { deps, code } = await setup();
+    await expect(
+      prepareUpload(deps.db, {
+        pairingCode: code,
+        protocolVersion: 2,
+        bundleId: BUNDLE_A,
+        totalParts: 2,
+        replaceExisting: false,
+      }),
+    ).resolves.toMatchObject({ kind: 'ok', result: { landedParts: [], complete: false } });
+
+    await landPart(deps, {
+      pairingCode: code,
+      bundleId: BUNDLE_A,
+      partIndex: 0,
+      totalParts: 2,
+      content: 'first',
+      traceId: 'v2-first',
+    });
+
+    await expect(
+      prepareUpload(deps.db, {
+        pairingCode: code,
+        protocolVersion: 2,
+        bundleId: BUNDLE_A,
+        totalParts: 2,
+        replaceExisting: false,
+      }),
+    ).resolves.toMatchObject({ kind: 'ok', result: { landedParts: [0], complete: false } });
+  });
+
+  it('不同快照默认冲突，明确替换后旧对象进入清理清单', async () => {
+    const { deps, taskId, code } = await setup();
+    await prepareUpload(deps.db, {
+      pairingCode: code,
+      protocolVersion: 2,
+      bundleId: BUNDLE_A,
+      totalParts: 2,
+      replaceExisting: false,
+    });
+    await landPart(deps, {
+      pairingCode: code,
+      bundleId: BUNDLE_A,
+      partIndex: 0,
+      totalParts: 2,
+      content: 'old',
+      traceId: 'old',
+    });
+
+    await expect(
+      prepareUpload(deps.db, {
+        pairingCode: code,
+        protocolVersion: 2,
+        bundleId: BUNDLE_B,
+        totalParts: 3,
+        replaceExisting: false,
+      }),
+    ).resolves.toEqual({ kind: 'manifest_conflict' });
+
+    await expect(
+      prepareUpload(deps.db, {
+        pairingCode: code,
+        protocolVersion: 2,
+        bundleId: BUNDLE_B,
+        totalParts: 3,
+        replaceExisting: true,
+      }),
+    ).resolves.toMatchObject({ kind: 'ok', result: { bundleId: BUNDLE_B, landedParts: [] } });
+    expect(deps.db.uploads.get(taskId)!.meta.stale_object_keys).toEqual([
+      partObjectKey(taskId, 0, BUNDLE_A),
+    ]);
+    await expect(purgeStaleUploadParts(deps.db, deps.objectStore)).resolves.toEqual({
+      purged: 1,
+      failedTaskIds: [],
+    });
+    await expect(
+      deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 0, BUNDLE_A)),
+    ).rejects.toThrow();
+    expect(deps.db.uploads.get(taskId)!.meta.stale_object_keys).toEqual([]);
+  });
+
+  it('legacy 总片数变化在写对象前拒绝', async () => {
+    const { deps, taskId, code } = await setup();
+    await landPart(deps, {
+      pairingCode: code,
+      partIndex: 0,
+      totalParts: 2,
+      content: 'legacy',
+      traceId: 'legacy',
+    });
+    const out = await landPart(deps, {
+      pairingCode: code,
+      partIndex: 1,
+      totalParts: 3,
+      content: 'wrong manifest',
+      traceId: 'legacy-conflict',
+    });
+    expect(out.kind).toBe('bad_part');
+    await expect(
+      deps.objectStore.getObjectText(RAW_BUCKET, partObjectKey(taskId, 1)),
+    ).rejects.toThrow();
+  });
+
+  it('完成后 prepare 确认成功且不会重置清单', async () => {
+    const { deps, taskId, code } = await setup();
+    await prepareUpload(deps.db, {
+      pairingCode: code,
+      protocolVersion: 2,
+      bundleId: BUNDLE_A,
+      totalParts: 1,
+      replaceExisting: false,
+    });
+    await landPart(deps, {
+      pairingCode: code,
+      bundleId: BUNDLE_A,
+      partIndex: 0,
+      totalParts: 1,
+      content: 'done',
+      traceId: 'done',
+    });
+    await expect(
+      prepareUpload(deps.db, {
+        pairingCode: code,
+        protocolVersion: 2,
+        bundleId: BUNDLE_A,
+        totalParts: 1,
+        replaceExisting: true,
+      }),
+    ).resolves.toMatchObject({ kind: 'ok', result: { complete: true } });
+    expect(deps.db.uploads.get(taskId)!.status).toBe('raw');
+    expect(await canFetchConnectScript(deps.db, code)).toBe(true);
   });
 });

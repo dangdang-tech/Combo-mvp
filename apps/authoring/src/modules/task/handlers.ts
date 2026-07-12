@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest, RouteHandlerMethod } from 'fastify';
 import {
   CreateTaskBodySchema,
   ConnectUploadBodySchema,
+  ConnectPrepareBodySchema,
   DEFAULT_PAGE_LIMIT,
   ErrorCode,
   InvalidCursorError,
@@ -18,7 +19,7 @@ import { sendError } from '../../platform/http/_helpers.js';
 import { asTxPool } from '../../platform/infra/db-tx.js';
 import { createTask, reconcileExpiredUploadTasks, retryTask } from './service.js';
 import { listTaskViews, readTaskView } from './repo.js';
-import { landPart, verifyPairingCode } from './pairing.js';
+import { canFetchConnectScript, landPart, prepareUpload } from './pairing.js';
 import { renderConnectScript, renderExpiredScript } from './connect-script.js';
 
 /** 据请求头算对外 BASE（反代给 x-forwarded-proto/host；缺省回落请求自身）。 */
@@ -207,8 +208,7 @@ export function connectScriptHandler(): RouteHandlerMethod {
     if (typeof code !== 'string' || code.length === 0) return sendExpired();
 
     try {
-      const verified = await verifyPairingCode(req.server.infra.db, code);
-      if (!verified.ok) return sendExpired();
+      if (!(await canFetchConnectScript(req.server.infra.db, code))) return sendExpired();
     } catch (err) {
       req.log.error({ err, traceId: req.id }, 'connect script verify failed');
       // DB 异常也走脚本通道的人话 stderr（不裸 500 体）。
@@ -224,6 +224,37 @@ export function connectScriptHandler(): RouteHandlerMethod {
 }
 
 // ───────────────────────────── POST /connect/upload ─────────────────────────────
+
+export function connectPrepareHandler(): RouteHandlerMethod {
+  return async function (req: FastifyRequest, reply: FastifyReply) {
+    const parsed = ConnectPrepareBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) return sendError(req, reply, ErrorCode.VALIDATION_FAILED);
+
+    let outcome;
+    try {
+      outcome = await prepareUpload(req.server.infra.db, parsed.data);
+    } catch (err) {
+      req.log.error({ err, traceId: req.id }, 'connect prepare failed');
+      return sendError(req, reply, ErrorCode.DEPENDENCY_UNAVAILABLE, {
+        userMessage: '系统暂时不可用，稍候重跑命令续传。',
+      });
+    }
+    if (outcome.kind === 'invalid_code')
+      return sendError(req, reply, ErrorCode.PAIRING_CODE_INVALID);
+    if (outcome.kind === 'expired') return sendError(req, reply, ErrorCode.PAIRING_EXPIRED);
+    if (outcome.kind === 'manifest_conflict') {
+      return sendError(req, reply, ErrorCode.STATE_CONFLICT, {
+        userMessage: '另一份上传快照正在续传，请关闭其它上传命令后重试。',
+      });
+    }
+    const body: Envelope<typeof outcome.result> = {
+      data: outcome.result,
+      meta: { traceId: req.id },
+    };
+    reply.code(200).send(body);
+    return reply;
+  };
+}
 
 /** 助手分片上传（凭配对码鉴权，无登录态）。收齐自动流转提取（landPart 内完成）。 */
 export function connectUploadHandler(): RouteHandlerMethod {

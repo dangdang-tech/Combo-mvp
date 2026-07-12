@@ -22,7 +22,9 @@ import {
   findTaskByIdempotencyKey,
   insertTask,
   insertUpload,
+  listStaleUploadPurgeCandidates,
   listExpiredUploadPurgeCandidates,
+  clearStaleUploadObjects,
   markExpiredUploadPurged,
   readTaskCore,
   readTaskView,
@@ -225,6 +227,27 @@ export async function purgeExpiredUploadParts(
       if (await markExpiredUploadPurged(db, candidate.taskId, candidate.cleanupVersion)) {
         purged += 1;
       }
+    } catch {
+      failedTaskIds.push(candidate.taskId);
+    }
+  }
+  return { purged, failedTaskIds };
+}
+
+/** 周期清理由快照替换或登记竞态留下的对象；失败项保留在 meta 中供下一轮重试。 */
+export async function purgeStaleUploadParts(
+  db: Queryable,
+  objectStore: ObjectStorePort,
+  input: { limit?: number } = {},
+): Promise<ExpiredUploadPurgeResult> {
+  const candidates = await listStaleUploadPurgeCandidates(db, input.limit ?? 100);
+  let purged = 0;
+  const failedTaskIds: string[] = [];
+  for (const candidate of candidates) {
+    try {
+      await purgeRawObjects(objectStore, candidate.objectKeys);
+      if (await clearStaleUploadObjects(db, candidate.taskId, candidate.cleanupVersion))
+        purged += 1;
     } catch {
       failedTaskIds.push(candidate.taskId);
     }
