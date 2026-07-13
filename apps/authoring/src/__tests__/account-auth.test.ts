@@ -292,6 +292,28 @@ describe('account refresh-token handlers', () => {
       REFRESH_COOKIE,
       expect.objectContaining({ path: '/api/v1/auth' }),
     );
+    expect(oidcMocks.buildLogoutUrl).toHaveBeenCalledWith(req.server.infra.env);
     expect(reply.code).toHaveBeenCalledWith(200);
+    expect(reply.send).toHaveBeenCalledWith({
+      data: { loggedOut: true },
+      meta: { traceId: 'trace-auth-test' },
+    });
+  });
+
+  it('logout returns the upstream end-session URL in the success envelope when available', async () => {
+    const logoutUrl =
+      'https://tenant.logto.app/oidc/session/end?client_id=app-id&post_logout_redirect_uri=https%3A%2F%2Fcombo.example%2Flogin';
+    oidcMocks.buildLogoutUrl.mockResolvedValue(logoutUrl);
+    const req = requestDouble();
+    const reply = replyDouble();
+
+    await (logoutHandler() as unknown as TestHandler)(req, reply);
+
+    expect(oidcMocks.buildLogoutUrl).toHaveBeenCalledWith(req.server.infra.env);
+    expect(reply.code).toHaveBeenCalledWith(200);
+    expect(reply.send).toHaveBeenCalledWith({
+      data: { loggedOut: true, logoutUrl },
+      meta: { traceId: 'trace-auth-test' },
+    });
   });
 });

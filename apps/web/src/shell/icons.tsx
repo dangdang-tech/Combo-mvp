@@ -53,3 +53,23 @@ export function IconChevrons(props: SVGProps<SVGSVGElement>): ReactElement {
     </svg>
   );
 }
+
+/** 账号菜单展开状态。 */
+export function IconChevronDown(props: SVGProps<SVGSVGElement>): ReactElement {
+  return (
+    <svg {...base(props)}>
+      <path d="m7 10 5 5 5-5" />
+    </svg>
+  );
+}
+
+/** 退出登录：从门框向外。 */
+export function IconLogout(props: SVGProps<SVGSVGElement>): ReactElement {
+  return (
+    <svg {...base(props)}>
+      <path d="M10 5H5v14h5" />
+      <path d="M14 8l4 4-4 4" />
+      <path d="M18 12H9" />
+    </svg>
+  );
+}

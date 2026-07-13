@@ -6,9 +6,10 @@ import type { ReactElement } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { CREATOR_NAV, type NavItem } from './routes.js';
 import { useCollapse } from './useCollapse.js';
-import { useAccount, avatarInitial, type ShellAccount } from './account.js';
+import { useAccount } from './account.js';
 import { ComboMark, ComboWordmark } from './brand.js';
 import { IconChevrons } from './icons.js';
+import { AccountMenu } from './AccountMenu.js';
 
 export function Shell(): ReactElement {
   const { collapsed, toggle: toggleCollapse } = useCollapse();
@@ -46,14 +47,8 @@ export function Shell(): ReactElement {
           </ul>
         </nav>
 
-        {/* 侧栏底部：当前账号常驻区（头像 + 姓名 · 角色）。 */}
-        <div className="cb-shell__account">
-          <AccountAvatar account={account} className="cb-shell__account-avatar" />
-          <span className="cb-shell__account-meta">
-            <span className="cb-shell__account-name">{account.name}</span>
-            <span className="cb-shell__account-title">{account.title}</span>
-          </span>
-        </div>
+        {/* 侧栏底部：当前账号常驻区；点击整行（收起态为头像）打开账号菜单。 */}
+        <AccountMenu account={account} />
       </aside>
 
       {/* 主区：仅内容 Outlet（无顶栏，账号常驻区在侧栏底部）。 */}
@@ -82,25 +77,5 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
         <span className="cb-shell__navlabel">{item.label}</span>
       </NavLink>
     </li>
-  );
-}
-
-/** 账号头像：有 URL 用图，缺省走首字母兜底（非破图）。 */
-function AccountAvatar({
-  account,
-  className,
-}: {
-  account: ShellAccount;
-  className?: string;
-}): ReactElement {
-  const cls = className ? `cb-avatar ${className}` : 'cb-avatar';
-  const alt = `${account.name} · ${account.title}`;
-  if (account.avatarUrl) {
-    return <img className={cls} src={account.avatarUrl} alt={alt} />;
-  }
-  return (
-    <span className={cls} role="img" aria-label={alt}>
-      {avatarInitial(account.name)}
-    </span>
   );
 }

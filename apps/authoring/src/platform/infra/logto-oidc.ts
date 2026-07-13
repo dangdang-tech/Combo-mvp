@@ -344,7 +344,11 @@ export async function buildLogoutUrl(env: Env, timeoutMs = 1_500): Promise<strin
     const doc = (await res.json()) as { end_session_endpoint?: unknown };
     if (typeof doc.end_session_endpoint !== 'string') return null;
     const url = new URL(doc.end_session_endpoint);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+    const postLogoutRedirect = new URL('/login', env.LOGTO_REDIRECT_URI);
     url.searchParams.set('client_id', env.LOGTO_APP_ID);
+    url.searchParams.set('post_logout_redirect_uri', postLogoutRedirect.toString());
     return url.toString();
   } catch {
     return null;

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../platform/config/env.js';
 import {
   buildAuthorizeUrl,
+  buildLogoutUrl,
   clearRefreshTokenExchangeCache,
   exchangeCodeForToken,
   refreshAccessToken,
@@ -64,6 +65,40 @@ describe('Logto OIDC refresh-token flow', () => {
     ]);
     expect(url.searchParams.get('prompt')).toBe('login consent');
     expect(url.searchParams.get('resource')).toBe(env.LOGTO_AUDIENCE);
+  });
+
+  it.each(['http', 'https'] as const)(
+    'builds an %s logout URL with the client and canonical in-app return',
+    async (protocol) => {
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          ...discovery,
+          end_session_endpoint: `${protocol}://tenant.logto.app/oidc/session/end?existing=kept`,
+        }),
+      );
+
+      const raw = await buildLogoutUrl(env);
+
+      expect(raw).not.toBeNull();
+      const url = new URL(raw!);
+      expect(url.protocol).toBe(`${protocol}:`);
+      expect(url.searchParams.get('existing')).toBe('kept');
+      expect(url.searchParams.get('client_id')).toBe(env.LOGTO_APP_ID);
+      expect(url.searchParams.get('post_logout_redirect_uri')).toBe('https://combo.example/login');
+    },
+  );
+
+  it.each([
+    'javascript:alert(document.domain)',
+    'data:text/html,logged-out',
+    'ftp://tenant.logto.app/oidc/session/end',
+    'not a valid URL',
+  ])('rejects unsafe or invalid logout endpoint %s', async (endSessionEndpoint) => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ ...discovery, end_session_endpoint: endSessionEndpoint }),
+    );
+
+    await expect(buildLogoutUrl(env)).resolves.toBeNull();
   });
 
   it('authorization-code exchange accepts and returns refresh_token', async () => {
