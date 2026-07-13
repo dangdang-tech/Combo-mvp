@@ -1,0 +1,848 @@
+<!-- @dsCard group="06 · 创作侧 Creator" name="⑤ 发布与试用" subtitle="[你的品牌·砖红] 批量发布 + 右侧真实 mini-app GUI 发布前完整试用（步骤 5/5）" -->
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Combo DS · 上传流程 ⑤ 发布与试用</title>
+<style>
+/* ==========================================================================
+ * ① 设计 token（由 packages/ds-tokens 构建生成，此处内联全文；勿手改）。
+ * ========================================================================== */
+:root {
+  --cb-sidebar-w: 256px;
+  --cb-sidebar-w-collapsed: 64px;
+  --cb-paper: #fbfaf6;
+  --cb-bg: #f4f6f4;
+  --cb-surface: #fafbf8;
+  --cb-surface-raised: #ffffff;
+  --cb-muted-bg: #eef2ef;
+  --cb-rail: #f7f7f7;
+  --cb-fg: #1c1b19;
+  --cb-muted: #66706c;
+  --cb-line-1: #d8ded8;
+  --cb-line-2: #e3e7e2;
+  --cb-line-3: #ebefea;
+  --cb-border: var(--cb-line-1);
+  --cb-skeleton: #eef2ef;
+  --cb-grid: rgba(216, 222, 216, 0.72);
+  --cb-accent: #a73718;
+  --cb-accent-strong: #8f2d14;
+  --cb-accent-pressed: #6e210f;
+  --cb-accent-soft: #f7e7e1;
+  --cb-accent-tint: #f4d4c9;
+  --cb-focus-ring: #7fa59d;
+  --cb-ok: #4f6f52;
+  --cb-badge-ok: var(--cb-ok);
+  --cb-warn: #7a5317;
+  --cb-danger: #b3261e;
+  --cb-ok-soft: color-mix(in srgb, var(--cb-ok) 10%, var(--cb-surface));
+  --cb-warn-soft: color-mix(in srgb, var(--cb-warn) 10%, var(--cb-surface));
+  --cb-danger-soft: color-mix(in srgb, var(--cb-danger) 8%, var(--cb-surface));
+  --cb-danger-line: color-mix(in srgb, var(--cb-danger) 28%, transparent);
+  --cb-radius-control: 6px;
+  --cb-radius-card: 7px;
+  --cb-radius-hero: 18px;
+  --cb-radius-pill: 999px;
+  --cb-shadow-surface: 0 2px 8px rgba(28, 27, 25, 0.04);
+  --cb-shadow-hero: 0 8px 24px rgba(28, 27, 25, 0.06);
+  --cb-shadow-overlay: 0 12px 28px rgba(28, 27, 25, 0.1);
+  --cb-font-brand: 'Fraunces', 'Noto Serif SC', serif;
+  --cb-font-serif: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+  --cb-font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --cb-font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', 'Roboto Mono', monospace;
+  --cb-space-1: 4px;
+  --cb-space-2: 8px;
+  --cb-space-3: 10px;
+  --cb-space-4: 14px;
+  --cb-space-5: 20px;
+  --cb-space-6: 26px;
+  --cb-space-7: 32px;
+  --cb-space-8: 40px;
+  --cb-text-xs: 11px;
+  --cb-text-sm: 12px;
+  --cb-text-md: 13px;
+  --cb-text-lg: 14px;
+  --cb-text-xl: 18px;
+  --cb-text-2xl: 24px;
+  --cb-text-3xl: 32px;
+  --cb-dialog-w: 440px;
+  --cb-thread-w-md: 36rem;
+  --cb-thread-w-lg: 46rem;
+  --cb-focus-ring-w: 2px;
+  --cb-indicator-w: 2px;
+  --cb-bar-w: 3px;
+  --cb-accent-contrast: #ffffff;
+  --cb-duration-fast: 120ms;
+  --cb-duration-base: 200ms;
+  --cb-duration-slow: 320ms;
+  --cb-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --cb-ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* ==========================================================================
+ * ② @cb/ds 组件 CSS（构建生成，此处内联全文；勿手改）。
+ * ========================================================================== */
+/* --- src/avatar/avatar.css --- */
+.cb-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--cb-radius-pill);
+  vertical-align: middle;
+  user-select: none;
+}
+.cb-avatar--sm { width: var(--cb-space-5); height: var(--cb-space-5); font-size: var(--cb-text-xs); }
+.cb-avatar--md { width: var(--cb-space-6); height: var(--cb-space-6); font-size: var(--cb-text-sm); }
+.cb-avatar--lg { width: var(--cb-space-7); height: var(--cb-space-7); font-size: var(--cb-text-lg); }
+.cb-avatar--tone-muted { background: var(--cb-muted-bg); }
+.cb-avatar--tone-accent { background: var(--cb-accent-soft); }
+.cb-avatar--tone-ok { background: var(--cb-ok-soft); }
+.cb-avatar-img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cb-avatar-initials {
+  font-family: var(--cb-font-mono);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--cb-fg);
+}
+
+/* --- src/badge/badge.css --- */
+.cb-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: calc(var(--cb-space-1) / 2) var(--cb-space-2);
+  border-radius: var(--cb-radius-pill);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cb-badge--neutral { background: var(--cb-muted-bg); color: var(--cb-muted); }
+.cb-badge--ok { background: var(--cb-ok-soft); color: var(--cb-ok); }
+.cb-badge--warn { background: var(--cb-warn-soft); color: var(--cb-warn); }
+.cb-badge--danger { background: var(--cb-danger-soft); color: var(--cb-danger); }
+.cb-badge--accent { background: var(--cb-accent-soft); color: var(--cb-accent); }
+
+/* --- src/button/button.css --- */
+.cb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cb-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--cb-radius-control);
+  font-family: var(--cb-font-sans);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--cb-duration-fast) var(--cb-ease-standard),
+    border-color var(--cb-duration-fast) var(--cb-ease-standard),
+    color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+.cb-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 calc(var(--cb-space-1) / 2) var(--cb-surface),
+    0 0 0 var(--cb-space-1) var(--cb-focus-ring);
+}
+.cb-btn:disabled { cursor: not-allowed; opacity: 0.55; }
+.cb-btn--sm { padding: var(--cb-space-1) var(--cb-space-2); font-size: var(--cb-text-xs); }
+.cb-btn--md { padding: var(--cb-space-2) var(--cb-space-4); font-size: var(--cb-text-sm); }
+.cb-btn--lg { padding: var(--cb-space-3) var(--cb-space-5); font-size: var(--cb-text-md); }
+.cb-btn--primary { background: var(--cb-accent); border-color: var(--cb-accent); color: var(--cb-accent-contrast); }
+.cb-btn--primary:hover:not(:disabled) { background: var(--cb-accent-strong); border-color: var(--cb-accent-strong); }
+.cb-btn--primary:active:not(:disabled) { background: var(--cb-accent-pressed); border-color: var(--cb-accent-pressed); }
+.cb-btn--secondary { background: var(--cb-surface); border-color: var(--cb-line-1); color: var(--cb-fg); }
+.cb-btn--secondary:hover:not(:disabled) { background: var(--cb-muted-bg); }
+.cb-btn--secondary:active:not(:disabled) { background: var(--cb-line-2); }
+.cb-btn--ghost { background: transparent; border-color: transparent; color: var(--cb-fg); }
+.cb-btn--ghost:hover:not(:disabled) { background: var(--cb-muted-bg); }
+.cb-btn--ghost:active:not(:disabled) { background: var(--cb-line-2); }
+.cb-btn--danger { background: var(--cb-danger); border-color: var(--cb-danger); color: var(--cb-accent-contrast); }
+
+/* --- src/card/card.css --- */
+.cb-card { box-sizing: border-box; min-width: 0; }
+.cb-card--surface {
+  background: var(--cb-surface);
+  border: 1px solid var(--cb-line-2);
+  border-radius: var(--cb-radius-card);
+  box-shadow: var(--cb-shadow-surface);
+}
+.cb-card--raised {
+  background: var(--cb-surface-raised);
+  border-radius: var(--cb-radius-card);
+  box-shadow: var(--cb-shadow-surface);
+}
+.cb-card--hero {
+  background: var(--cb-paper);
+  border-radius: var(--cb-radius-hero);
+  box-shadow: var(--cb-shadow-hero);
+}
+.cb-card--pad-none { padding: 0; }
+.cb-card--pad-md { padding: var(--cb-space-4); }
+.cb-card--pad-lg { padding: var(--cb-space-5); }
+
+/* --- src/text/text.css --- */
+.cb-text { margin: 0; font-family: var(--cb-font-sans); font-size: var(--cb-text-md); line-height: 1.6; color: var(--cb-fg); }
+.cb-text--muted { color: var(--cb-muted); }
+.cb-text--caption { font-size: var(--cb-text-sm); line-height: 1.5; color: var(--cb-muted); }
+.cb-text--label {
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  line-height: 1.4;
+  letter-spacing: 0.05em;
+  color: var(--cb-muted);
+}
+.cb-heading { margin: 0; font-family: var(--cb-font-serif); font-weight: 600; line-height: 1.3; color: var(--cb-fg); }
+.cb-heading--1 { font-size: var(--cb-text-3xl); line-height: 1.15; }
+.cb-heading--2 { font-size: var(--cb-text-2xl); line-height: 1.2; }
+.cb-heading--3 { font-size: var(--cb-text-xl); }
+.cb-heading--4 { font-size: var(--cb-text-lg); }
+
+/* ==========================================================================
+ * ③ 页面专用样式（demo-only，非 DS 产物）。颜色/间距/圆角/阴影/字体全部引用
+ * --cb-* 语义 token；仅结构性尺寸（描边宽度、图标几何、少量显示字号）使用
+ * 字面像素值。品牌名一律 Combo。
+ * ========================================================================== */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--cb-bg);
+  color: var(--cb-fg);
+  font-family: var(--cb-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* —————————————————— 左侧栏 shell（与 upload-1..4 一致） —————————————————— */
+.rail {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: var(--cb-sidebar-w);
+  height: 100vh;
+  padding: var(--cb-space-4);
+  background: var(--cb-rail);
+  border-right: 1px solid var(--cb-line-2);
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cb-space-2);
+  padding: var(--cb-space-2) var(--cb-space-2) var(--cb-space-3);
+}
+
+.brand {
+  font-family: var(--cb-font-brand);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.brand-com { color: var(--cb-fg); }
+.brand-bo { color: var(--cb-accent); }
+
+.rail-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--cb-radius-control);
+  color: var(--cb-muted);
+  cursor: pointer;
+  transition: background-color var(--cb-duration-fast) var(--cb-ease-standard),
+    color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.rail-collapse:hover { background: var(--cb-muted-bg); color: var(--cb-fg); }
+.rail-collapse svg { width: 18px; height: 18px; }
+
+.rail-group {
+  margin: var(--cb-space-4) 0 var(--cb-space-2);
+  padding: 0 var(--cb-space-3);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  letter-spacing: 0.1em;
+  color: var(--cb-muted);
+}
+
+.rail-group:first-of-type { margin-top: var(--cb-space-2); }
+
+.nav { display: flex; flex-direction: column; gap: var(--cb-space-1); }
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-3);
+  height: 40px;
+  padding: 0 var(--cb-space-3);
+  border-radius: var(--cb-radius-control);
+  color: var(--cb-muted);
+  font-size: var(--cb-text-md);
+  text-decoration: none;
+  transition: background-color var(--cb-duration-fast) var(--cb-ease-standard),
+    color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.nav-item:hover { background: var(--cb-muted-bg); }
+
+.nav-item-icon { display: inline-flex; flex: none; width: 18px; height: 18px; }
+.nav-item-icon svg { width: 18px; height: 18px; }
+
+.nav-item--active { background: var(--cb-accent-soft); color: var(--cb-fg); }
+.nav-item--active:hover { background: var(--cb-accent-soft); }
+.nav-item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--cb-space-2);
+  bottom: var(--cb-space-2);
+  width: var(--cb-bar-w);
+  border-radius: var(--cb-radius-pill);
+  background: var(--cb-accent);
+}
+
+/* MVP 后置的导航项：弱化、无 hover、右侧「即将」小 pill。 */
+.nav-item--soon { opacity: 0.45; color: var(--cb-muted); cursor: default; }
+.nav-item--soon:hover { background: transparent; }
+.nav-soon {
+  margin-left: auto;
+  padding: 1px var(--cb-space-2);
+  background: var(--cb-muted-bg);
+  border-radius: var(--cb-radius-pill);
+  font-family: var(--cb-font-mono);
+  font-size: 10px;
+  color: var(--cb-muted);
+}
+
+.rail-spacer { flex: 1; }
+
+.rail-user {
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-3);
+  padding: var(--cb-space-2) var(--cb-space-3);
+  margin-top: var(--cb-space-3);
+  border-top: 1px solid var(--cb-line-3);
+  padding-top: var(--cb-space-4);
+}
+
+.avatar-accent { background: var(--cb-accent); }
+.avatar-accent .cb-avatar-initials { color: var(--cb-accent-contrast); }
+
+.rail-user-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rail-user-name { font-size: var(--cb-text-md); color: var(--cb-fg); }
+.rail-user-role { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); color: var(--cb-muted); }
+
+/* —————————————————— 主区 —————————————————— */
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* 顶栏 */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cb-space-4);
+  flex: none;
+  height: 64px;
+  padding: 0 var(--cb-space-6);
+  border-bottom: 1px solid var(--cb-line-2);
+}
+
+.topbar-left { display: flex; align-items: baseline; gap: var(--cb-space-2); min-width: 0; }
+.topbar-title { font-family: var(--cb-font-serif); font-weight: 600; font-size: var(--cb-text-lg); color: var(--cb-accent); }
+.topbar-crumb { font-size: var(--cb-text-sm); color: var(--cb-muted); white-space: nowrap; }
+.topbar-right { display: flex; align-items: center; gap: var(--cb-space-3); flex: none; }
+
+/* Builder 内容容器 */
+.builder {
+  width: 100%;
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: var(--cb-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--cb-space-6);
+}
+
+/* 步骤条 */
+.stepper { display: flex; align-items: center; }
+.step { display: flex; align-items: center; gap: var(--cb-space-2); flex: none; }
+.step-node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--cb-radius-pill);
+  background: var(--cb-accent);
+  color: var(--cb-accent-contrast);
+}
+.step-node svg { width: 14px; height: 14px; }
+.step-num { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); font-weight: 600; line-height: 1; }
+.step-label { font-size: var(--cb-text-sm); color: var(--cb-muted); white-space: nowrap; }
+.step-label--current { color: var(--cb-fg); }
+.step-line { flex: 1; height: 2px; margin: 0 var(--cb-space-3); border-radius: var(--cb-radius-pill); background: var(--cb-accent); }
+
+/* 页头（eyebrow + H1 + sub） */
+.step-head { display: flex; flex-direction: column; gap: var(--cb-space-2); }
+.eyebrow { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); letter-spacing: 0.08em; color: var(--cb-accent); }
+.step-h1 { margin: 0; font-family: var(--cb-font-serif); font-weight: 600; font-size: 30px; line-height: 1.2; color: var(--cb-fg); }
+.step-sub { margin: 0; font-size: var(--cb-text-md); line-height: 1.6; color: var(--cb-muted); max-width: 72ch; }
+
+/* 左右两栏 */
+.cols { display: flex; gap: var(--cb-space-5); align-items: flex-start; flex-wrap: wrap; }
+.col-left { width: 380px; flex: none; display: flex; flex-direction: column; gap: var(--cb-space-4); }
+.col-right { flex: 1; min-width: 380px; display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.btn-block { width: 100%; }
+
+/* 左栏：能力发布卡 */
+.pub-list { display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.pub-card { display: flex; align-items: center; gap: var(--cb-space-3); padding: var(--cb-space-4); }
+.pub-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--cb-accent);
+  color: var(--cb-accent-contrast);
+}
+.pub-check svg { width: 12px; height: 12px; }
+.pub-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pub-name { font-size: var(--cb-text-md); color: var(--cb-fg); }
+.pub-meta { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); color: var(--cb-muted); }
+.pub-progress {
+  position: relative;
+  height: 3px;
+  margin-top: var(--cb-space-1);
+  border-radius: var(--cb-radius-pill);
+  background: var(--cb-accent-soft);
+  overflow: hidden;
+}
+.pub-progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 60%;
+  border-radius: var(--cb-radius-pill);
+  background: var(--cb-accent);
+}
+.pub-trail { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: var(--cb-space-1); text-align: right; }
+.pub-hint { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); color: var(--cb-muted); white-space: nowrap; }
+
+/* 带圆点的状态标（发布中） */
+.stat-dot { display: inline-block; width: 6px; height: 6px; border-radius: var(--cb-radius-pill); flex: none; }
+.dot-accent { background: var(--cb-accent); }
+.dot-ok { background: var(--cb-ok); }
+.cb-badge .stat-dot { margin-right: var(--cb-space-1); }
+
+/* 试用链接（accent） */
+.trial-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cb-space-1);
+  color: var(--cb-accent);
+  font-size: var(--cb-text-sm);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+.trial-link:hover { color: var(--cb-accent-strong); }
+.trial-link svg { width: 12px; height: 12px; }
+
+.note { font-size: var(--cb-text-xs); line-height: 1.6; color: var(--cb-muted); }
+
+/* 通用 accent 小链接 */
+.link-accent {
+  color: var(--cb-accent);
+  font-size: var(--cb-text-sm);
+  font-family: var(--cb-font-sans);
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+.link-accent:hover { color: var(--cb-accent-strong); }
+
+/* 右栏：试用面板 */
+.trial-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cb-space-3); flex-wrap: wrap; }
+.trial-head-left { display: flex; align-items: center; gap: var(--cb-space-3); }
+.trial-title { font-size: var(--cb-text-md); color: var(--cb-fg); }
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cb-space-1);
+  padding: 2px var(--cb-space-2);
+  background: var(--cb-accent-soft);
+  border-radius: var(--cb-radius-pill);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  color: var(--cb-accent);
+}
+
+/* 浏览器窗 */
+.browser { overflow: hidden; }
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-3);
+  padding: var(--cb-space-2) var(--cb-space-3);
+  border-bottom: 1px solid var(--cb-line-2);
+}
+.chrome-dots { display: inline-flex; gap: 6px; flex: none; }
+.chrome-dot { width: 10px; height: 10px; border-radius: var(--cb-radius-pill); background: var(--cb-line-1); }
+.chrome-addr {
+  flex: 1;
+  min-width: 0;
+  padding: 4px var(--cb-space-3);
+  background: var(--cb-muted-bg);
+  border-radius: var(--cb-radius-control);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  color: var(--cb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 窗内 mini-app GUI */
+.miniapp { padding: var(--cb-space-5); }
+.mini-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cb-space-3); }
+.mini-title-wrap { display: flex; align-items: baseline; gap: var(--cb-space-2); min-width: 0; }
+.mini-title { font-family: var(--cb-font-serif); font-weight: 600; font-size: var(--cb-text-lg); color: var(--cb-fg); }
+.mini-sub { font-size: var(--cb-text-sm); color: var(--cb-muted); }
+
+.mini-io { display: flex; flex-direction: column; gap: var(--cb-space-3); margin-top: var(--cb-space-4); }
+.io-field { display: flex; flex-direction: column; gap: var(--cb-space-1); }
+.io-label { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); color: var(--cb-muted); }
+.io-value { font-size: var(--cb-text-md); color: var(--cb-fg); }
+.io-status { display: flex; align-items: center; justify-content: space-between; gap: var(--cb-space-3); }
+.io-gen { display: inline-flex; align-items: center; gap: var(--cb-space-1); font-size: var(--cb-text-sm); color: var(--cb-ok); }
+.io-gen svg { width: 14px; height: 14px; }
+
+.mini-divider { border: none; border-top: 1px solid var(--cb-line-3); margin: var(--cb-space-4) 0; }
+
+/* 结构化 PRD 产物卡 */
+.prd-card { padding: var(--cb-space-4); }
+.prd-eyebrow { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); letter-spacing: 0.06em; color: var(--cb-accent); }
+.prd-block { margin-top: var(--cb-space-3); display: flex; flex-direction: column; gap: var(--cb-space-1); }
+.prd-h { font-size: var(--cb-text-sm); font-weight: 600; color: var(--cb-fg); }
+.prd-k { font-family: var(--cb-font-mono); font-size: var(--cb-text-xs); color: var(--cb-muted); }
+.prd-text { font-size: var(--cb-text-sm); line-height: 1.6; color: var(--cb-fg); }
+.prd-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--cb-space-3); margin-top: var(--cb-space-4); }
+
+.trial-note { font-size: var(--cb-text-xs); line-height: 1.6; color: var(--cb-muted); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ==================== 左侧栏 shell ==================== -->
+  <aside class="rail">
+    <div class="brand-row">
+      <span class="brand"><span class="brand-com">Com</span><span class="brand-bo">bo.</span></span>
+      <button class="rail-collapse" type="button" aria-label="折叠侧栏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+
+    <p class="rail-group">创作</p>
+    <nav class="nav" aria-label="创作">
+      <a class="nav-item" href="#">
+        <span class="nav-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </span>
+        <span class="nav-item-label">工作台</span>
+      </a>
+      <a class="nav-item" href="#">
+        <span class="nav-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3.5" y1="6" x2="3.51" y2="6"/><line x1="3.5" y1="12" x2="3.51" y2="12"/><line x1="3.5" y1="18" x2="3.51" y2="18"/></svg>
+        </span>
+        <span class="nav-item-label">我的能力</span>
+      </a>
+      <a class="nav-item nav-item--active" href="#" aria-current="page">
+        <span class="nav-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </span>
+        <span class="nav-item-label">上传能力</span>
+      </a>
+      <a class="nav-item nav-item--soon" href="#" aria-disabled="true" tabindex="-1">
+        <span class="nav-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="14"/><line x1="12" y1="20" x2="12" y2="9"/><line x1="18" y1="20" x2="18" y2="4"/></svg>
+        </span>
+        <span class="nav-item-label">数据分析</span>
+        <span class="nav-soon">即将</span>
+      </a>
+      <a class="nav-item nav-item--soon" href="#" aria-disabled="true" tabindex="-1">
+        <span class="nav-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+        </span>
+        <span class="nav-item-label">收益</span>
+        <span class="nav-soon">即将</span>
+      </a>
+    </nav>
+
+    <p class="rail-group">我的</p>
+    <nav class="nav" aria-label="我的">
+      <a class="nav-item" href="#">
+        <span class="nav-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <span class="nav-item-label">个人主页</span>
+      </a>
+    </nav>
+
+    <div class="rail-spacer"></div>
+
+    <div class="rail-user">
+      <span class="cb-avatar cb-avatar--md avatar-accent" role="img" aria-label="Wayne"><span class="cb-avatar-initials" aria-hidden="true">W</span></span>
+      <span class="rail-user-meta">
+        <span class="rail-user-name">Wayne</span>
+        <span class="rail-user-role">CGO</span>
+      </span>
+    </div>
+  </aside>
+
+  <!-- ==================== 主区 ==================== -->
+  <main class="main">
+
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title">上传能力</span>
+        <span class="topbar-crumb">/ Creator Builder</span>
+      </div>
+      <div class="topbar-right">
+        <button class="cb-btn cb-btn--ghost cb-btn--sm" type="button">保存草稿</button>
+        <span class="cb-avatar cb-avatar--md avatar-accent" role="img" aria-label="Wayne"><span class="cb-avatar-initials" aria-hidden="true">W</span></span>
+      </div>
+    </header>
+
+    <div class="builder">
+
+      <!-- 步骤条：导入 提取 选择 结构化 全部已完成；发布=当前 -->
+      <nav class="stepper" aria-label="上传流程进度">
+        <div class="step">
+          <span class="step-node" aria-label="导入 已完成"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="step-label">导入</span>
+        </div>
+        <span class="step-line"></span>
+        <div class="step">
+          <span class="step-node" aria-label="提取 已完成"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="step-label">提取</span>
+        </div>
+        <span class="step-line"></span>
+        <div class="step">
+          <span class="step-node" aria-label="选择 已完成"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="step-label">选择</span>
+        </div>
+        <span class="step-line"></span>
+        <div class="step">
+          <span class="step-node" aria-label="结构化 已完成"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="step-label">结构化</span>
+        </div>
+        <span class="step-line"></span>
+        <div class="step">
+          <span class="step-node" aria-current="step"><span class="step-num">5</span></span>
+          <span class="step-label step-label--current">发布</span>
+        </div>
+      </nav>
+
+      <!-- 页头 -->
+      <div class="step-head">
+        <span class="eyebrow">STEP 5 · 发布与试用</span>
+        <h1 class="step-h1">发成 mini-app，先在这里完整试用</h1>
+        <p class="step-sub">它本身就带 GUI——右侧是真实可交互的 mini-app，发布前用真实输入跑一遍、确认产物没问题，再一键发布。</p>
+      </div>
+
+      <!-- 两栏 -->
+      <div class="cols">
+
+        <!-- 左栏：批量发布 + 4 张能力卡 -->
+        <div class="col-left">
+          <button class="cb-btn cb-btn--primary cb-btn--md btn-block" type="button">批量发布 4 项</button>
+
+          <div class="pub-list">
+
+            <!-- ① 需求炼金师 -->
+            <div class="cb-card cb-card--surface pub-card">
+              <span class="pub-check" role="img" aria-label="已选中"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="pub-body">
+                <span class="pub-name">需求炼金师</span>
+                <span class="pub-meta">大厂PM · schema v2</span>
+              </div>
+              <div class="pub-trail">
+                <span class="cb-badge cb-badge--ok">已发布</span>
+                <a class="trial-link" href="#">试用<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></a>
+              </div>
+            </div>
+
+            <!-- ② 面向大厂PM的资格打分器 -->
+            <div class="cb-card cb-card--surface pub-card">
+              <span class="pub-check" role="img" aria-label="已选中"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="pub-body">
+                <span class="pub-name">面向大厂PM的资格打分器</span>
+                <span class="pub-meta">大厂PM · schema v2</span>
+              </div>
+              <div class="pub-trail">
+                <span class="cb-badge cb-badge--ok">已发布</span>
+                <a class="trial-link" href="#">试用<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></a>
+              </div>
+            </div>
+
+            <!-- ③ VC 拷打模拟器（发布中 60%） -->
+            <div class="cb-card cb-card--surface pub-card">
+              <span class="pub-check" role="img" aria-label="已选中"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="pub-body">
+                <span class="pub-name">VC 拷打模拟器</span>
+                <span class="pub-meta">创业者 · schema v1</span>
+                <span class="pub-progress" role="progressbar" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"><span class="pub-progress-fill"></span></span>
+              </div>
+              <div class="pub-trail">
+                <span class="cb-badge cb-badge--accent"><span class="stat-dot dot-accent"></span>发布中 60%</span>
+                <span class="pub-hint">生成后可试用</span>
+              </div>
+            </div>
+
+            <!-- ④ Verifiable 核查报告（需补全） -->
+            <div class="cb-card cb-card--surface pub-card">
+              <span class="pub-check" role="img" aria-label="已选中"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <div class="pub-body">
+                <span class="pub-name">Verifiable 核查报告</span>
+                <span class="pub-meta">独立开发者 · schema v2</span>
+              </div>
+              <div class="pub-trail">
+                <span class="cb-badge cb-badge--warn">补全并重试</span>
+                <span class="pub-hint">评测过程可试用</span>
+              </div>
+            </div>
+
+          </div>
+
+          <p class="note">发布后进入人工评审（Alpha）；试用不计入对外数据。</p>
+        </div>
+
+        <!-- 右栏：试用面板 -->
+        <div class="col-right">
+
+          <div class="trial-head">
+            <div class="trial-head-left">
+              <span class="trial-title">试用 · 发布前完整体验</span>
+              <span class="live-badge"><span class="stat-dot dot-accent"></span>LIVE</span>
+            </div>
+            <button class="link-accent" type="button">重置试用</button>
+          </div>
+
+          <!-- 浏览器窗（消费者视角的真实 mini-app GUI） -->
+          <div class="cb-card cb-card--raised browser">
+            <div class="chrome">
+              <span class="chrome-dots" aria-hidden="true">
+                <span class="chrome-dot"></span>
+                <span class="chrome-dot"></span>
+                <span class="chrome-dot"></span>
+              </span>
+              <span class="chrome-addr">combo.app/a/lianjinshi-x3f9</span>
+            </div>
+
+            <div class="miniapp">
+              <div class="mini-head">
+                <div class="mini-title-wrap">
+                  <span class="mini-title">需求炼金师</span>
+                  <span class="mini-sub">· 把想法炼成 PRD</span>
+                </div>
+                <button class="cb-btn cb-btn--primary cb-btn--sm" type="button">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                  完整试用
+                </button>
+              </div>
+
+              <!-- 输入区 -->
+              <div class="mini-io">
+                <div class="io-field">
+                  <span class="io-label">你想做的产品/功能？</span>
+                  <span class="io-value">给 3–8 人小团队的轻量协作待办</span>
+                </div>
+                <div class="io-field">
+                  <span class="io-label">解决谁的什么问题？</span>
+                  <span class="io-value">小团队靠口头对齐，任务总漏</span>
+                </div>
+                <div class="io-status">
+                  <span class="io-gen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>已生成</span>
+                  <button class="link-accent" type="button">改输入重跑</button>
+                </div>
+              </div>
+
+              <hr class="mini-divider" />
+
+              <!-- 产物区：结构化 PRD -->
+              <div class="cb-card cb-card--surface prd-card">
+                <span class="prd-eyebrow">PRD · 协作待办 APP</span>
+                <div class="prd-block">
+                  <span class="prd-h">一句话定位</span>
+                  <p class="prd-text">给 3–8 人小团队一个『当面也能用』的轻办：每条任务绑定负责人和截止日，状态实时同步。</p>
+                </div>
+                <div class="prd-block">
+                  <span class="prd-k">范围 · In</span>
+                  <p class="prd-text">任务 CRUD、负责人、截止日、三态流转、@提醒。</p>
+                </div>
+                <div class="prd-block">
+                  <span class="prd-k">范围 · Out</span>
+                  <p class="prd-text">甘特图、工时统计、第三方集成（v1 不做）。</p>
+                </div>
+                <div class="prd-foot">
+                  <span class="cb-badge cb-badge--neutral">真实产物 · 可导出</span>
+                  <button class="link-accent" type="button">导出 .md</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="trial-note">↑ 这就是消费者会看到的完整 GUI——发布前你可以反复改输入、重跑、确认产物。</p>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+</div>
+</body>
+</html>
