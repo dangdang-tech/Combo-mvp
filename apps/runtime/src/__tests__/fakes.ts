@@ -451,9 +451,12 @@ export function makeFakeAgentFactory(script: FakeAgentScript = {}): FakeAgentFac
 export const silentLog = { error: () => undefined };
 
 /** 轮询等待条件成立（异步轮次收尾用）。 */
-export async function waitFor(cond: () => boolean, timeoutMs = 2_000): Promise<void> {
+export async function waitFor(
+  cond: () => boolean | Promise<boolean>,
+  timeoutMs = 2_000,
+): Promise<void> {
   const start = Date.now();
-  while (!cond()) {
+  while (!(await cond())) {
     if (Date.now() - start > timeoutMs) throw new Error('waitFor: timeout');
     await new Promise((r) => setTimeout(r, 5));
   }

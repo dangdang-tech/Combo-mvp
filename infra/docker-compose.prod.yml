@@ -60,6 +60,7 @@ services:
       # 与 api 同口径：production + 关死 dev-login，试用端同样只认真实会话。
       NODE_ENV: production
       DEV_LOGIN_ENABLED: 'false'
+      REDIS_URL: redis://redis_queue:6379
 
   web:
     image: ghcr.io/dangdang-tech/combo-web:${IMAGE_TAG:?IMAGE_TAG 必填（CD 写入部署 SHA）}

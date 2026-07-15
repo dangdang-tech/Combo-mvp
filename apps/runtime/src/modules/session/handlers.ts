@@ -237,7 +237,7 @@ export function interruptHandler(): RouteHandlerMethod {
     if (!session) return reply;
 
     // 无进行中的轮 → interrupted=false（幂等，不当错误）。
-    const interrupted = req.server.turns.interrupt(session.id);
+    const interrupted = await req.server.turns.interrupt(session.id);
     const body: Envelope<{ interrupted: boolean }> = {
       data: { interrupted },
       meta: { traceId: req.id },

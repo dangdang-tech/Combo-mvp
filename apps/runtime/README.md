@@ -1,7 +1,7 @@
 # apps/runtime（试用端 · 能力项播放器）
 
 创作者对某个 Capability 开会话试用的独立后端：形态类 Claude Artifacts（左聊天流右产物画布）。
-单进程（api），对话生成在进程内异步跑（生命周期不绑 HTTP 连接）。
+对话生成在接收请求的实例内异步运行，生命周期不绑定 HTTP 连接。Redis 会话租约保证多实例部署时同一会话同时最多运行一轮，打断请求可以发送到任意实例。
 
 ## 与 authoring 的边界（铁律）
 
@@ -14,7 +14,7 @@
 
 ## 结构
 
-- `platform/`：config/env · infra（db / object-store / llm provider / logto / dev-session /
+- `platform/`：config/env · infra（db / redis / object-store / llm provider / logto / dev-session /
   进程内事件总线）· middleware/auth（登录态校验）· http（错误信封 / 健康检查 / client-events）· observability。
 - `modules/capability/`：loader（owner 本人 OR published 才放行 → MinIO 读定义 → schema 校验，
   version 不认识报「能力格式过新」）· 试用入口列表。
@@ -54,16 +54,18 @@ pi 是执行层，事件翻成标准 AG-UI 事件：`RUN_STARTED → TEXT_MESSAG
 - `POST /runtime/sessions/:id/interrupt` 打断当前轮
 - `GET  /runtime/sessions/:id/stream` 流式生成事件（SSE，心跳 15s，Last-Event-ID 续传）
 - `GET  /runtime/artifacts/:id/content` 产物内容回读（带正确 Content-Type）
-- `GET /health` · `GET /ready`（db/minio/logto required + llm degraded）
+- `GET /health` · `GET /ready`（db/minio/logto/redis_queue required + llm degraded）
 
 ## 本地起跑
 
 ```bash
 # 1) 建库（基线 schema 0000）后，用 authoring 的上传→提取产出能力项，或手工插 capabilities 行 + MinIO 定义。
 
-# 2) 起 api（默认 3100；dev 登录态需与 authoring 共享 DEV_SESSION_SECRET）
-DATABASE_URL=... S3_ENDPOINT=http://localhost:9000 \
+# 2) 起 api（默认 3100；REDIS_URL 必须指向不可驱逐的 Redis；dev 登录态需与 authoring 共享 DEV_SESSION_SECRET）
+DATABASE_URL=... REDIS_URL=redis://localhost:6379 S3_ENDPOINT=http://localhost:9000 \
   DEV_LOGIN_ENABLED=true DEV_SESSION_SECRET=... \
   OPENROUTER_API_KEY=... RUNTIME_LLM_PROVIDER=openrouter \
   PORT=3100 NODE_ENV=development pnpm -F @cb/runtime dev
 ```
+
+`REDIS_URL` 是必填连接串，必须指向采用 noeviction 策略的 redis_queue 实例，不能指向会驱逐键的 redis_hot。`RUNTIME_INSTANCE_ID` 可选；未配置时进程启动会生成一个随机标识。每个运行实例保留自己的执行句柄，Redis 只保存租约状态、打断标记并广播打断信号。

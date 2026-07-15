@@ -12,6 +12,7 @@ import { CAPABILITY_BUCKET } from '../modules/capability/loader.js';
 import { artifactContentHandler } from '../modules/artifact/handlers.js';
 import { createSession } from '../modules/session/repo.js';
 import { createTurnRunner } from '../modules/agent/run-turn.js';
+import { FakeTurnGateStore } from './fake-turn-gate.js';
 import { createSessionEventBus } from '../platform/infra/event-bus.js';
 import { FakeDb, FakeObjectStore, makeFakeAgentFactory, silentLog } from './fakes.js';
 
@@ -82,6 +83,8 @@ function makeReq(input: {
     bus: createSessionEventBus(),
     agentFactory: makeFakeAgentFactory().factory,
     idleTimeoutMs: 60_000,
+    gate: new FakeTurnGateStore(),
+    instanceId: 'routes-test',
   });
   return {
     id: 'trace-test',

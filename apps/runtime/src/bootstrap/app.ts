@@ -14,7 +14,7 @@ import {
   type ErrorCodeValue,
 } from '@cb/shared';
 import { loadEnv, type Env } from '../platform/config/env.js';
-import { buildInfra } from '../platform/infra/index.js';
+import { buildInfra, createRedisTurnGateStore } from '../platform/infra/index.js';
 import { registerHealthRoutes } from '../platform/http/health.js';
 import {
   currentTraceId,
@@ -54,8 +54,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     trustProxy: true,
   });
 
-  // —— 基础设施容器 + 轮次编排器（单进程：生成在本进程内异步跑，闸在 runner 内存里）——
+  // —— 基础设施容器 + 轮次编排器 ——
   const infra = buildInfra(env);
+  const gate = createRedisTurnGateStore(env);
   app.decorate('infra', infra);
   app.decorate(
     'turns',
@@ -65,6 +66,8 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       bus: infra.bus,
       agentFactory: createPiTurnAgentFactory(env),
       idleTimeoutMs: env.RUNTIME_TURN_IDLE_TIMEOUT_MS,
+      gate,
+      instanceId: env.RUNTIME_INSTANCE_ID,
     }),
   );
 
@@ -123,9 +126,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // 进程退出时关闭基础设施连接。
   app.addHook('onClose', async () => {
-    const { closeDb, closeObjectStore } = await import('../platform/infra/index.js');
+    const { closeDb, closeObjectStore, closeRedis } = await import('../platform/infra/index.js');
     await closeDb();
     closeObjectStore();
+    await closeRedis();
   });
 
   return app;

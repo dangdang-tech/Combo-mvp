@@ -2,6 +2,7 @@
 //   生产缺关键连接串/密钥即启动失败；dev/test 回落默认 + warn。
 //   LLM key 不进生产必填集——缺失只让对话轮次降级报错，不阻塞启动。
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 
 /** 「留空即默认」：compose `X=${X:-}` 注入会把未设变量变成空串 ''，统一规整成 undefined 走 schema 语义。 */
 const emptyToUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
@@ -21,6 +22,11 @@ const EnvSchema = z.object({
 
   // PostgreSQL：与创作端同一个库（capabilities 只读 + 试用层四表读写）。
   DATABASE_URL: z.string().default('postgres://combo:combo@localhost:5432/combo'),
+  REDIS_URL: z.string().trim().min(1).default('redis://localhost:6379'),
+  RUNTIME_INSTANCE_ID: z.preprocess(
+    emptyToUndefined,
+    z.string().trim().min(1).default(randomUUID()),
+  ),
 
   // ObjectStore（MinIO/S3）：按 capabilities.storage_key 读能力定义 + 读写产物内容。
   S3_ENDPOINT: z.string().default('http://localhost:9000'),
@@ -64,6 +70,7 @@ export type Env = z.infer<typeof EnvSchema>;
 /** 生产必填（缺失即启动 throw，绝不带默认凭据上生产）。LLM key 不在列。 */
 const PRODUCTION_REQUIRED = [
   'DATABASE_URL',
+  'REDIS_URL',
   'S3_ENDPOINT',
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY',

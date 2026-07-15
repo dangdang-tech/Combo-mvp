@@ -12,6 +12,7 @@ services:
   runtime:
     environment:
       NODE_ENV: development
+      REDIS_URL: redis://redis_queue:6379
       DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-}
       DEV_SESSION_SECRET: ${DEV_SESSION_SECRET:-}
   worker:

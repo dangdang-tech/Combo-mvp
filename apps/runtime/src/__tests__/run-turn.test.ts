@@ -13,6 +13,7 @@ import {
   waitFor,
   type FakeAgentScript,
 } from './fakes.js';
+import { FakeTurnGateStore } from './fake-turn-gate.js';
 
 const ME = 'user-me';
 
@@ -32,18 +33,21 @@ async function setup(script: FakeAgentScript = {}, idleTimeoutMs = 60_000) {
   const store = new FakeObjectStore();
   const bus = createSessionEventBus();
   const handle = makeFakeAgentFactory(script);
+  const gate = new FakeTurnGateStore();
   const runner = createTurnRunner({
     db,
     objectStore: store,
     bus,
     agentFactory: handle.factory,
     idleTimeoutMs,
+    gate,
+    instanceId: 'test-instance',
   });
   const cap = db.seedCapability({ owner_user_id: ME });
   const session: SessionRow = await createSession(db, { capabilityId: cap.id, ownerUserId: ME });
   const published: PublishedStreamEvent[] = [];
   bus.subscribe(session.id, (e) => published.push(e));
-  return { db, store, bus, handle, runner, session, published };
+  return { db, store, bus, handle, gate, runner, session, published };
 }
 
 function eventTypes(db: FakeDb): unknown[] {
@@ -56,7 +60,7 @@ async function runToIdle(
   text = '帮我整理这份速记',
 ) {
   const result = await runner.startTurn({ session, definition: DEFINITION, text, log: silentLog });
-  if (result.status === 'started') await waitFor(() => !runner.isBusy(session.id));
+  if (result.status === 'started') await waitFor(async () => !(await runner.isBusy(session.id)));
   return result;
 }
 
@@ -145,7 +149,7 @@ describe('run-turn busy 闸与打断', () => {
       log: silentLog,
     });
     expect(first.status).toBe('started');
-    expect(runner.isBusy(session.id)).toBe(true);
+    expect(await runner.isBusy(session.id)).toBe(true);
 
     const second = await runner.startTurn({
       session,
@@ -156,8 +160,8 @@ describe('run-turn busy 闸与打断', () => {
     expect(second.status).toBe('busy');
     expect(db.messages.filter((m) => m.role === 'user')).toHaveLength(1); // 第二条没落库
 
-    expect(runner.interrupt(session.id)).toBe(true);
-    await waitFor(() => !runner.isBusy(session.id));
+    expect(await runner.interrupt(session.id)).toBe(true);
+    await waitFor(async () => !(await runner.isBusy(session.id)));
 
     // 打断落 failed 消息（已生成的部分文本保留），事件以 RUN_ERROR 收尾、无 RUN_FINISHED。
     const failed = db.messages.find((m) => m.role === 'assistant');
@@ -168,7 +172,7 @@ describe('run-turn busy 闸与打断', () => {
     expect(types).not.toContain(EventType.RUN_FINISHED);
 
     // 闸已释放：可开下一轮；无进行中的轮时 interrupt → false。
-    expect(runner.interrupt(session.id)).toBe(false);
+    expect(await runner.interrupt(session.id)).toBe(false);
   });
 });
 
@@ -184,7 +188,7 @@ describe('run-turn 空闲看门狗（issue #51：流中途停滞永无终态）'
     });
     expect(result.status).toBe('started');
     // 不做人工 interrupt：看门狗自己判死并收尾。
-    await waitFor(() => !runner.isBusy(session.id));
+    await waitFor(async () => !(await runner.isBusy(session.id)));
 
     const failed = db.messages.find((m) => m.role === 'assistant');
     expect(failed?.status).toBe('failed');
@@ -231,6 +235,8 @@ describe('run-turn 失败路径（失败落 failed 消息 + RUN_ERROR）', () =>
         throw new TurnAgentUnavailableError('试用服务未配置模型密钥，暂时无法对话。');
       },
       idleTimeoutMs: 60_000,
+      gate: new FakeTurnGateStore(),
+      instanceId: 'test-instance',
     });
     const result = await runner.startTurn({
       session,
@@ -239,7 +245,7 @@ describe('run-turn 失败路径（失败落 failed 消息 + RUN_ERROR）', () =>
       log: silentLog,
     });
     expect(result.status).toBe('started');
-    await waitFor(() => !runner.isBusy(session.id));
+    await waitFor(async () => !(await runner.isBusy(session.id)));
 
     const failed = db.messages.find((m) => m.role === 'assistant');
     expect(failed?.status).toBe('failed');
