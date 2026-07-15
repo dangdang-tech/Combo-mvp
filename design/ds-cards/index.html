@@ -132,7 +132,7 @@ body {
     </div>
 
     <div class="group">
-      <div class="group-head"><span class="group-no">03</span><span class="group-name">组件 Components</span><span class="group-count">8</span></div>
+      <div class="group-head"><span class="group-no">03</span><span class="group-name">组件 Components</span><span class="group-count">9</span></div>
       <div class="items">
         <div class="item"><span class="dot dot--ok"></span><span class="item-name">Button</span><span class="item-file">components/button</span></div>
         <div class="item"><span class="dot dot--ok"></span><span class="item-name">Input / Composer</span><span class="item-file">components/inputs</span></div>
@@ -141,7 +141,8 @@ body {
         <div class="item"><span class="dot dot--ok"></span><span class="item-name">Badge / Timestamp / Citation</span><span class="item-file">components/badges-meta</span></div>
         <div class="item"><span class="dot dot--ok"></span><span class="item-name">Dialog / Toast</span><span class="item-file">components/overlay</span></div>
         <div class="item"><span class="dot dot--ok"></span><span class="item-name">Heading / Text</span><span class="item-file">components/text</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">MiniAppShell（受限渲染兜底）</span><span class="item-file">components/miniapp</span></div>
+        <div class="item"><span class="dot dot--ok"></span><span class="item-name">MiniAppShell（三态 running/ok/error）</span><span class="item-file">components/miniapp</span></div>
+        <div class="item"><span class="dot dot--ok"></span><span class="item-name">Markdown（富文本渲染）</span><span class="item-file">components/markdown</span></div>
       </div>
     </div>
 
@@ -164,15 +165,12 @@ body {
     </div>
 
     <div class="group">
-      <div class="group-head"><span class="group-no">06</span><span class="group-name">创作侧 Creator</span><span class="group-count">7</span></div>
+      <div class="group-head"><span class="group-no">06</span><span class="group-name">创作侧 Creator · 实装镜像</span><span class="group-count">4</span></div>
       <div class="items">
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">工作台 Dashboard</span><span class="item-file">pages/dashboard</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">个人主页 Profile</span><span class="item-file">pages/profile</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">上传 ① 导入对话历史</span><span class="item-file">pages/upload-1-import</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">上传 ② 提取能力项</span><span class="item-file">pages/upload-2-extract</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">上传 ③ 选择与描述</span><span class="item-file">pages/upload-3-select</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">上传 ④ 结构化 App Identity</span><span class="item-file">pages/upload-4-structure</span></div>
-        <div class="item"><span class="dot dot--ok"></span><span class="item-name">上传 ⑤ 发布与试用</span><span class="item-file">pages/upload-5-publish</span></div>
+        <div class="item"><span class="dot dot--ok"></span><span class="item-name">① 上传任务页（含配对卡）</span><span class="item-file">pages/creator-tasks</span></div>
+        <div class="item"><span class="dot dot--ok"></span><span class="item-name">② 任务详情 · 上传+SSE提取</span><span class="item-file">pages/creator-task-detail</span></div>
+        <div class="item"><span class="dot dot--ok"></span><span class="item-name">③ 能力挑选 · 一键发布</span><span class="item-file">pages/creator-capability-picker</span></div>
+        <div class="item"><span class="dot dot--ok"></span><span class="item-name">④ 我的能力页</span><span class="item-file">pages/creator-capabilities</span></div>
       </div>
     </div>
 
@@ -184,8 +182,19 @@ body {
     </div>
 
     <div class="group">
-      <div class="group-head"><span class="group-no">—</span><span class="group-name">归档 _archive</span><span class="group-count">10</span></div>
+      <div class="group-head"><span class="group-no">08</span><span class="group-name">货架 · 推荐流探索</span><span class="group-count">4</span></div>
       <div class="items">
+        <div class="item"><span class="dot dot--todo"></span><span class="item-name">方向 A · 编辑部日报（PH×报纸）</span><span class="item-file">pages/shelf-a-editorial</span></div>
+        <div class="item"><span class="dot dot--todo"></span><span class="item-name">方向 B · 画廊货架（PlugThis×美术馆）</span><span class="item-file">pages/shelf-b-gallery</span></div>
+        <div class="item"><span class="dot dot--todo"></span><span class="item-name">方向 C · 策展推荐流（即梦×杂志）</span><span class="item-file">pages/shelf-c-feed</span></div>
+        <div class="item"><span class="dot dot--arch"></span><span class="item-name">方向 D · 暗房沉浸（暗色对照）</span><span class="item-file">pages/shelf-d-dark</span></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-head"><span class="group-no">—</span><span class="group-name">归档 _archive</span><span class="group-count">17</span></div>
+      <div class="items">
+        <div class="item"><span class="dot dot--arch"></span><span class="item-name">旧创作愿景（工作台/五步向导/App Identity 编辑器）</span><span class="item-file">creator-legacy · 与实装不符</span></div>
         <div class="item"><span class="dot dot--arch"></span><span class="item-name">Persona 运行时三态 + docked-b</span><span class="item-file">已废弃留档</span></div>
         <div class="item"><span class="dot dot--arch"></span><span class="item-name">珊瑚版上传 ①-⑤</span><span class="item-file">已废弃留档</span></div>
         <div class="item"><span class="dot dot--arch"></span><span class="item-name">vs astryx / Simple DS 对比</span><span class="item-file">早期探索</span></div>
@@ -202,6 +211,7 @@ body {
     <div class="todo-row"><span class="dot dot--todo"></span><span class="todo-tag">协议</span><span>artifact 沙盒协议草案一页纸（消息类型 · 能力声明 · 状态推信号拉数据 · selection SDK）</span></div>
     <div class="todo-row"><span class="dot dot--todo"></span><span class="todo-tag">产品页</span><span>「我的能力」创作者管理页（创作留存回路）</span></div>
     <div class="todo-row"><span class="dot dot--todo"></span><span class="todo-tag">工程</span><span>外壳迁 apps/runtime-web React 组件（artifact 位 = 沙盒 iframe）· 暗色 token 人工调校</span></div>
+    <div class="todo-row"><span class="dot dot--todo"></span><span class="todo-tag">货架方向</span><span>4 个风格方向已出（A 编辑部日报 / B 画廊货架 / C 策展推荐流 / D 暗房对照），待选主方向后细化空态·加载·分页·移动端</span></div>
   </div>
 
   <div class="legend">

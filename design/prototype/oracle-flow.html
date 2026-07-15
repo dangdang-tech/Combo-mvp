@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Combo 占卜经验体 · 交互原型</title>
+<title>Combo 占卜能力 · 交互原型</title>
 </head>
 <body>
 <style>
@@ -1015,7 +1015,7 @@ body {
         <div class="rt-section">
           <div class="rt-run-label">正在运行</div>
           <!-- 「正在运行」列表由 renderRunning() 填充：默认「诚实稀疏」态（首次访客：仅本 app + 单会话）；
-               顶部调试条「回访态」toggle 切到富的老用户态（+ 合婚会话 + 别家经验体） -->
+               顶部调试条「回访态」toggle 切到富的老用户态（+ 合婚会话 + 别家能力） -->
           <div class="rt-applist" id="rtApplist"></div>
         </div>
         <div class="rt-spacer"></div>
@@ -1050,10 +1050,10 @@ body {
 
         <!-- entry hero · 平台版（现有中性首屏；主场版隐藏） -->
         <div class="entry-hero" id="entryHero">
-          <div class="entry-invite"><span class="entry-kol-ava">星</span><span class="entry-invite-text"><b>星野</b> 邀请你体验 ta 的经验体</span></div>
-          <div class="entry-eyebrow">占卜 · 经验体</div>
+          <div class="entry-invite"><span class="entry-kol-ava">星</span><span class="entry-invite-text"><b>星野</b> 邀请你体验 ta 的能力</span></div>
+          <div class="entry-eyebrow">占卜 · 能力</div>
           <h1 class="entry-name">明日运势</h1>
-          <p class="entry-tagline">把你的生日交给星野的命理经验体，排一张命盘，看看明天的运势走向。</p>
+          <p class="entry-tagline">把你的生日交给星野的命理能力，排一张命盘，看看明天的运势走向。</p>
           <!-- ① 信任带（平台壳层 · 中性黑白灰 · 脚注非广告） -->
           <div class="entry-trust">
             <span class="entry-trust-count">已有 <b>32,481</b> 人排过</span>
@@ -2570,7 +2570,7 @@ body {
     });
   });
 
-  // ---------- 侧栏：会话切换 / 经验体（演示级反馈，保持位置态不变 → 与位置正交） ----------
+  // ---------- 侧栏：会话切换 / 能力（演示级反馈，保持位置态不变 → 与位置正交） ----------
   function skeletonDockHTML(name){
     return '<div class="dock-day">今天 · 21:06</div>'
       + '<div class="dock-sysline"><span class="cb-btn-spinner" style="width:11px;height:11px"></span>正在切换到「'+esc(name)+'」…</div>';
@@ -2600,7 +2600,7 @@ body {
   }
   // —— 「正在运行」侧栏渲染（诚实稀疏 / 回访富 两套，由 returning 标志切换） ——
   //    稀疏（首次访客）：只反映「你刚用了这一个 app、刚开了一条会话」。
-  //    富（回访老用户）：明日运势带两条会话 + 三个别家经验体（各自状态点）。
+  //    富（回访老用户）：明日运势带两条会话 + 三个别家能力（各自状态点）。
   //    每次重渲染后由本函数内 bindRunning() 重新绑定会话/app 点击（保住会话切换 demo）。
   var returning = false;          // 回访态标志（默认 false = 首次访客稀疏态）
   var currentSession = 'daily';   // 当前会话：'daily' | 'hehun'（合婚仅在回访态存在）
@@ -2643,7 +2643,7 @@ body {
           if (daily){ var dn = ((daily.querySelector('.rt-session-name')||{}).textContent||'').replace(/\s+/g,' ').trim(); switchSession(daily, 'daily', dn); }
           return;
         }
-        var nm = ((it.querySelector('.rt-app-name')||{}).textContent || '该经验体').replace(/\s+/g,' ').trim();
+        var nm = ((it.querySelector('.rt-app-name')||{}).textContent || '该能力').replace(/\s+/g,' ').trim();
         toast('「'+nm+'」在本原型未接入 · 敬请期待');
       });
     });
@@ -2747,7 +2747,7 @@ body {
       else if (a==='toggle-returning'){
         setReturning(!returning);
         toast(returning
-          ? '回访态 ON · 富侧栏：老用户攒了多经验体 + 多会话的收件箱'
+          ? '回访态 ON · 富侧栏：老用户攒了多能力 + 多会话的收件箱'
           : '首次访客 · 稀疏侧栏：只反映刚用的这一个 app + 单会话');
       }
     });

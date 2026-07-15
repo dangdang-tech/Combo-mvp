@@ -1,4 +1,4 @@
-<!-- @dsCard group="03 · 组件 Components" name="MiniAppShell + ctr-review" subtitle="经验体 mini-app 实卡（ctr-review 示例）" -->
+<!-- @dsCard group="03 · 组件 Components" name="MiniAppShell + ctr-review" subtitle="能力 mini-app 实卡（ctr-review 示例）" -->
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1128,7 +1128,7 @@
 }
 
 /* --- src/mini-app-shell/mini-app-shell.css --- */
-/* 经验体容器样式：paper 底、hero 圆角、hero 阴影；颜色、间距、圆角、字体、动效只引用 --cb-* 语义 token。 */
+/* 能力容器样式：paper 底、hero 圆角、hero 阴影；颜色、间距、圆角、字体、动效只引用 --cb-* 语义 token。 */
 
 .cb-mini-app-shell {
   display: flex;
@@ -1472,6 +1472,70 @@ body {
   }
 </style>
 <div class="demo-page">
+
+  <section class="demo-section">
+    <p class="demo-label">状态三态 — status 小圆点：running 走 warn 色且缓慢呼吸，ok 走 ok 色，error 走 danger 色；头部可挂 actions，底部可挂 footer 插槽</p>
+
+    <div class="demo-col">
+
+      <!-- running：warn 色呼吸点 + 头部 actions（ghost 停止按钮）+ footer -->
+      <section class="cb-mini-app-shell">
+        <header class="cb-mini-app-shell-head">
+          <div class="cb-mini-app-shell-heading">
+            <h2 class="cb-mini-app-shell-title">女装主推款 CTR 复盘</h2>
+            <p class="cb-mini-app-shell-subtitle">正在用 0713 素材复跑判断 · ctr-review v1</p>
+          </div>
+          <div class="cb-mini-app-shell-side">
+            <span class="cb-mini-app-shell-status cb-mini-app-shell-status--running"><span class="cb-mini-app-shell-dot" aria-hidden="true"></span>running</span>
+            <div class="cb-mini-app-shell-actions">
+              <button class="cb-btn cb-btn--ghost cb-btn--sm" type="button"><span class="cb-btn-label">停止</span></button>
+            </div>
+          </div>
+        </header>
+        <div class="cb-mini-app-shell-body">
+          <p class="cb-text cb-text--muted">读取近三场投放复盘经验，比对最新 7 日素材 CTR，正在生成主推位判断……</p>
+        </div>
+        <footer class="cb-mini-app-shell-footer">已处理 3 个候选款 · 预计还需数秒</footer>
+      </section>
+
+      <!-- ok：ok 色实心点 + footer 署名 -->
+      <section class="cb-mini-app-shell">
+        <header class="cb-mini-app-shell-head">
+          <div class="cb-mini-app-shell-heading">
+            <h2 class="cb-mini-app-shell-title">女装主推款 CTR 复盘</h2>
+            <p class="cb-mini-app-shell-subtitle">来源：近三场投放复盘会话 · ctr-review v1</p>
+          </div>
+          <div class="cb-mini-app-shell-side">
+            <span class="cb-mini-app-shell-status cb-mini-app-shell-status--ok"><span class="cb-mini-app-shell-dot" aria-hidden="true"></span>ok</span>
+          </div>
+        </header>
+        <div class="cb-mini-app-shell-body">
+          <p class="cb-text cb-text--muted">判断完成：法式方领连衣裙满足主推条件，建议接管主推位。展开查看完整排序与依据。</p>
+        </div>
+        <footer class="cb-mini-app-shell-footer">由创作者「阿象」的能力生成 · 2 天前</footer>
+      </section>
+
+      <!-- error：danger 色实心点 + 头部 actions（重试）+ 错误说明 -->
+      <section class="cb-mini-app-shell">
+        <header class="cb-mini-app-shell-head">
+          <div class="cb-mini-app-shell-heading">
+            <h2 class="cb-mini-app-shell-title">女装主推款 CTR 复盘</h2>
+            <p class="cb-mini-app-shell-subtitle">复跑中断 · ctr-review v1</p>
+          </div>
+          <div class="cb-mini-app-shell-side">
+            <span class="cb-mini-app-shell-status cb-mini-app-shell-status--error"><span class="cb-mini-app-shell-dot" aria-hidden="true"></span>error</span>
+            <div class="cb-mini-app-shell-actions">
+              <button class="cb-btn cb-btn--secondary cb-btn--sm" type="button"><span class="cb-btn-label">重试</span></button>
+            </div>
+          </div>
+        </header>
+        <div class="cb-mini-app-shell-body">
+          <p class="cb-text cb-text--muted">数据源缺少「素材曝光量」列，无法计算 CTR。请补齐字段后重试，或换一份投放明细。</p>
+        </div>
+      </section>
+
+    </div>
+  </section>
 
   <section class="demo-section">
     <p class="demo-label">mini-app-shell status=ok — 节点树按 miniapp-renderer 映射静态展开（ctr-review.json）</p>

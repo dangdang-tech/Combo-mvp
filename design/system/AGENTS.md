@@ -31,9 +31,9 @@ token 的源头是 `packages/ds-tokens/tokens/` 目录下的三份 DTCG 格式 J
 | `dialog`         | `Dialog`                             | 需要模态对话框（二次确认、弹窗表单）时用，基于 @radix-ui/react-dialog 封装。            |
 | `empty-state`    | `EmptyState`                         | 列表、收件箱等区域没有内容时的居中占位展示。                                            |
 | `input`          | `Input`                              | 需要单行文本、搜索或密码输入框时用，带 label 关联、校验失败态与禁用态。                 |
-| `list-item`      | `ListItem`                           | 会话列表、经验体列表等纵向列表的单行，带选中态与首尾插槽。                              |
+| `list-item`      | `ListItem`                           | 会话列表、能力列表等纵向列表的单行，带选中态与首尾插槽。                              |
 | `markdown`       | `Markdown`                           | 需要把 Markdown 字符串安全渲染成 Combo 样式 HTML 时用（marked 解析加 DOMPurify 消毒）。 |
-| `mini-app-shell` | `MiniAppShell`                       | 经验体（mini-app）的容器外壳，带标题、运行状态指示与 actions、footer 插槽。             |
+| `mini-app-shell` | `MiniAppShell`                       | 能力（mini-app）的容器外壳，带标题、运行状态指示与 actions、footer 插槽。             |
 | `skeleton`       | `Skeleton`                           | 数据加载期间需要用呼吸动画灰块占住内容位置时用。                                        |
 | `text`           | `Text`、`Heading`                    | 正文与标题的统一排版组件。                                                              |
 | `timestamp`      | `Timestamp`                          | 需要显示绝对格式或相对格式的时间戳时用。                                                |
@@ -41,9 +41,9 @@ token 的源头是 `packages/ds-tokens/tokens/` 目录下的三份 DTCG 格式 J
 
 新增组件的流程是固定的：`packages/ds/src/index.ts` 是唯一的 barrel，也是导出合同。先在 `index.ts` 里加上新组件的导出行，再建同名的 kebab-case 目录去实现，目录内文件与导出名不得偏离合同。每个组件目录必须包含四件套：`<组件名>.tsx`（实现）、`<组件名>.css`（样式，只引用 `--cb-*` token）、`<组件名>.stories.tsx`（按 `src/story-types.ts` 的轻量合同导出 `group`，覆盖默认态、边界态、组合态）、`<组件名>.test.tsx`（用 @testing-library/react 断言纯 JSON props 可渲染，另测回调行为）。此外目录里还要有一份中文 README.md，用完整句子写清目录职责与每个文件干什么，只写代码现状。
 
-## 三、经验体 UI 规则
+## 三、能力 UI 规则
 
-runtime agent 给经验体（mini-app）输出 UI 时，不直接写 JSX，而是输出符合 `@cb/miniapp-renderer` schema 的组件 JSON。渲染器用 zod 校验输入，把白名单节点映射为 `@cb/ds` 组件树；非法输入降级为错误卡片，绝不执行任意代码。
+runtime agent 给能力（mini-app）输出 UI 时，不直接写 JSX，而是输出符合 `@cb/miniapp-renderer` schema 的组件 JSON。渲染器用 zod 校验输入，把白名单节点映射为 `@cb/ds` 组件树；非法输入降级为错误卡片，绝不执行任意代码。
 
 白名单共 12 个节点：`stack`、`heading`、`text`、`markdown`、`card`、`list-item`、`badge`、`button`、`citation`、`empty-state`、`timestamp`、`skeleton`。字段定义以 schema 文件为准：`packages/miniapp-renderer/schema/miniapp-ui.schema.json`（该路径已在包的 exports 中声明为 `@cb/miniapp-renderer/schema/miniapp-ui.schema.json`）。输出 UI JSON 之前先读这份 schema，不要凭记忆猜节点名和字段。
 
