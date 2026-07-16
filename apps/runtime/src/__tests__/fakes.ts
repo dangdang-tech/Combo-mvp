@@ -48,11 +48,22 @@ export interface SessionRowF {
 export interface MessageRowF {
   id: string;
   session_id: string;
-  seq: number;
+  seq: number | null;
+  turn_id: string | null;
+  idx: number | null;
   role: string;
   content: unknown[];
   status: string;
   created_at: string;
+}
+
+export interface TurnRowF {
+  id: string;
+  session_id: string;
+  status: 'running' | 'completed' | 'failed' | 'interrupted';
+  last_error: { code: string; message: string } | null;
+  created_at: string;
+  finished_at: string | null;
 }
 
 export interface ArtifactRowF {
@@ -104,9 +115,11 @@ export class FakeDb implements Queryable, TxPool {
   capabilities = new Map<string, CapabilityRowF>();
   sessions = new Map<string, SessionRowF>();
   messages: MessageRowF[] = [];
+  turns = new Map<string, TurnRowF>();
   artifacts = new Map<string, ArtifactRowF>();
   /** 事务轨迹（断言 BEGIN/COMMIT/ROLLBACK 收口）。 */
   txLog: string[] = [];
+  queries: string[] = [];
 
   seedCapability(input: Partial<CapabilityRowF> & { owner_user_id: string }): CapabilityRowF {
     const id = input.id ?? nextId('cap');
@@ -137,6 +150,7 @@ export class FakeDb implements Queryable, TxPool {
     params: unknown[] = [],
   ): Promise<QueryResultLike<R>> {
     const s = sql.replace(/\s+/g, ' ').trim();
+    this.queries.push(s);
 
     if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') {
       this.txLog.push(s);
@@ -216,11 +230,112 @@ export class FakeDb implements Queryable, TxPool {
       return { rows: [], rowCount: 1 };
     }
 
+    // ---------- turns ----------
+    if (s.startsWith('INSERT INTO turns')) {
+      const [id, sessionId] = params as [string, string];
+      const row: TurnRowF = {
+        id,
+        session_id: sessionId,
+        status: 'running',
+        last_error: null,
+        created_at: nowIso(),
+        finished_at: null,
+      };
+      this.turns.set(id, row);
+      return { rows: [{ ...row }] as R[], rowCount: 1 };
+    }
+    if (s.startsWith('UPDATE turns SET status = $2')) {
+      const [id, status, errorJson] = params as [string, TurnRowF['status'], string | null];
+      const row = this.turns.get(id);
+      if (!row || row.status !== 'running') return { rows: [], rowCount: 0 };
+      row.status = status;
+      row.finished_at = nowIso();
+      row.last_error = errorJson ? (JSON.parse(errorJson) as TurnRowF['last_error']) : null;
+      return { rows: [], rowCount: 1 };
+    }
+    if (s.startsWith("UPDATE turns SET status = 'failed'")) {
+      const [id, errorJson] = params as [string, string];
+      const row = this.turns.get(id);
+      if (!row || row.status !== 'running') return { rows: [], rowCount: 0 };
+      row.status = 'failed';
+      row.finished_at = nowIso();
+      row.last_error = JSON.parse(errorJson) as TurnRowF['last_error'];
+      return { rows: [], rowCount: 1 };
+    }
+    if (s.startsWith('SELECT EXISTS (SELECT 1 FROM turns')) {
+      const exists = [...this.turns.values()].some(
+        (row) => row.session_id === params[0] && row.status === 'running',
+      );
+      return { rows: [{ exists }] as R[], rowCount: 1 };
+    }
+    if (s.startsWith('SELECT id, session_id FROM turns')) {
+      const cutoff = (params[0] as Date).getTime();
+      const rows = [...this.turns.values()]
+        .filter((row) => row.status === 'running' && new Date(row.created_at).getTime() < cutoff)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+        .map(({ id, session_id }) => ({ id, session_id }));
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
     // ---------- messages ----------
     if (s.includes('SELECT MAX(seq) AS m FROM messages WHERE session_id = $1')) {
       const rows = this.messages.filter((m) => m.session_id === params[0]);
-      const m = rows.length > 0 ? Math.max(...rows.map((r) => r.seq)) : null;
+      const seqs = rows.flatMap((r) => (r.seq === null ? [] : [r.seq]));
+      const m = seqs.length > 0 ? Math.max(...seqs) : null;
       return { rows: [{ m }] as R[], rowCount: 1 };
+    }
+    if (
+      s.startsWith('INSERT INTO messages') &&
+      s.includes('SELECT $1, $2, COALESCE(MAX(idx), 0)')
+    ) {
+      const [sessionId, turnId, contentJson] = params as [string, string, string];
+      const indexes = this.messages.flatMap((m) =>
+        m.turn_id === turnId && m.idx !== null ? [m.idx] : [],
+      );
+      const idx = (indexes.length ? Math.max(...indexes) : 0) + 1;
+      const row: MessageRowF = {
+        id: nextId('msg'),
+        session_id: sessionId,
+        turn_id: turnId,
+        idx,
+        seq: null,
+        role: 'assistant',
+        content: JSON.parse(contentJson) as unknown[],
+        status: 'failed',
+        created_at: nowIso(),
+      };
+      this.messages.push(row);
+      return { rows: [], rowCount: 1 };
+    }
+    if (s.startsWith('INSERT INTO messages') && s.includes('VALUES ($1, $2, $3, NULL')) {
+      const [sessionId, turnId, idx, role, contentJson, status] = params as [
+        string,
+        string,
+        number,
+        string,
+        string,
+        string,
+      ];
+      if (this.messages.some((m) => m.turn_id === turnId && m.idx === idx)) {
+        const err = Object.assign(
+          new Error('duplicate key value violates "uq_messages_turn_idx"'),
+          { code: '23505' },
+        );
+        throw err;
+      }
+      const row: MessageRowF = {
+        id: nextId('msg'),
+        session_id: sessionId,
+        turn_id: turnId,
+        idx,
+        seq: null,
+        role,
+        content: JSON.parse(contentJson) as unknown[],
+        status,
+        created_at: nowIso(),
+      };
+      this.messages.push(row);
+      return { rows: [{ ...row }] as R[], rowCount: 1 };
     }
     if (s.startsWith('INSERT INTO messages')) {
       const [sessionId, msgSeq, role, contentJson, status] = params as [
@@ -242,6 +357,8 @@ export class FakeDb implements Queryable, TxPool {
         id: nextId('msg'),
         session_id: sessionId,
         seq: msgSeq,
+        turn_id: null,
+        idx: null,
         role,
         content: JSON.parse(contentJson) as unknown[],
         status,
@@ -262,17 +379,31 @@ export class FakeDb implements Queryable, TxPool {
         rowCount: 1,
       };
     }
-    if (s.includes('FROM messages WHERE session_id = $1 ORDER BY seq ASC')) {
+    if (s.startsWith('SELECT count(*) AS count FROM messages')) {
+      const count = this.messages.filter((m) => m.session_id === params[0]).length;
+      return { rows: [{ count: String(count) }] as R[], rowCount: 1 };
+    }
+    if (s.includes('FROM messages m LEFT JOIN turns t')) {
+      // 忠实于真 SQL:不做可见性过滤(详情要看到运行中/失败轮的消息),只按会话取全量后合并排序。
       const rows = this.messages
         .filter((m) => m.session_id === params[0])
-        .sort((a, b) => a.seq - b.seq)
+        .sort((a, b) => {
+          const ta = a.turn_id
+            ? (this.turns.get(a.turn_id)?.created_at ?? a.created_at)
+            : a.created_at;
+          const tb = b.turn_id
+            ? (this.turns.get(b.turn_id)?.created_at ?? b.created_at)
+            : b.created_at;
+          return (
+            ta.localeCompare(tb) ||
+            (a.idx ?? a.seq ?? 0) - (b.idx ?? b.seq ?? 0) ||
+            a.created_at.localeCompare(b.created_at)
+          );
+        })
         .map((m) => ({
-          id: m.id,
-          seq: m.seq,
-          role: m.role,
-          content: m.content,
-          status: m.status,
-          created_at: m.created_at,
+          ...m,
+          turn_status: m.turn_id ? (this.turns.get(m.turn_id)?.status ?? null) : null,
+          turn_created_at: m.turn_id ? (this.turns.get(m.turn_id)?.created_at ?? null) : null,
         }));
       return { rows: rows as R[], rowCount: rows.length };
     }
