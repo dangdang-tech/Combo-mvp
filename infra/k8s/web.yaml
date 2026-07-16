@@ -36,6 +36,15 @@ spec:
       containers:
         - name: web
           image: ghcr.io/dangdang-tech/combo-web:latest
+          env:
+            # 镜像里的 nginx 配置是 envsubst 模板：k8s 里 resolver 必须指 CoreDNS（k3s 默认 10.43.0.10），
+            # upstream 用 Service 全限定名——nginx 的 resolver 不应用 search 域，短名解析不到。
+            - name: NGINX_RESOLVER
+              value: 10.43.0.10
+            - name: API_UPSTREAM_HOST
+              value: api.combo.svc.cluster.local
+            - name: RUNTIME_UPSTREAM_HOST
+              value: runtime.combo.svc.cluster.local
           ports:
             - name: http
               containerPort: 80
