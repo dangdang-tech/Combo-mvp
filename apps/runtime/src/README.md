@@ -21,6 +21,6 @@ runtime 是能力试用端的后端服务：用户挑一个创作端做好的能
 2. 路由在 `modules/session/routes.ts` 里声明，前置守卫是 `platform/middleware/auth.ts` 的 requireAuth，它验登录 Cookie 并查 users 表，把用户身份挂到请求上。
 3. `modules/session/handlers.ts` 的 sendMessageHandler 校验请求体，用 `modules/session/repo.ts` 按 owner 查会话行。
 4. handler 调 `modules/capability/loader.ts` 重新加载该会话对应的能力定义（查 capabilities 表、从对象存储读定义 JSON、过 schema 校验）。
-5. handler 调 `modules/agent/run-turn.ts` 的 startTurn：占会话并发闸、把用户消息写进 messages 表，然后立即回 202，生成在本进程内异步继续。
-6. 异步轮次里，`modules/agent/build-agent.ts` 用能力定义和历史消息构造模型代理，模型输出的每个事件由 `modules/agent/turn-emitter.ts` 先写 stream_events 表、再发进程内总线。
-7. 前端另开着 GET /runtime/sessions/:id/stream 长连接（`modules/agent/stream.ts`），从总线实时收到这些事件；轮次结束时整轮回复落 messages 表。
+5. handler 调 `modules/agent/run-turn.ts` 的 startTurn：创建独立轮次并写入轮内用户消息，然后立即回 202，生成在本进程内异步继续；同一会话的多个轮次可以并发自治运行。
+6. 异步轮次里，`modules/agent/build-agent.ts` 用能力定义和历史消息构造模型代理，模型输出的每个事件由 `modules/agent/turn-emitter.ts` 先追加到 Redis Stream，再发布跨实例直播通知。
+7. 前端另开着 GET /runtime/sessions/:id/stream 长连接（`modules/agent/stream.ts`），实时收到这些事件并从 Redis Stream 补发漏帧；轮次结束时整轮回复落 messages 表。

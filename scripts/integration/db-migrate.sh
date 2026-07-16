@@ -28,15 +28,15 @@ applied="$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM schema_migrations')"
 [ "$applied" = "$expected" ] || fail "记账数 ${applied} != 迁移文件数 ${expected}"
 log "记账 ${applied}/${expected} ✓"
 
-# 3) 断言九张基线表齐全（db/migrations/0000_baseline_schema.sql）
-for tbl in users tasks uploads capabilities sessions messages stream_events artifacts audit_llm_calls; do
+# 3) 断言迁移终态表齐全（0000 建九张基线表,0002 删 stream_events,0003 建 turns）
+for tbl in users tasks uploads capabilities sessions messages turns artifacts audit_llm_calls; do
   exists="$(psql "$DATABASE_URL" -tAc "SELECT to_regclass('public.${tbl}') IS NOT NULL")"
   [ "$exists" = "t" ] || fail "缺基表 ${tbl}"
 done
-log "九张基线表齐全 ✓"
+log "迁移终态表齐全 ✓"
 
 # 4) 断言关键命名约束存在（基线固定约束名抽样：状态 CHECK、消息序唯一键）
-for con in ck_tasks_step ck_tasks_status ck_uploads_status ck_sessions_status ck_messages_role uq_messages_session_seq; do
+for con in ck_tasks_step ck_tasks_status ck_uploads_status ck_sessions_status ck_messages_role ck_turns_status uq_messages_session_seq; do
   exists="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM pg_constraint WHERE conname='${con}'")"
   [ "$exists" = "1" ] || fail "缺命名约束 ${con}（实际 ${exists}）"
 done

@@ -106,6 +106,20 @@ describe('migrations', () => {
     expect(sql).toMatch(/role IN \('user', 'assistant', 'tool'\)/);
   });
 
+  it('0003 adds lock-free turns and per-turn message ordering', () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '0003_turns.sql'), 'utf-8');
+    expect(sql).toContain('CREATE TABLE turns (');
+    expect(sql).toMatch(/status IN \('running', 'completed', 'failed', 'interrupted'\)/);
+    expect(sql).toContain("WHERE status = 'running'");
+    expect(sql).toContain(
+      'uq_messages_turn_idx ON messages (turn_id, idx) WHERE turn_id IS NOT NULL',
+    );
+    expect(sql).toContain('idx_messages_turn ON messages (turn_id) WHERE turn_id IS NOT NULL');
+    expect(sql).toContain('ADD COLUMN turn_id uuid REFERENCES turns(id)');
+    expect(sql).toContain('ADD COLUMN idx int');
+    expect(sql).toContain('ALTER COLUMN seq DROP NOT NULL');
+  });
+
   it('stream_events use bigserial for resumable ordering', () => {
     const sql = allSql();
     expect(sql).toMatch(/CREATE TABLE stream_events \(\n\s+id\s+bigserial\s+PRIMARY KEY/);

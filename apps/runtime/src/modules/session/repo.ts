@@ -1,7 +1,7 @@
 // sessions / messages 两表 SQL。owner 校验统一收在 SQL 的 owner_user_id 条件里：
 // 非本人与不存在同样 0 行（不暴露存在性）。
 import type { MessageRole, MessageStatus, MessageView, SessionView } from '@cb/shared';
-import { withTransaction, type Queryable, type RuntimeDb } from '../../platform/infra/db.js';
+import type { Queryable } from '../../platform/infra/db.js';
 import { parseMessageContent } from './message-content.js';
 
 /** timestamptz → ISO 字符串（pg 可能回 Date 或字符串）。 */
@@ -109,7 +109,10 @@ export async function getSession(
 
 interface MessageDbRow {
   id: string;
-  seq: number;
+  seq: number | null;
+  idx?: number | null;
+  turn_id?: string | null;
+  turn_status?: string | null;
   role: MessageRole;
   content: unknown[];
   status: MessageStatus;
@@ -119,29 +122,40 @@ interface MessageDbRow {
 /** 消息行（= 对外 MessageView 同形态；build-agent 也直接消费它重建历史）。 */
 export interface MessageRecord extends MessageView {
   role: MessageRole;
+  turnId?: string;
+  turnStatus?: string;
 }
 
-function toMessageRecord(r: MessageDbRow): MessageRecord {
+function toMessageRecord(r: MessageDbRow, derivedSeq?: number): MessageRecord {
   return {
     id: r.id,
-    seq: r.seq,
+    seq: derivedSeq ?? r.seq ?? 0,
     role: r.role,
     content: Array.isArray(r.content) ? r.content : [],
     status: r.status,
     createdAt: toIso(r.created_at),
+    ...(r.turn_id ? { turnId: r.turn_id } : {}),
+    ...(r.turn_status ? { turnStatus: r.turn_status } : {}),
   };
 }
 
-/** 会话全部消息，按 seq 升序。 */
+/**
+ * 会话全部消息（详情用）：合并排序（legacy 按 seq、轮按创建时间、轮内按 idx），
+ * seq 返回派生序号。不做可见性过滤——运行中轮的 user 消息、失败轮的错误记录
+ * 都必须在详情里可见;历史/上下文的 completed 过滤由消费方（run-turn）负责,
+ * 依据是随行返回的 turnStatus 与消息自身 status。
+ */
 export async function getMessages(db: Queryable, sessionId: string): Promise<MessageRecord[]> {
   const res = await db.query<MessageDbRow>(
-    `SELECT id, seq, role, content, status, created_at
-       FROM messages
-      WHERE session_id = $1
-      ORDER BY seq ASC`,
+    `SELECT m.id, m.seq, m.idx, m.turn_id, m.role, m.content, m.status, m.created_at,
+            t.status AS turn_status, t.created_at AS turn_created_at
+       FROM messages m LEFT JOIN turns t ON t.id = m.turn_id
+      WHERE m.session_id = $1
+      ORDER BY COALESCE(t.created_at, m.created_at) ASC,
+               COALESCE(m.idx, m.seq) ASC, m.created_at ASC`,
     [sessionId],
   );
-  return res.rows.map(toMessageRecord);
+  return res.rows.map((row, index) => toMessageRecord(row, index + 1));
 }
 
 /** 从首条用户消息文本派生会话标题（首轮自动命名）。 */
@@ -157,15 +171,13 @@ function deriveTitle(content: unknown[]): string | null {
   return title || null;
 }
 
-/**
- * 追加一条消息：锁会话行 → max(seq)+1 插入（并发轮次串行化 seq 分配；
- * uq_messages_session_seq 唯一约束兜底撞车）。同事务里 touch sessions.updated_at，
- * 首条用户消息时顺手补会话标题。content 写入前必过 parseMessageContent（坏块拒写）。
- */
-export async function appendMessage(
-  db: RuntimeDb,
+/** 按轮追加消息；调用方负责轮内 idx，写入路径不加锁也不分配会话级序号。 */
+export async function appendTurnMessage(
+  db: Queryable,
   input: {
     sessionId: string;
+    turnId: string;
+    idx: number;
     role: MessageRole;
     content: unknown[];
     status?: MessageStatus;
@@ -173,37 +185,22 @@ export async function appendMessage(
 ): Promise<MessageRecord> {
   const content = parseMessageContent(input.role, input.content);
   const status: MessageStatus = input.status ?? 'completed';
-
-  return withTransaction(db, async (tx) => {
-    const locked = await tx.query<{ id: string; title: string | null }>(
-      `SELECT id, title FROM sessions WHERE id = $1 FOR UPDATE`,
-      [input.sessionId],
-    );
-    if (!locked.rows[0]) throw new Error(`appendMessage: session ${input.sessionId} not found`);
-
-    const seqRes = await tx.query<{ m: number | null }>(
-      `SELECT MAX(seq) AS m FROM messages WHERE session_id = $1`,
-      [input.sessionId],
-    );
-    const seq = (seqRes.rows[0]?.m ?? 0) + 1;
-
-    const inserted = await tx.query<MessageDbRow>(
-      `INSERT INTO messages (session_id, seq, role, content, status)
-       VALUES ($1, $2, $3, $4::jsonb, $5)
-       RETURNING id, seq, role, content, status, created_at`,
-      [input.sessionId, seq, input.role, JSON.stringify(content), status],
-    );
-    const row = inserted.rows[0];
-    if (!row) throw new Error('appendMessage: insert returned no row');
-
-    // 首条用户消息 + 会话还没标题 → 用输入前 30 字补标题；其余只 touch updated_at。
-    const derivedTitle =
-      input.role === 'user' && !locked.rows[0].title ? deriveTitle(content) : null;
-    await tx.query(
-      `UPDATE sessions SET updated_at = now(), title = COALESCE(title, $2) WHERE id = $1`,
-      [input.sessionId, derivedTitle],
-    );
-
-    return toMessageRecord(row);
-  });
+  const inserted = await db.query<MessageDbRow>(
+    `INSERT INTO messages (session_id, turn_id, idx, seq, role, content, status)
+     VALUES ($1, $2, $3, NULL, $4, $5::jsonb, $6)
+     RETURNING id, seq, idx, turn_id, role, content, status, created_at`,
+    [input.sessionId, input.turnId, input.idx, input.role, JSON.stringify(content), status],
+  );
+  const row = inserted.rows[0];
+  if (!row) throw new Error('appendTurnMessage: insert returned no row');
+  const title = input.idx === 0 && input.role === 'user' ? deriveTitle(content) : null;
+  await db.query(
+    `UPDATE sessions SET updated_at = now(), title = COALESCE(title, $2) WHERE id = $1`,
+    [input.sessionId, title],
+  );
+  const count = await db.query<{ count: string | number }>(
+    `SELECT count(*) AS count FROM messages WHERE session_id = $1`,
+    [input.sessionId],
+  );
+  return toMessageRecord(row, Number(count.rows[0]?.count ?? 0));
 }

@@ -125,7 +125,7 @@ export function useSessionStream(
           window.location.assign(loginUrl());
           return;
         }
-        // 409 SESSION_BUSY 等：userMessage 已是人话（「等上一轮结束」），直接展示。
+        // 服务端错误信封中的 userMessage 已是人话，直接展示。
         const message = err instanceof ApiError ? err.userMessage : '发送失败，请重试。';
         dispatch({ kind: 'error', message });
       });

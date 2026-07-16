@@ -13,7 +13,14 @@ import { artifactContentHandler } from '../modules/artifact/handlers.js';
 import { createSession } from '../modules/session/repo.js';
 import { createTurnRunner } from '../modules/agent/run-turn.js';
 import { createSessionEventBus } from '../platform/infra/event-bus.js';
-import { FakeDb, FakeObjectStore, makeFakeAgentFactory, silentLog } from './fakes.js';
+import { createInterruptBus } from '../platform/infra/redis-interrupt-bus.js';
+import {
+  FakeDb,
+  FakeObjectStore,
+  FakeSessionEventLog,
+  makeFakeAgentFactory,
+  silentLog,
+} from './fakes.js';
 
 const ME = 'user-me';
 const OTHER = 'user-other';
@@ -80,8 +87,11 @@ function makeReq(input: {
     db: input.db,
     objectStore: input.objectStore ?? new FakeObjectStore(),
     bus: createSessionEventBus(),
+    eventLog: new FakeSessionEventLog(),
     agentFactory: makeFakeAgentFactory().factory,
     idleTimeoutMs: 60_000,
+    interrupts: createInterruptBus(),
+    log: silentLog,
   });
   return {
     id: 'trace-test',

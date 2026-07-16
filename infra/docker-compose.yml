@@ -385,6 +385,8 @@ services:
       context: ..
       dockerfile: infra/Dockerfile.runtime
     depends_on:
+      redis_queue:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       migrate:
@@ -394,6 +396,7 @@ services:
       PORT: '3100'
       HOST: 0.0.0.0
       DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      REDIS_URL: redis://redis_queue:6379
       LOGTO_ISSUER: ${LOGTO_ISSUER:?}
       LOGTO_JWKS_URI: ${LOGTO_JWKS_URI:?}
       LOGTO_AUDIENCE: ${LOGTO_AUDIENCE:?}

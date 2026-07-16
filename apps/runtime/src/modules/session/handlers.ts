@@ -209,8 +209,6 @@ export function sendMessageHandler(): RouteHandlerMethod {
       req.log.error({ err, traceId: req.id }, 'start turn failed');
       return sendError(req, reply, ErrorCode.INTERNAL);
     }
-    if (result.status === 'busy') return sendError(req, reply, ErrorCode.SESSION_BUSY);
-
     // 202：user 消息已落库，生成在进程内异步跑；进展经 /stream 订阅。
     const message: MessageView = {
       id: result.userMessage.id,
@@ -237,7 +235,7 @@ export function interruptHandler(): RouteHandlerMethod {
     if (!session) return reply;
 
     // 无进行中的轮 → interrupted=false（幂等，不当错误）。
-    const interrupted = req.server.turns.interrupt(session.id);
+    const interrupted = await req.server.turns.interrupt(session.id);
     const body: Envelope<{ interrupted: boolean }> = {
       data: { interrupted },
       meta: { traceId: req.id },

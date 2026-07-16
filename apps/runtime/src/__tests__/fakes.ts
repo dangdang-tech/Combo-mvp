@@ -5,6 +5,12 @@ import type { Queryable, QueryResultLike, TxConn, TxPool } from '../platform/inf
 import type { RuntimeObjectStore } from '../platform/infra/object-store.js';
 import type { TurnAgent, TurnAgentFactory, TurnAgentInput } from '../modules/agent/run-turn.js';
 import type { ArtifactAgentTool } from '../modules/artifact/tool.js';
+import {
+  compareStreamIds,
+  EVENT_STREAM_MAXLEN,
+  type SessionEventLog,
+  type StreamEventEntry,
+} from '../modules/agent/event-log.js';
 
 let seq = 0;
 /** 递增的假 UUID（保持 id 可比较排序，模拟 UUID v7 时间有序）。 */
@@ -42,18 +48,22 @@ export interface SessionRowF {
 export interface MessageRowF {
   id: string;
   session_id: string;
-  seq: number;
+  seq: number | null;
+  turn_id: string | null;
+  idx: number | null;
   role: string;
   content: unknown[];
   status: string;
   created_at: string;
 }
 
-export interface StreamEventRowF {
-  id: number;
+export interface TurnRowF {
+  id: string;
   session_id: string;
-  message_id: string | null;
-  event: Record<string, unknown>;
+  status: 'running' | 'completed' | 'failed' | 'interrupted';
+  last_error: { code: string; message: string } | null;
+  created_at: string;
+  finished_at: string | null;
 }
 
 export interface ArtifactRowF {
@@ -67,16 +77,49 @@ export interface ArtifactRowF {
   updated_at: string;
 }
 
-/** 忠实假 PG（capabilities / sessions / messages / stream_events / artifacts）。也可当 TxPool 用。 */
+export class FakeSessionEventLog implements SessionEventLog {
+  private readonly streams = new Map<string, StreamEventEntry[]>();
+  private lastMilliseconds = -1;
+  private sequence = 0;
+
+  constructor(
+    private readonly now: () => number = Date.now,
+    private readonly maxlen = EVENT_STREAM_MAXLEN,
+  ) {}
+
+  async append(sessionId: string, event: Record<string, unknown>): Promise<string> {
+    const milliseconds = Math.max(this.now(), this.lastMilliseconds);
+    this.sequence = milliseconds === this.lastMilliseconds ? this.sequence + 1 : 0;
+    this.lastMilliseconds = milliseconds;
+    const entry = { id: `${milliseconds}-${this.sequence}`, event };
+    const stream = this.streams.get(sessionId) ?? [];
+    stream.push(entry);
+    if (stream.length > this.maxlen) stream.splice(0, stream.length - this.maxlen);
+    this.streams.set(sessionId, stream);
+    return entry.id;
+  }
+
+  async rangeAfter(sessionId: string, afterId: string, count: number): Promise<StreamEventEntry[]> {
+    return (this.streams.get(sessionId) ?? [])
+      .filter((entry) => compareStreamIds(entry.id, afterId) > 0)
+      .slice(0, count);
+  }
+
+  entries(sessionId: string): StreamEventEntry[] {
+    return [...(this.streams.get(sessionId) ?? [])];
+  }
+}
+
+/** 忠实假 PG（capabilities / sessions / messages / artifacts）。也可当 TxPool 用。 */
 export class FakeDb implements Queryable, TxPool {
   capabilities = new Map<string, CapabilityRowF>();
   sessions = new Map<string, SessionRowF>();
   messages: MessageRowF[] = [];
-  streamEvents: StreamEventRowF[] = [];
+  turns = new Map<string, TurnRowF>();
   artifacts = new Map<string, ArtifactRowF>();
-  private streamEventSeq = 0;
   /** 事务轨迹（断言 BEGIN/COMMIT/ROLLBACK 收口）。 */
   txLog: string[] = [];
+  queries: string[] = [];
 
   seedCapability(input: Partial<CapabilityRowF> & { owner_user_id: string }): CapabilityRowF {
     const id = input.id ?? nextId('cap');
@@ -107,6 +150,7 @@ export class FakeDb implements Queryable, TxPool {
     params: unknown[] = [],
   ): Promise<QueryResultLike<R>> {
     const s = sql.replace(/\s+/g, ' ').trim();
+    this.queries.push(s);
 
     if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') {
       this.txLog.push(s);
@@ -172,11 +216,6 @@ export class FakeDb implements Queryable, TxPool {
       if (!x || x.owner_user_id !== params[1]) return { rows: [], rowCount: 0 };
       return { rows: [{ ...x }] as R[], rowCount: 1 };
     }
-    if (s.includes('SELECT id, title FROM sessions WHERE id = $1 FOR UPDATE')) {
-      const x = this.sessions.get(params[0] as string);
-      if (!x) return { rows: [], rowCount: 0 };
-      return { rows: [{ id: x.id, title: x.title }] as R[], rowCount: 1 };
-    }
     if (s.includes('UPDATE sessions SET updated_at = now(), title = COALESCE(title, $2)')) {
       const [id, title] = params as [string, string | null];
       const x = this.sessions.get(id);
@@ -186,87 +225,133 @@ export class FakeDb implements Queryable, TxPool {
       return { rows: [], rowCount: 1 };
     }
 
-    // ---------- messages ----------
-    if (s.includes('SELECT MAX(seq) AS m FROM messages WHERE session_id = $1')) {
-      const rows = this.messages.filter((m) => m.session_id === params[0]);
-      const m = rows.length > 0 ? Math.max(...rows.map((r) => r.seq)) : null;
-      return { rows: [{ m }] as R[], rowCount: 1 };
+    // ---------- turns ----------
+    if (s.startsWith('INSERT INTO turns')) {
+      const [id, sessionId] = params as [string, string];
+      const row: TurnRowF = {
+        id,
+        session_id: sessionId,
+        status: 'running',
+        last_error: null,
+        created_at: nowIso(),
+        finished_at: null,
+      };
+      this.turns.set(id, row);
+      return { rows: [{ ...row }] as R[], rowCount: 1 };
     }
-    if (s.startsWith('INSERT INTO messages')) {
-      const [sessionId, msgSeq, role, contentJson, status] = params as [
+    if (s.startsWith('UPDATE turns SET status = $2')) {
+      const [id, status, errorJson] = params as [string, TurnRowF['status'], string | null];
+      const row = this.turns.get(id);
+      if (!row || row.status !== 'running') return { rows: [], rowCount: 0 };
+      row.status = status;
+      row.finished_at = nowIso();
+      row.last_error = errorJson ? (JSON.parse(errorJson) as TurnRowF['last_error']) : null;
+      return { rows: [], rowCount: 1 };
+    }
+    if (s.startsWith("UPDATE turns SET status = 'failed'")) {
+      const [id, errorJson] = params as [string, string];
+      const row = this.turns.get(id);
+      if (!row || row.status !== 'running') return { rows: [], rowCount: 0 };
+      row.status = 'failed';
+      row.finished_at = nowIso();
+      row.last_error = JSON.parse(errorJson) as TurnRowF['last_error'];
+      return { rows: [], rowCount: 1 };
+    }
+    if (s.startsWith('SELECT EXISTS (SELECT 1 FROM turns')) {
+      const exists = [...this.turns.values()].some(
+        (row) => row.session_id === params[0] && row.status === 'running',
+      );
+      return { rows: [{ exists }] as R[], rowCount: 1 };
+    }
+    if (s.startsWith('SELECT id, session_id FROM turns')) {
+      const cutoff = (params[0] as Date).getTime();
+      const rows = [...this.turns.values()]
+        .filter((row) => row.status === 'running' && new Date(row.created_at).getTime() < cutoff)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+        .map(({ id, session_id }) => ({ id, session_id }));
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    // ---------- messages ----------
+    if (
+      s.startsWith('INSERT INTO messages') &&
+      s.includes('SELECT $1, $2, COALESCE(MAX(idx), 0)')
+    ) {
+      const [sessionId, turnId, contentJson] = params as [string, string, string];
+      const indexes = this.messages.flatMap((m) =>
+        m.turn_id === turnId && m.idx !== null ? [m.idx] : [],
+      );
+      const idx = (indexes.length ? Math.max(...indexes) : 0) + 1;
+      const row: MessageRowF = {
+        id: nextId('msg'),
+        session_id: sessionId,
+        turn_id: turnId,
+        idx,
+        seq: null,
+        role: 'assistant',
+        content: JSON.parse(contentJson) as unknown[],
+        status: 'failed',
+        created_at: nowIso(),
+      };
+      this.messages.push(row);
+      return { rows: [], rowCount: 1 };
+    }
+    if (s.startsWith('INSERT INTO messages') && s.includes('VALUES ($1, $2, $3, NULL')) {
+      const [sessionId, turnId, idx, role, contentJson, status] = params as [
+        string,
         string,
         number,
         string,
         string,
         string,
       ];
-      // uq_messages_session_seq 唯一约束（兜底撞车语义与真库一致）。
-      if (this.messages.some((m) => m.session_id === sessionId && m.seq === msgSeq)) {
-        const err = new Error('duplicate key value violates "uq_messages_session_seq"') as Error & {
-          code: string;
-        };
-        err.code = '23505';
+      if (this.messages.some((m) => m.turn_id === turnId && m.idx === idx)) {
+        const err = Object.assign(
+          new Error('duplicate key value violates "uq_messages_turn_idx"'),
+          { code: '23505' },
+        );
         throw err;
       }
       const row: MessageRowF = {
         id: nextId('msg'),
         session_id: sessionId,
-        seq: msgSeq,
+        turn_id: turnId,
+        idx,
+        seq: null,
         role,
         content: JSON.parse(contentJson) as unknown[],
         status,
         created_at: nowIso(),
       };
       this.messages.push(row);
-      return {
-        rows: [
-          {
-            id: row.id,
-            seq: row.seq,
-            role: row.role,
-            content: row.content,
-            status: row.status,
-            created_at: row.created_at,
-          },
-        ] as R[],
-        rowCount: 1,
-      };
+      return { rows: [{ ...row }] as R[], rowCount: 1 };
     }
-    if (s.includes('FROM messages WHERE session_id = $1 ORDER BY seq ASC')) {
+    if (s.startsWith('SELECT count(*) AS count FROM messages')) {
+      const count = this.messages.filter((m) => m.session_id === params[0]).length;
+      return { rows: [{ count: String(count) }] as R[], rowCount: 1 };
+    }
+    if (s.includes('FROM messages m LEFT JOIN turns t')) {
+      // 忠实于真 SQL:不做可见性过滤(详情要看到运行中/失败轮的消息),只按会话取全量后合并排序。
       const rows = this.messages
         .filter((m) => m.session_id === params[0])
-        .sort((a, b) => a.seq - b.seq)
+        .sort((a, b) => {
+          const ta = a.turn_id
+            ? (this.turns.get(a.turn_id)?.created_at ?? a.created_at)
+            : a.created_at;
+          const tb = b.turn_id
+            ? (this.turns.get(b.turn_id)?.created_at ?? b.created_at)
+            : b.created_at;
+          return (
+            ta.localeCompare(tb) ||
+            (a.idx ?? a.seq ?? 0) - (b.idx ?? b.seq ?? 0) ||
+            a.created_at.localeCompare(b.created_at)
+          );
+        })
         .map((m) => ({
-          id: m.id,
-          seq: m.seq,
-          role: m.role,
-          content: m.content,
-          status: m.status,
-          created_at: m.created_at,
+          ...m,
+          turn_status: m.turn_id ? (this.turns.get(m.turn_id)?.status ?? null) : null,
+          turn_created_at: m.turn_id ? (this.turns.get(m.turn_id)?.created_at ?? null) : null,
         }));
-      return { rows: rows as R[], rowCount: rows.length };
-    }
-
-    // ---------- stream_events ----------
-    if (s.startsWith('INSERT INTO stream_events')) {
-      const [sessionId, messageId, eventJson] = params as [string, string | null, string];
-      this.streamEventSeq += 1;
-      const row: StreamEventRowF = {
-        id: this.streamEventSeq,
-        session_id: sessionId,
-        message_id: messageId,
-        event: JSON.parse(eventJson) as Record<string, unknown>,
-      };
-      this.streamEvents.push(row);
-      return { rows: [{ id: row.id }] as R[], rowCount: 1 };
-    }
-    if (s.includes('FROM stream_events WHERE session_id = $1 AND id > $2')) {
-      const [sessionId, afterId, limit] = params as [string, number, number];
-      const rows = this.streamEvents
-        .filter((e) => e.session_id === sessionId && e.id > afterId)
-        .sort((a, b) => a.id - b.id)
-        .slice(0, limit)
-        .map((e) => ({ id: e.id, event: e.event }));
       return { rows: rows as R[], rowCount: rows.length };
     }
 
@@ -451,9 +536,12 @@ export function makeFakeAgentFactory(script: FakeAgentScript = {}): FakeAgentFac
 export const silentLog = { error: () => undefined };
 
 /** 轮询等待条件成立（异步轮次收尾用）。 */
-export async function waitFor(cond: () => boolean, timeoutMs = 2_000): Promise<void> {
+export async function waitFor(
+  cond: () => boolean | Promise<boolean>,
+  timeoutMs = 2_000,
+): Promise<void> {
   const start = Date.now();
-  while (!cond()) {
+  while (!(await cond())) {
     if (Date.now() - start > timeoutMs) throw new Error('waitFor: timeout');
     await new Promise((r) => setTimeout(r, 5));
   }

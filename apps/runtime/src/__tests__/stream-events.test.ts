@@ -1,74 +1,130 @@
-// stream_events：表补发逻辑（按 afterId 过滤）+ 轮次 emitter 双写（表 + 进程内总线）。
-import { describe, expect, it } from 'vitest';
-import { insertStreamEvent, listStreamEventsAfter } from '../modules/agent/event-log.js';
+import { EventEmitter } from 'node:events';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SSE_HEARTBEAT_INTERVAL_MS } from '@cb/shared';
+import { compareStreamIds, normalizeStreamId } from '../modules/agent/event-log.js';
 import { createTurnEmitter } from '../modules/agent/turn-emitter.js';
+import { sessionStreamHandler } from '../modules/agent/stream.js';
+import { createSession } from '../modules/session/repo.js';
 import { createSessionEventBus, type PublishedStreamEvent } from '../platform/infra/event-bus.js';
-import { FakeDb, silentLog } from './fakes.js';
+import { FakeDb, FakeSessionEventLog, silentLog } from './fakes.js';
 
-describe('stream 事件表补发（按 afterId 过滤）', () => {
-  it('afterId=0 取全量；afterId=n 只取 id>n 的增量，升序', async () => {
-    const db = new FakeDb();
-    for (let i = 1; i <= 5; i += 1) {
-      await insertStreamEvent(db, { sessionId: 'sess-a', event: { type: 'E', n: i } });
-    }
-    await insertStreamEvent(db, { sessionId: 'sess-b', event: { type: 'E', n: 99 } }); // 别的会话
+afterEach(() => vi.useRealTimers());
 
-    const all = await listStreamEventsAfter(db, 'sess-a', 0);
-    expect(all.map((e) => e.id)).toEqual([1, 2, 3, 4, 5]);
-
-    const tail = await listStreamEventsAfter(db, 'sess-a', 3);
-    expect(tail.map((e) => e.id)).toEqual([4, 5]);
-    expect(tail.map((e) => (e.event as { n: number }).n)).toEqual([4, 5]);
-
-    const none = await listStreamEventsAfter(db, 'sess-a', 5);
-    expect(none).toHaveLength(0);
+describe('Redis Stream 事件日志', () => {
+  it('append 返回单调 id，并按 MAXLEN 修剪最早条目', async () => {
+    const log = new FakeSessionEventLog(() => 1720000000000, 3);
+    const ids = [];
+    for (let n = 1; n <= 5; n += 1) ids.push(await log.append('a', { n }));
+    expect(ids).toEqual([
+      '1720000000000-0',
+      '1720000000000-1',
+      '1720000000000-2',
+      '1720000000000-3',
+      '1720000000000-4',
+    ]);
+    expect(log.entries('a').map((entry) => entry.event.n)).toEqual([3, 4, 5]);
   });
 
-  it('limit 生效（分批补发的单批上限）', async () => {
-    const db = new FakeDb();
-    for (let i = 1; i <= 4; i += 1) {
-      await insertStreamEvent(db, { sessionId: 'sess-a', event: { n: i } });
+  it('rangeAfter 使用开区间并支持分批', async () => {
+    const log = new FakeSessionEventLog(() => 10);
+    for (let n = 1; n <= 4; n += 1) await log.append('a', { n });
+    await log.append('b', { n: 99 });
+    expect((await log.rangeAfter('a', '0-0', 2)).map((entry) => entry.event.n)).toEqual([1, 2]);
+    expect((await log.rangeAfter('a', '10-1', 10)).map((entry) => entry.event.n)).toEqual([3, 4]);
+    expect(await log.rangeAfter('a', '10-3', 10)).toEqual([]);
+  });
+
+  it('compareStreamIds 分别按毫秒与序列的数值比较', () => {
+    expect(compareStreamIds('9-10', '10-0')).toBeLessThan(0);
+    expect(compareStreamIds('100-2', '100-11')).toBeLessThan(0);
+    expect(compareStreamIds('100-11', '100-2')).toBeGreaterThan(0);
+    expect(compareStreamIds('100-2', '100-2')).toBe(0);
+  });
+
+  it('normalizeStreamId 只接受完整的数字-数字格式', () => {
+    expect(normalizeStreamId('1720000000000-0')).toBe('1720000000000-0');
+    for (const raw of [undefined, '', '12', '12-x', '-1-0', '1-2-tail']) {
+      expect(normalizeStreamId(raw)).toBe('0-0');
     }
-    const batch = await listStreamEventsAfter(db, 'sess-a', 0, 2);
-    expect(batch.map((e) => e.id)).toEqual([1, 2]);
+  });
+});
+
+describe('SSE Redis Stream 续传', () => {
+  it('直播漏帧后由心跳补读，输出字符串 Stream id 且不重复', async () => {
+    vi.useFakeTimers();
+    const db = new FakeDb();
+    const capability = db.seedCapability({ owner_user_id: 'me' });
+    const session = await createSession(db, { capabilityId: capability.id, ownerUserId: 'me' });
+    const eventLog = new FakeSessionEventLog(() => 1720000000000);
+    await eventLog.append(session.id, { type: 'RUN_STARTED', threadId: session.id, runId: 'r' });
+    const bus = createSessionEventBus();
+    const rawRequest = new EventEmitter();
+    const writes: string[] = [];
+    const rawReply = {
+      writableEnded: false,
+      writeHead: () => undefined,
+      write: (chunk: unknown) => {
+        writes.push(String(chunk));
+        return true;
+      },
+      end() {
+        this.writableEnded = true;
+      },
+    };
+    const request = {
+      id: 'trace-test',
+      auth: { userId: 'me' },
+      params: { id: session.id },
+      headers: {},
+      raw: rawRequest,
+      log: silentLog,
+      server: { infra: { db, eventLog, bus } },
+    };
+    const reply = { raw: rawReply, hijack: () => undefined };
+
+    await (sessionStreamHandler() as unknown as (req: unknown, res: unknown) => Promise<unknown>)(
+      request,
+      reply,
+    );
+    const missedId = await eventLog.append(session.id, {
+      type: 'RUN_FINISHED',
+      threadId: session.id,
+      runId: 'r',
+    });
+    await vi.advanceTimersByTimeAsync(SSE_HEARTBEAT_INTERVAL_MS);
+    const output = writes.join('');
+    expect(output).toContain('id: 1720000000000-0\n');
+    expect(output).toContain(`id: ${missedId}\n`);
+    expect(output.match(new RegExp(`id: ${missedId}`, 'g'))).toHaveLength(1);
+    rawRequest.emit('close');
   });
 });
 
 describe('turn emitter 双写', () => {
-  it('每个事件先落表（拿自增 id）再发总线，顺序与 id 一致', async () => {
-    const db = new FakeDb();
+  it('每个事件先写日志再发总线，Stream id 与顺序一致', async () => {
+    const eventLog = new FakeSessionEventLog(() => 20);
     const bus = createSessionEventBus();
     const received: PublishedStreamEvent[] = [];
-    bus.subscribe('sess-a', (e) => received.push(e));
-
-    const emitter = createTurnEmitter({ db, bus, sessionId: 'sess-a', log: silentLog });
+    bus.subscribe('a', (event) => received.push(event));
+    const emitter = createTurnEmitter({ eventLog, bus, sessionId: 'a', log: silentLog });
     emitter.emit({ type: 'RUN_STARTED' });
-    emitter.emit({ type: 'TEXT_MESSAGE_CONTENT', delta: 'x' });
+    emitter.emit({ type: 'TEXT_MESSAGE_CONTENT' });
     emitter.emit({ type: 'RUN_FINISHED' });
     await emitter.flush();
-
-    // 表是真源：三行、id 连续。
-    expect(db.streamEvents.map((e) => e.id)).toEqual([1, 2, 3]);
-    expect(db.streamEvents.map((e) => e.event.type)).toEqual([
-      'RUN_STARTED',
-      'TEXT_MESSAGE_CONTENT',
-      'RUN_FINISHED',
-    ]);
-    // 总线拿到同一份（id 与表一致，SSE 直接当帧 id 用）。
-    expect(received.map((e) => e.id)).toEqual([1, 2, 3]);
-    expect(received[2]?.event.type).toBe('RUN_FINISHED');
+    expect(received).toEqual(eventLog.entries('a'));
+    expect(received.map((entry) => entry.id)).toEqual(['20-0', '20-1', '20-2']);
   });
 
-  it('无订阅者时事件仍落表（离线也不丢真源）', async () => {
-    const db = new FakeDb();
+  it('无订阅者时事件仍写入日志', async () => {
+    const eventLog = new FakeSessionEventLog();
     const emitter = createTurnEmitter({
-      db,
+      eventLog,
       bus: createSessionEventBus(),
-      sessionId: 'sess-a',
+      sessionId: 'a',
       log: silentLog,
     });
     emitter.emit({ type: 'RUN_STARTED' });
     await emitter.flush();
-    expect(db.streamEvents).toHaveLength(1);
+    expect(eventLog.entries('a')).toHaveLength(1);
   });
 });

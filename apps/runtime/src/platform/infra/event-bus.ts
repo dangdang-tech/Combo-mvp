@@ -1,10 +1,9 @@
-// 进程内会话事件总线：run-turn 双写的「在线订阅者」一侧（另一侧 INSERT stream_events 才是真源）。
-//   runtime 是单进程（api 进程内异步跑生成），进程内订阅即可覆盖全部在线连接；
-//   若未来拆多进程，把本接口换成 Redis 发布/订阅实现即可，SSE 端订阅面不变。
+import type { Env } from '../config/env.js';
+import { getRedis, getRedisSubscriber } from './redis.js';
+
 export interface PublishedStreamEvent {
-  /** stream_events.id（bigserial），= SSE 帧 id / Last-Event-ID 续传锚点。 */
-  id: number;
-  /** AG-UI 标准事件对象（与表里 event 列同一份）。 */
+  /** Redis Stream 条目 id，也是 SSE 断点续传锚点。 */
+  id: string;
   event: Record<string, unknown>;
 }
 
@@ -38,6 +37,52 @@ export function createSessionEventBus(): SessionEventBus {
       return () => {
         set.delete(fn);
         if (set.size === 0) listeners.delete(sessionId);
+      };
+    },
+  };
+}
+
+const eventChannel = (sessionId: string): string => `rt:sess:evt:${sessionId}`;
+
+/** Redis 发布订阅负责跨实例直播，每个进程在共享订阅连接上按会话扇出。 */
+export function createRedisSessionEventBus(env: Env): SessionEventBus {
+  const redis = getRedis(env);
+  const subscriber = getRedisSubscriber(env);
+  const listeners = new Map<string, Set<(event: PublishedStreamEvent) => void>>();
+
+  subscriber.on('message', (channel: string, payload: string) => {
+    const set = listeners.get(channel);
+    if (!set) return;
+    try {
+      const parsed = JSON.parse(payload) as PublishedStreamEvent;
+      if (typeof parsed.id !== 'string' || typeof parsed.event !== 'object' || !parsed.event)
+        return;
+      for (const listener of set) listener(parsed);
+    } catch {
+      // 非法直播消息只丢弃；Redis Stream 仍可在补读时恢复事件。
+    }
+  });
+
+  return {
+    publish(sessionId, event) {
+      void redis.publish(eventChannel(sessionId), JSON.stringify(event)).catch(() => undefined);
+    },
+    subscribe(sessionId, fn) {
+      const channel = eventChannel(sessionId);
+      let set = listeners.get(channel);
+      if (!set) {
+        set = new Set();
+        listeners.set(channel, set);
+        void subscriber.subscribe(channel).catch(() => listeners.delete(channel));
+      }
+      set.add(fn);
+      return () => {
+        const current = listeners.get(channel);
+        current?.delete(fn);
+        if (current?.size === 0) {
+          listeners.delete(channel);
+          void subscriber.unsubscribe(channel).catch(() => undefined);
+        }
       };
     },
   };
