@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  labels:
+    app: migrate
+spec:
+  # 迁移必须由单个 Job 执行，不得放进业务副本的 initContainer 并发执行。
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: migrate
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: migrate
+          image: ghcr.io/dangdang-tech/combo-api:latest
+          command: ["node", "--experimental-strip-types", "db/scripts/migrate.ts"]
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: POSTGRES_USER}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: POSTGRES_PASSWORD}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: POSTGRES_DB}
+            - name: DATABASE_URL
+              value: postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 512Mi

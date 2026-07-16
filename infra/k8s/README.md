@@ -53,14 +53,6 @@ kubectl apply -f infra/k8s/api.yaml -f infra/k8s/worker.yaml -f infra/k8s/runtim
 
 ## 日常更新
 
-日常更新由 CD 流水线全自动完成：main 的 CI 通过后，CD 把本目录同步到服务器 `/opt/combo/infra/k8s`，再在服务器上执行 `scripts/deploy-k8s.sh`（钉镜像 SHA、删旧迁移 Job、kustomize 渲染后 apply、等迁移完成与四个业务面滚动就绪），最后对 30080 入口跑冒烟。手动部署或回滚在服务器上执行同一个脚本：`env SHA=<完整提交SHA> bash /opt/combo/scripts/deploy-k8s.sh`。
+这条 WIP 分支只用于隔离的 Cloud Review，不直接更新生产环境。Review 的镜像钉版、迁移顺序、专属 Secret 与公网冒烟均由 `scripts/deploy-cloud-review.sh` 和 Cloud Review workflow 负责；完整操作见 [`../../docs/cloud-review.md`](../../docs/cloud-review.md)。
 
-注意两个操作纪律：迁移 Job 的模板不可修改而镜像标签每次都变，所以脚本每次都会先删旧 Job；apply 必须经 kustomize 渲染（脚本已保证），直接 apply 单个原始文件会带上未钉版的 latest 标签。
-
-## 当前生产状态与流量拓扑
-
-2026-07-17 已完成从 docker compose 到本套清单的割接（过程与验证记录见 issue #86）。系统 nginx 的两个公网 vhost 现在指向 k8s：`agora.43-160-242-46.sslip.io` 反代到节点 30080（web 的 NodePort），`s3.43-160-242-46.sslip.io` 反代到节点 30900（minio 的 NodePort，浏览器预签直传入口）。
-
-回滚兜底：compose 栈的容器已停止但配置与数据卷都保留（数据冻结在割接时刻，仅作灾难兜底）。回滚方法是恢复 `/etc/nginx/conf.d/zz-agora-demo.conf.bak.cutover` 并 reload nginx，再到 `/opt/combo/infra` 执行 compose up。
-
-观测栈部署在 `observability` 命名空间，用 Helm 单独安装与升级，配置和安装说明在 `observability/` 子目录；业务三进程的 OTLP 上报地址已写进各自清单的环境变量。Grafana 在节点的 30300 端口。
+生产部署继续以 `origin/main` 的清单和工作流为准，不能从本分支直接 apply 到 `combo` namespace。
