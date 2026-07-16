@@ -13,5 +13,9 @@ FROM nginx:alpine AS runtime
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 # 试用端静态挂在 /try/（nginx.conf 里 location ^~ /try/ alias 到此）。
 COPY --from=build /app/apps/runtime-web/dist /usr/share/nginx/try
-COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
+# nginx 官方镜像入口会对 /etc/nginx/templates/*.template 做 envsubst 后写入 /etc/nginx/conf.d/。
+# 三个变量的默认值即 docker compose 场景（内嵌 DNS + 服务短名）；k8s 在 web.yaml 里覆盖
+# （CoreDNS 地址 + Service 全限定名，nginx resolver 不应用 search 域）。
+ENV NGINX_RESOLVER=127.0.0.11 API_UPSTREAM_HOST=api RUNTIME_UPSTREAM_HOST=runtime
+COPY infra/nginx.conf /etc/nginx/templates/default.conf.template
 EXPOSE 80
