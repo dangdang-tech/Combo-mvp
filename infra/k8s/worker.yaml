@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: worker
+          image: ghcr.io/dangdang-tech/combo-api:latest
+          env:
+            - name: PROCESS
+              value: worker
+            - name: NODE_ENV
+              value: production
+            - name: NODE_OPTIONS
+              value: --max-old-space-size=1536
+            - name: REDIS_QUEUE_URL
+              value: redis://redis-queue:6379/0
+            - name: REDIS_HOT_URL
+              value: redis://redis-hot:6379/0
+            - name: S3_ENDPOINT
+              value: http://minio:9000
+            - name: S3_REGION
+              value: us-east-1
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: POSTGRES_USER}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: POSTGRES_PASSWORD}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: POSTGRES_DB}
+            - name: DATABASE_URL
+              value: postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: S3_ACCESS_KEY}
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: S3_SECRET_KEY}
+            # LLM 相关键允许缺失（代码契约：缺 key 只降级不阻塞启动），必须 optional，
+            # 否则 Secret 缺键时 Pod 直接 CreateContainerConfigError 起不来。
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: ANTHROPIC_API_KEY, optional: true}
+            - name: LLM_PROVIDER
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: LLM_PROVIDER, optional: true}
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: OPENROUTER_API_KEY, optional: true}
+            - name: LLM_BASE_URL
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: LLM_BASE_URL, optional: true}
+            - name: LLM_MODEL
+              valueFrom:
+                secretKeyRef: {name: combo-env, key: LLM_MODEL, optional: true}
+          resources:
+            requests:
+              memory: 1Gi
+            limits:
+              memory: 2Gi
