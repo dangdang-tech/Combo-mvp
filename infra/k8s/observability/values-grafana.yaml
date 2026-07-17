@@ -27,6 +27,10 @@ grafana.ini:
     enabled: false
   analytics:
     reporting_enabled: false
+  users:
+    # Grafana 13 官方配置：[users] default_language 接受受支持的 IETF 语言标签。
+    # 来源：https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/#default_language
+    default_language: zh-Hans
 
 # 数据源使用 Helm release 生成的集群内 Service 名；Loki 通过 gateway，Tempo 直接访问单实例服务。
 datasources:
@@ -75,14 +79,25 @@ dashboardProviders:
         updateIntervalSeconds: 30
         options:
           path: /var/lib/grafana/dashboards/combo
-      - name: kubernetes
-        orgId: 1
-        folder: Kubernetes
-        type: file
-        disableDeletion: false
-        updateIntervalSeconds: 30
-        options:
-          path: /var/lib/grafana/dashboards/kubernetes
+
+# ConfigMap 看板由 sidecar 写入独立的默认目录，与 combo-observability 的 /var/lib/grafana/dashboards/combo 共存。
+# 字段来源（grafana-community/grafana values）：https://github.com/grafana-community/helm-charts/blob/main/charts/grafana/values.yaml
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: '1'
+    folderAnnotation: grafana_folder
+    provider:
+      # 目录注解要配合按目录结构建文件夹才生效，否则全部落进 General。
+      foldersFromFilesStructure: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 50m
+        memory: 64Mi
 
 dashboards:
   combo:
@@ -102,33 +117,17 @@ dashboards:
             "id": 1,
             "options": {"dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": true, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true},
             "targets": [{"datasource": {"type": "loki", "uid": "loki"}, "expr": "{service_namespace=\"combo-mvp\"} | json | traceId=\"$traceId\"", "refId": "A"}],
-            "title": "Logs By Feedback Trace ID",
+            "title": "按反馈 Trace ID 查询日志",
             "type": "logs"
           }],
           "refresh": "",
           "schemaVersion": 39,
           "tags": ["combo", "trace"],
-          "templating": {"list": [{"current": {"selected": false, "text": "", "value": ""}, "hide": 0, "label": "Trace ID", "name": "traceId", "query": "", "skipUrlSync": false, "type": "textbox"}]},
+          "templating": {"list": [{"current": {"selected": false, "text": "", "value": ""}, "hide": 0, "label": "Trace ID（链路标识）", "name": "traceId", "query": "", "skipUrlSync": false, "type": "textbox"}]},
           "time": {"from": "now-6h", "to": "now"},
           "timezone": "",
-          "title": "Trace Debug",
+          "title": "Trace 排障",
           "uid": "combo-trace-debug",
           "version": 1,
           "weekStart": ""
         }
-  kubernetes:
-    node-exporter-full:
-      # Node Exporter Full；https://grafana.com/grafana/dashboards/1860-node-exporter-full/
-      gnetId: 1860
-      revision: 42
-      datasource: prometheus
-    kubernetes-views-pods:
-      # Kubernetes / Views / Pods；https://grafana.com/grafana/dashboards/15760-kubernetes-views-pods/
-      gnetId: 15760
-      revision: 37
-      datasource: prometheus
-    kubernetes-views-global:
-      # Kubernetes / Views / Global；https://grafana.com/grafana/dashboards/15757-kubernetes-views-global/
-      gnetId: 15757
-      revision: 43
-      datasource: prometheus

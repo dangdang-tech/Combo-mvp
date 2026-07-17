@@ -59,7 +59,11 @@ helm upgrade --install grafana grafana-community/grafana --version 12.7.2 --name
 
 验收时先运行 `kubectl get pods,pvc,svc -n observability`，确认 Prometheus server、kube-state-metrics 和 node-exporter Pod 均为 `Running`，Prometheus PVC 为 `Bound`。随后运行 `kubectl port-forward -n observability svc/prometheus-server 9090:80`，访问 `http://127.0.0.1:9090/targets`；除当前集群中确实不存在的注解抓取目标外，已发现的节点、cAdvisor、kube-state-metrics 和 node-exporter target 都应为 `UP`。如果 k3s 发行版关闭了某个 kubelet 指标端点，请在安装时核对对应 target 的错误信息和 k3s 参数，不要直接删除默认抓取配置。
 
-访问 Grafana 后，在 “Dashboards → Kubernetes” 中可以找到 “Node Exporter Full”、“Kubernetes / Views / Pods”和“Kubernetes / Views / Global”三块看板。若要直接验证容器内存历史曲线，可在 Explore 选择 Prometheus 并查询 `sum by (namespace, pod, container) (container_memory_working_set_bytes{namespace="combo", container!="", image!=""})`，时间范围选择最近一小时后应看到 `combo` 命名空间各容器的曲线。首次安装时请核对社区看板 revision 仍可下载且其 Prometheus 数据源输入已映射到 UID `prometheus`。
+看板已全面中文化，由本目录 `dashboards/` 下带 `grafana_dashboard: "1"` 标签的 ConfigMap 提供，Grafana 的 dashboard sidecar 自动发现并按 `grafana_folder` 注解放入「Kubernetes 监控」目录。部署或更新看板执行 `kubectl apply -f infra/k8s/observability/dashboards/`，不需要重装 Grafana。
+
+三块看板的分工：「Kubernetes 全局总览」看集群资源规模、CPU 与内存利用率、Kubernetes 状态与网络概况；「Kubernetes Pod 资源」按命名空间和 Pod 排查资源用量、限流、重启、调度与网络问题；「节点资源总览」聚焦单节点的 CPU、内存、负载、磁盘 IO、网络、根盘与数据盘容量水位，以及 combo 业务容器的资源 Top 10。内嵌的「Trace 排障」看板仍由 combo-observability 这个 file provider 管理，与 sidecar 的目录共存。
+
+若要直接验证容器内存历史曲线，可在 Explore 选择 Prometheus 并查询 `sum by (namespace, pod, container) (container_memory_working_set_bytes{namespace="combo", container!="", image!=""})`，时间范围选择最近一小时后应看到 `combo` 命名空间各容器的曲线。
 
 本方案刻意不安装 Alertmanager、不配置告警规则，也禁用了 Pushgateway，只提供指标采集、存储与看板展示。
 
