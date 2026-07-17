@@ -1,0 +1,57 @@
+# prometheus-community/prometheus 29.14.0 values：保留 chart 默认的 Kubernetes 服务发现抓取配置。
+server:
+  replicaCount: 1
+  retention: 15d
+  retentionSize: 8GB
+  persistentVolume:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  # 单节点且使用 RWO PVC 时显式采用 Recreate，避免滚动升级的新旧 Pod 争用同一卷。
+  strategy:
+    type: Recreate
+
+# 配置热加载 sidecar 也设置资源边界；与下列组件合计内存 limit 为 960Mi。
+configmapReload:
+  prometheus:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 16Mi
+      limits:
+        cpu: 25m
+        memory: 32Mi
+
+kube-state-metrics:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 96Mi
+
+prometheus-node-exporter:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+# 本环境只做指标采集与展示，刻意不部署告警和推送组件。
+alertmanager:
+  enabled: false
+
+prometheus-pushgateway:
+  enabled: false

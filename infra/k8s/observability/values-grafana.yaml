@@ -53,6 +53,13 @@ datasources:
             spanEndTimeShift: 5m
             filterByTraceID: true
             filterBySpanID: false
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.observability.svc.cluster.local
+        jsonData:
+          httpMethod: POST
 
 # 直接把现有 trace-debug.json 纳入 chart 的文件 provisioning，部署后无需手工导入。
 dashboardProviders:
@@ -67,6 +74,14 @@ dashboardProviders:
         updateIntervalSeconds: 30
         options:
           path: /var/lib/grafana/dashboards/combo
+      - name: kubernetes
+        orgId: 1
+        folder: Kubernetes
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/kubernetes
 
 dashboards:
   combo:
@@ -100,3 +115,19 @@ dashboards:
           "version": 1,
           "weekStart": ""
         }
+  kubernetes:
+    node-exporter-full:
+      # Node Exporter Full；https://grafana.com/grafana/dashboards/1860-node-exporter-full/
+      gnetId: 1860
+      revision: 42
+      datasource: prometheus
+    kubernetes-views-pods:
+      # Kubernetes / Views / Pods；https://grafana.com/grafana/dashboards/15760-kubernetes-views-pods/
+      gnetId: 15760
+      revision: 37
+      datasource: prometheus
+    kubernetes-views-global:
+      # Kubernetes / Views / Global；https://grafana.com/grafana/dashboards/15757-kubernetes-views-global/
+      gnetId: 15757
+      revision: 43
+      datasource: prometheus

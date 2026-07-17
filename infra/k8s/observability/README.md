@@ -39,6 +39,30 @@ helm upgrade --install grafana grafana-community/grafana --version 12.7.2 --name
 
 如果日志没有进入 Loki，请先查看 `kubectl logs -n observability daemonset/otel-collector`，再确认目标节点确有 `/var/log/pods` 日志以及应用输出是单行 JSON。如果 trace 没有进入 Tempo，请确认业务端点使用 HTTP 协议的 4318 端口，并检查 Collector 日志中的导出错误。
 
+## 指标监控
+
+指标系统使用不包含 Operator 和 CRD 的 `prometheus-community/prometheus` chart。固定 chart 版本为 `29.14.0`（应用版本 v3.13.0），该稳定版本已于 2026-07-17 从 [Artifact Hub](https://artifacthub.io/packages/helm/prometheus-community/prometheus?modal=values) 核实。配置保留 chart 内置的 Kubernetes 节点、cAdvisor 和 Service Endpoints 等服务发现抓取任务，并启用 kube-state-metrics 与 node-exporter；Prometheus 历史数据保留 15 天且最多使用 8GB，PVC 使用 `local-path` 申请 10Gi。
+
+先添加社区仓库并更新索引，再在本目录安装 Prometheus：
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm upgrade --install prometheus prometheus-community/prometheus --version 29.14.0 --namespace observability --create-namespace --values values-prometheus.yaml --wait
+```
+
+Grafana 无需卸载或重装，只需继续使用原 release 并带更新后的 values 升级；管理员密码仍按前文方式从服务器环境变量注入：
+
+```bash
+helm upgrade --install grafana grafana-community/grafana --version 12.7.2 --namespace observability --values values-grafana.yaml --set-string adminPassword="$GRAFANA_ADMIN_PASSWORD" --wait
+```
+
+验收时先运行 `kubectl get pods,pvc,svc -n observability`，确认 Prometheus server、kube-state-metrics 和 node-exporter Pod 均为 `Running`，Prometheus PVC 为 `Bound`。随后运行 `kubectl port-forward -n observability svc/prometheus-server 9090:80`，访问 `http://127.0.0.1:9090/targets`；除当前集群中确实不存在的注解抓取目标外，已发现的节点、cAdvisor、kube-state-metrics 和 node-exporter target 都应为 `UP`。如果 k3s 发行版关闭了某个 kubelet 指标端点，请在安装时核对对应 target 的错误信息和 k3s 参数，不要直接删除默认抓取配置。
+
+访问 Grafana 后，在 “Dashboards → Kubernetes” 中可以找到 “Node Exporter Full”、“Kubernetes / Views / Pods”和“Kubernetes / Views / Global”三块看板。若要直接验证容器内存历史曲线，可在 Explore 选择 Prometheus 并查询 `sum by (namespace, pod, container) (container_memory_working_set_bytes{namespace="combo", container!="", image!=""})`，时间范围选择最近一小时后应看到 `combo` 命名空间各容器的曲线。首次安装时请核对社区看板 revision 仍可下载且其 Prometheus 数据源输入已映射到 UID `prometheus`。
+
+本方案刻意不安装 Alertmanager、不配置告警规则，也禁用了 Pushgateway，只提供指标采集、存储与看板展示。
+
 ## 卸载
 
 请按入口到后端的顺序卸载，避免卸载过程中继续写入已经删除的后端。
