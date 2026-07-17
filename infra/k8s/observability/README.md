@@ -35,7 +35,7 @@ helm upgrade --install grafana grafana-community/grafana --version 12.7.2 --name
 
 先运行 `kubectl get pods,pvc,svc -n observability`，确认所有 Pod 为 `Running`、两个后端 PVC 为 `Bound`，并确认 `otel-collector` Service 暴露 4317 和 4318。再运行 `kubectl rollout status statefulset/loki -n observability`、`kubectl rollout status statefulset/tempo -n observability`、`kubectl rollout status daemonset/otel-collector -n observability` 和 `kubectl rollout status deployment/grafana -n observability`。
 
-浏览器访问 `http://<k3s 节点地址>:30300`。在 Grafana 的数据源页面分别测试 Loki 与 Tempo，二者都应显示连接成功。随后让 `combo` 命名空间中的应用产生一条包含 `traceId` 的 JSON 日志并发起一条已启用 tracing 的请求。在 Explore 的 Loki 数据源执行 `{service_namespace="combo-mvp"} | json`，应看到去掉 CRI 包装后的应用日志，并能按 `traceId`、`trace_id` 或 `span_id` 过滤。在 Tempo 数据源按请求的 trace ID 搜索，应能打开 trace；打开 span 后使用关联日志功能，应能跳到同一 trace ID 的 Loki 日志。预置的 “Trace Debug” 仪表盘也可以直接输入 trace ID 验证日志查询。
+浏览器访问 `https://grafana.43-160-242-46.sslip.io`（系统 nginx 的 443 反代到节点 30300，vhost 配置在服务器 `/etc/nginx/conf.d/zz-grafana.conf`，证书由 certbot 签发并自动续期；云防火墙不需要开 30300）。匿名访问已关闭，用 admin 加服务器 `/opt/combo/infra/.env` 里的 GRAFANA_ADMIN_PASSWORD 登录。在 Grafana 的数据源页面分别测试 Loki 与 Tempo，二者都应显示连接成功。随后让 `combo` 命名空间中的应用产生一条包含 `traceId` 的 JSON 日志并发起一条已启用 tracing 的请求。在 Explore 的 Loki 数据源执行 `{service_namespace="combo-mvp"} | json`，应看到去掉 CRI 包装后的应用日志，并能按 `traceId`、`trace_id` 或 `span_id` 过滤。在 Tempo 数据源按请求的 trace ID 搜索，应能打开 trace；打开 span 后使用关联日志功能，应能跳到同一 trace ID 的 Loki 日志。预置的 “Trace Debug” 仪表盘也可以直接输入 trace ID 验证日志查询。
 
 如果日志没有进入 Loki，请先查看 `kubectl logs -n observability daemonset/otel-collector`，再确认目标节点确有 `/var/log/pods` 日志以及应用输出是单行 JSON。如果 trace 没有进入 Tempo，请确认业务端点使用 HTTP 协议的 4318 端口，并检查 Collector 日志中的导出错误。
 

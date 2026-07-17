@@ -21,9 +21,10 @@ resources:
     memory: 256Mi
 
 grafana.ini:
+  # 2026-07-17 起有公网域名（grafana.43-160-242-46.sslip.io），匿名访问关闭：
+  # 日志与业务指标不能对公网裸奔，一律 admin 登录（密码在 /opt/combo/infra/.env 的 GRAFANA_ADMIN_PASSWORD）。
   auth.anonymous:
-    enabled: true
-    org_role: Viewer
+    enabled: false
   analytics:
     reporting_enabled: false
 
