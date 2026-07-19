@@ -3,44 +3,45 @@
 //
 // 只放「画图需要的字面量色值/尺寸」，不放业务逻辑。所有图表 option builder 从这里取色，
 // 保证四种图（趋势/迷你图/热力图/密度条）观感一致、可一处改全局。
-// 配色基线：Figma XwOk3OdwHGSt6gviqS2Doy（暖米 + 砖红），与 --cb-accent / --cb-heat-* 同源。
+// 配色基线：产品动作/状态色不进入普通数据系列。趋势、排行、热力强度使用墨色中性色阶；
+// 只有 up/down 这类有明确方向语义的数据使用绿/红。
 
-/** 主题色（与 --cb-accent 同源，砖红）。 */
-export const CHART_ACCENT = '#a73718';
-/** 面积渐变上色（趋势图填充顶部）。 */
-export const CHART_ACCENT_FADE = 'rgba(167, 55, 24, 0.18)';
-/** 面积渐变底色（趋势图填充底部，近透明）。 */
-export const CHART_ACCENT_FADE_BOTTOM = 'rgba(167, 55, 24, 0.02)';
+/** 普通数据系列主色（墨色，不复用品牌/按钮珊瑚）。 */
+export const CHART_SERIES_PRIMARY = '#3d3d3a';
+/** 普通数据系列面积渐变顶部。 */
+export const CHART_SERIES_FILL = 'rgba(61, 61, 58, 0.16)';
+/** 普通数据系列面积渐变底部。 */
+export const CHART_SERIES_FILL_BOTTOM = 'rgba(61, 61, 58, 0.015)';
 /** 次要文字 / 轴标签（与 --cb-muted 同源，暖灰）。 */
-export const CHART_MUTED = '#6f6860';
+export const CHART_MUTED = '#6c6a64';
 /** 主文字（与 --cb-fg 同源）。 */
-export const CHART_FG = '#14141a';
-/** 网格线 / 边框（与 --cb-border 同源，暖米）。 */
-export const CHART_BORDER = '#e1d8ca';
-/** 骨架/空槽底色（与 --cb-skeleton 同源，暖灰半透）。 */
-export const CHART_SKELETON = 'rgba(115, 110, 102, 0.2)';
-/** 峰值标注强调色（砖红，对齐 Figma 峰值药丸）。 */
-export const CHART_PEAK = '#a73718';
+export const CHART_FG = '#141413';
+/** 网格线 / 边框（与 --cb-border 同源，暖奶油边界）。 */
+export const CHART_BORDER = '#e6dfd8';
+/** 骨架/空槽底色（与 --cb-skeleton 同源）。 */
+export const CHART_SKELETON = '#efe9de';
+/** 峰值是数据重点而非状态，使用最高对比墨色。 */
+export const CHART_PEAK = '#141413';
 
 /**
- * 热力图五档色阶（level 0→4，浅→深；砖红渐进，与 --cb-heat-* 同源）。
- * level 0 = 无活跃（最浅暖米），level 4 = 最活跃（砖红）。
+ * 热力图五档色阶（level 0→4，浅→深；中性强度，与 --cb-heat-* 同源）。
+ * level 0 = 无活跃（奶油卡片底），level 4 = 最活跃（墨色）。
  */
 export const HEATMAP_LEVELS: readonly [string, string, string, string, string] = [
-  '#f4f0e7', // 0 空/极浅（暖米）
-  '#eac4ba', // 1 浅砖粉
-  '#d1826b', // 2 中砖
-  '#b75130', // 3 深砖
-  '#a73718', // 4 最深（砖红）
+  '#efe9de', // 0 空/极浅（奶油卡片底）
+  '#d8d0c3', // 1 浅暖灰
+  '#b4aa9c', // 2 中暖灰
+  '#726b62', // 3 深暖灰
+  '#141413', // 4 最深（墨色）
 ];
 
-/** 密度条按名次的渐变（前列更亮，砖红→中砖）。 */
-export const DENSITY_BAR_TOP = '#a73718';
-export const DENSITY_BAR_REST = '#d1826b';
+/** 密度条按名次的对比（前列墨色，其余中性暖灰）。 */
+export const DENSITY_BAR_TOP = '#141413';
+export const DENSITY_BAR_REST = '#b4aa9c';
 
 /** 趋势方向色（up/down/flat），密度榜与指标共用。 */
 export const TREND_COLORS: Record<'up' | 'down' | 'flat', string> = {
-  up: '#0e6d52',
-  down: '#b3261e',
-  flat: '#6f6860',
+  up: '#5db872',
+  down: '#c64545',
+  flat: '#6c6a64',
 };

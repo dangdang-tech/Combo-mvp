@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App } from './App.js';
 import { installGlobalClientErrorHandlers } from './api/telemetry.js';
 import './styles.css';
+import './design-claude.css';
 
 installGlobalClientErrorHandlers();
 

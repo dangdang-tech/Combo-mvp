@@ -8,12 +8,12 @@
 import type { EChartsOption, MarkPointComponentOption } from 'echarts';
 import type { TokenTrend } from '@cb/shared';
 import {
-  CHART_ACCENT,
-  CHART_ACCENT_FADE,
-  CHART_ACCENT_FADE_BOTTOM,
   CHART_BORDER,
   CHART_MUTED,
   CHART_PEAK,
+  CHART_SERIES_FILL,
+  CHART_SERIES_FILL_BOTTOM,
+  CHART_SERIES_PRIMARY,
 } from '../theme.js';
 import { shortDate, trendValues, isAllNull, compactNumber } from './util.js';
 
@@ -79,7 +79,7 @@ export function buildTokenTrendOption(trend: TokenTrend): EChartsOption {
         showSymbol: false,
         connectNulls: false, // 缺测断线，绝不连成假数据
         data: values,
-        lineStyle: { color: CHART_ACCENT, width: 2 },
+        lineStyle: { color: CHART_SERIES_PRIMARY, width: 2 },
         areaStyle: {
           color: {
             type: 'linear',
@@ -88,8 +88,8 @@ export function buildTokenTrendOption(trend: TokenTrend): EChartsOption {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: CHART_ACCENT_FADE },
-              { offset: 1, color: CHART_ACCENT_FADE_BOTTOM },
+              { offset: 0, color: CHART_SERIES_FILL },
+              { offset: 1, color: CHART_SERIES_FILL_BOTTOM },
             ],
           },
         },
