@@ -1,0 +1,1532 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Combo 产品语义色卡：颜色职责、使用边界、组件示例与当前 CSS Token 对照。"
+    />
+    <title>Combo · 产品语义色卡</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #faf9f5;
+        --surface-soft: #f5f0e8;
+        --surface-card: #efe9de;
+        --cream-strong: #e8e0d2;
+        --border: #e6dfd8;
+        --border-soft: #ebe6df;
+        --ink: #141413;
+        --body: #3d3d3a;
+        --muted: #6c6a64;
+        --muted-soft: #8e8b82;
+        --brand: #cc785c;
+        --action: #a9583e;
+        --teal: #5db8a6;
+        --amber: #e8a55a;
+        --success: #5db872;
+        --warning: #d4a017;
+        --error: #c64545;
+        --dark: #181715;
+        --dark-soft: #1f1e1b;
+        --dark-elevated: #252320;
+        --on-dark: #faf9f5;
+        --on-dark-soft: #a09d96;
+        --success-bg: color-mix(in srgb, var(--success) 11%, var(--canvas));
+        --success-fg: color-mix(in srgb, var(--success) 58%, var(--ink));
+        --warning-bg: color-mix(in srgb, var(--warning) 11%, var(--canvas));
+        --warning-fg: color-mix(in srgb, var(--warning) 58%, var(--ink));
+        --error-bg: color-mix(in srgb, var(--error) 7%, var(--canvas));
+        --error-fg: color-mix(in srgb, var(--error) 72%, var(--ink));
+        --live-bg: color-mix(in srgb, var(--teal) 13%, var(--canvas));
+        --live-fg: color-mix(in srgb, var(--teal) 58%, var(--ink));
+        --category-bg: var(--surface-card);
+        --category-fg: var(--ink);
+        --shadow: 0 24px 70px rgba(20, 20, 19, 0.09);
+        --serif: 'Iowan Old Style', 'Palatino Linotype', 'Noto Serif SC', 'Songti SC', serif;
+        --sans:
+          Inter, 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+          'Microsoft YaHei', sans-serif;
+        --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(rgba(230, 223, 216, 0.28) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(230, 223, 216, 0.22) 1px, transparent 1px), var(--canvas);
+        background-size: 48px 48px;
+        color: var(--body);
+        font-family: var(--sans);
+        line-height: 1.55;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .page {
+        width: min(1360px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 32px 0 80px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 0 0 28px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .brand-lockup {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 9px;
+        background: var(--ink);
+        color: var(--canvas);
+        font-family: var(--serif);
+        font-size: 21px;
+      }
+
+      .meta {
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
+        gap: 24px;
+        padding: 64px 0 28px;
+      }
+
+      .hero-copy,
+      .contract {
+        min-height: 340px;
+        border-radius: 16px;
+      }
+
+      .hero-copy {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: clamp(32px, 5vw, 64px);
+        background: var(--surface-card);
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--action);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1,
+      h2 {
+        color: var(--ink);
+        font-family: var(--serif);
+        font-weight: 400;
+        letter-spacing: -0.035em;
+      }
+
+      h1 {
+        max-width: 900px;
+        margin-bottom: 24px;
+        font-size: clamp(48px, 7vw, 92px);
+        line-height: 0.98;
+      }
+
+      .hero-lead {
+        max-width: 780px;
+        margin-bottom: 0;
+        color: var(--body);
+        font-size: clamp(17px, 2vw, 21px);
+      }
+
+      .contract {
+        padding: 34px;
+        background: var(--dark);
+        color: var(--on-dark);
+      }
+
+      .contract .eyebrow {
+        color: var(--brand);
+      }
+
+      .contract h2 {
+        margin-bottom: 18px;
+        color: var(--on-dark);
+        font-size: 36px;
+      }
+
+      .contract p {
+        color: var(--on-dark-soft);
+      }
+
+      .contract ol {
+        display: grid;
+        gap: 14px;
+        margin: 28px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .contract li {
+        display: grid;
+        grid-template-columns: 26px 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+
+      .contract-number {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        place-items: center;
+        border: 1px solid var(--dark-elevated);
+        border-radius: 999px;
+        background: var(--dark-elevated);
+        color: var(--on-dark);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .section {
+        margin-top: 72px;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: 1fr minmax(280px, 0.52fr);
+        gap: 32px;
+        align-items: end;
+        margin-bottom: 24px;
+      }
+
+      .section-index {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--action);
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+      }
+
+      .section-heading h2 {
+        margin-bottom: 0;
+        font-size: clamp(38px, 5vw, 64px);
+        line-height: 1;
+      }
+
+      .section-heading p {
+        margin-bottom: 3px;
+        color: var(--muted);
+      }
+
+      .logic-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .logic-card {
+        min-height: 220px;
+        padding: 26px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--canvas);
+      }
+
+      .logic-card strong {
+        display: block;
+        margin: 26px 0 8px;
+        color: var(--ink);
+        font-size: 20px;
+      }
+
+      .logic-card p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .logic-signal {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 28px;
+        padding: 4px 11px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .signal-action {
+        background: var(--action);
+        color: white;
+      }
+
+      .signal-selection {
+        border: 1px solid color-mix(in srgb, var(--ink) 24%, var(--border));
+        background: var(--cream-strong);
+        color: var(--ink);
+      }
+
+      .signal-live {
+        background: var(--live-bg);
+        color: var(--live-fg);
+      }
+
+      .signal-outcome {
+        background: var(--success-bg);
+        color: var(--success-fg);
+      }
+
+      .signal-category {
+        background: var(--category-bg);
+        color: var(--category-fg);
+      }
+
+      .signal-machine {
+        background: var(--dark);
+        color: var(--on-dark);
+      }
+
+      .palette-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--border);
+        gap: 1px;
+      }
+
+      .swatch {
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: var(--canvas);
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .swatch-color {
+        display: flex;
+        min-height: 150px;
+        align-items: flex-end;
+        justify-content: space-between;
+        padding: 18px;
+        background: var(--swatch);
+        color: var(--swatch-text, var(--ink));
+      }
+
+      .swatch-hex {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      .copy-hint {
+        opacity: 0;
+        font-size: 11px;
+        transition: opacity 160ms ease;
+      }
+
+      .swatch:hover .copy-hint,
+      .swatch:focus-visible .copy-hint {
+        opacity: 0.72;
+      }
+
+      .swatch-meta {
+        min-height: 138px;
+        padding: 18px;
+        background: var(--canvas);
+      }
+
+      .swatch-meta strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ink);
+        font-size: 16px;
+      }
+
+      .token {
+        display: block;
+        overflow: hidden;
+        margin-bottom: 14px;
+        color: var(--muted-soft);
+        font-family: var(--mono);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .swatch-meta p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .role-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .role-card {
+        display: grid;
+        grid-template-columns: 118px minmax(0, 1fr);
+        min-height: 230px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--canvas);
+      }
+
+      .role-color {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 18px;
+        background: var(--role);
+        color: var(--role-text, var(--ink));
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .role-body {
+        padding: 24px;
+      }
+
+      .role-body h3 {
+        margin: 0 0 8px;
+        color: var(--ink);
+        font-size: 20px;
+      }
+
+      .role-body > p {
+        margin-bottom: 18px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .rule-list {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 13px;
+      }
+
+      .rule-list li {
+        display: grid;
+        grid-template-columns: 48px 1fr;
+        gap: 8px;
+      }
+
+      .rule-label {
+        color: var(--muted-soft);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .component-board {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 16px;
+      }
+
+      .component-panel {
+        padding: 28px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--canvas);
+      }
+
+      .component-panel h3 {
+        margin-bottom: 22px;
+        color: var(--ink);
+        font-size: 18px;
+      }
+
+      .button-row,
+      .tab-row,
+      .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .button-row + .tab-row,
+      .tab-row + .status-row {
+        margin-top: 26px;
+        padding-top: 26px;
+        border-top: 1px solid var(--border-soft);
+      }
+
+      .demo-button {
+        min-height: 42px;
+        padding: 0 18px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--canvas);
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .demo-button.primary {
+        border-color: var(--action);
+        background: var(--action);
+        color: white;
+      }
+
+      .demo-button:disabled {
+        border-color: var(--border);
+        background: var(--border);
+        color: var(--muted);
+      }
+
+      .demo-tab {
+        padding: 7px 13px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+      }
+
+      .demo-tab.active {
+        background: var(--cream-strong);
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 28px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .status::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        content: '';
+      }
+
+      .status.live {
+        background: var(--live-bg);
+        color: var(--live-fg);
+      }
+
+      .status.success {
+        background: var(--success-bg);
+        color: var(--success-fg);
+      }
+
+      .status.warning {
+        background: var(--warning-bg);
+        color: var(--warning-fg);
+      }
+
+      .status.error {
+        background: var(--error-bg);
+        color: var(--error-fg);
+      }
+
+      .state-stack {
+        display: grid;
+        gap: 10px;
+      }
+
+      .state-message {
+        display: grid;
+        grid-template-columns: 10px 1fr;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--message-border);
+        border-radius: 10px;
+        background: var(--message-bg);
+        color: var(--message-fg);
+        font-size: 13px;
+      }
+
+      .state-message::before {
+        width: 8px;
+        height: 8px;
+        margin-top: 6px;
+        border-radius: 50%;
+        background: var(--message-dot);
+        content: '';
+      }
+
+      .machine-panel {
+        margin-top: 16px;
+        padding: 24px;
+        border-radius: 12px;
+        background: var(--dark);
+        color: var(--on-dark);
+      }
+
+      .machine-panel header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 32px;
+        color: var(--on-dark-soft);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .machine-panel code {
+        color: var(--on-dark);
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+
+      .machine-panel .running-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 18px;
+        color: color-mix(in srgb, var(--teal) 58%, var(--on-dark));
+        font-size: 12px;
+      }
+
+      .machine-panel .running-line::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--teal);
+        box-shadow: 0 0 0 4px rgba(93, 184, 166, 0.11);
+        content: '';
+      }
+
+      .guardrails {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        overflow: hidden;
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+      }
+
+      .guardrail {
+        min-height: 310px;
+        padding: 34px;
+      }
+
+      .guardrail.do {
+        background: var(--surface-card);
+      }
+
+      .guardrail.dont {
+        background: var(--dark);
+        color: var(--on-dark);
+      }
+
+      .guardrail h3 {
+        margin-bottom: 20px;
+        color: inherit;
+        font-family: var(--serif);
+        font-size: 34px;
+        font-weight: 400;
+      }
+
+      .guardrail ul {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .guardrail li {
+        display: grid;
+        grid-template-columns: 20px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .guardrail li::before {
+        color: var(--action);
+        font-family: var(--mono);
+        font-weight: 700;
+      }
+
+      .guardrail.do li::before {
+        content: '+';
+      }
+
+      .guardrail.dont li {
+        color: var(--on-dark-soft);
+      }
+
+      .guardrail.dont li::before {
+        color: var(--error);
+        content: '×';
+      }
+
+      .token-table {
+        width: 100%;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-collapse: separate;
+        border-spacing: 0;
+        border-radius: 14px;
+        background: var(--canvas);
+      }
+
+      .token-table th,
+      .token-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border-soft);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .token-table tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .token-table th {
+        background: var(--surface-soft);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .token-table td {
+        color: var(--body);
+        font-size: 13px;
+      }
+
+      .token-table code {
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .contrast-good,
+      .contrast-large,
+      .contrast-no {
+        display: inline-flex;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .contrast-good {
+        background: var(--success-bg);
+        color: var(--success-fg);
+      }
+
+      .contrast-large {
+        background: var(--warning-bg);
+        color: var(--warning-fg);
+      }
+
+      .contrast-no {
+        background: var(--error-bg);
+        color: var(--error-fg);
+      }
+
+      .source-note {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        margin-top: 72px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .source-note code {
+        font-family: var(--mono);
+      }
+
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 10;
+        padding: 12px 16px;
+        border-radius: 9px;
+        background: var(--dark);
+        color: var(--on-dark);
+        box-shadow: var(--shadow);
+        font-size: 13px;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+        transition: 160ms ease;
+      }
+
+      .toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--brand);
+        outline-offset: 3px;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .section-heading,
+        .component-board {
+          grid-template-columns: 1fr;
+        }
+
+        .logic-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .palette-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .role-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .page {
+          width: min(100% - 28px, 1360px);
+          padding-top: 20px;
+        }
+
+        .topbar,
+        .source-note {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .hero {
+          padding-top: 28px;
+        }
+
+        .hero-copy,
+        .contract {
+          min-height: auto;
+        }
+
+        .logic-grid,
+        .palette-grid,
+        .guardrails {
+          grid-template-columns: 1fr;
+        }
+
+        .role-card {
+          grid-template-columns: 82px minmax(0, 1fr);
+        }
+
+        .role-color {
+          padding: 12px;
+        }
+
+        .token-table {
+          display: block;
+          overflow-x: auto;
+          white-space: nowrap;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      @media print {
+        body {
+          background: var(--canvas);
+        }
+
+        .page {
+          width: 100%;
+          padding: 0;
+        }
+
+        .copy-hint,
+        .toast {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <span class="brand-mark">C</span>
+          <span>Combo · Product Color System</span>
+        </div>
+        <div class="meta">Semantic palette / v1.0 / 2026.07.19</div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <div>
+              <p class="eyebrow">Color has a job</p>
+              <h1 id="page-title">一色一职，<br />让颜色表达产品状态。</h1>
+            </div>
+            <p class="hero-lead">
+              Combo
+              的颜色不是装饰层，而是一套语义系统：珊瑚色负责行动，米色与墨色负责选择，青色负责进行中，绿／黄／红只负责结果。
+            </p>
+          </div>
+
+          <aside class="contract" aria-label="颜色契约">
+            <p class="eyebrow">The contract</p>
+            <h2>先判断含义，<br />再决定颜色。</h2>
+            <p>同一个含义在创作者端与 Runtime 端必须使用同一个颜色角色。</p>
+            <ol>
+              <li>
+                <span class="contract-number">1</span
+                ><span>原始色值只定义色相，不直接进入组件。</span>
+              </li>
+              <li>
+                <span class="contract-number">2</span
+                ><span>组件只消费 action / selection / live / state 等角色 Token。</span>
+              </li>
+              <li>
+                <span class="contract-number">3</span
+                ><span>任何新颜色都必须先说明它表达的产品含义。</span>
+              </li>
+            </ol>
+          </aside>
+        </section>
+
+        <section class="section" aria-labelledby="logic-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">01 / DECISION MAP</span>
+              <h2 id="logic-title">六种问题，六种回答</h2>
+            </div>
+            <p>
+              这是产品中决定颜色的第一层。没有落入这六类的问题，默认回到中性色，而不是再发明一个强调色。
+            </p>
+          </div>
+
+          <div class="logic-grid">
+            <article class="logic-card">
+              <span class="logic-signal signal-action">珊瑚 · Action</span>
+              <strong>用户下一步要做什么？</strong>
+              <p>主按钮、关键链接、焦点环。只表达“可行动”，不表达选中或状态。</p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-selection">米色 + 墨色 · Selection</span>
+              <strong>用户选中了什么？</strong>
+              <p>当前 Tab、选中行、模式切换。用结构对比，不与主操作抢夺视觉注意。</p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-live">青色 · Live</span>
+              <strong>系统正在做什么？</strong>
+              <p>导入中、生成中、连接中、流式输出。结束后必须退出青色状态。</p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-outcome">绿 / 黄 / 红 · Outcome</span>
+              <strong>这件事结果如何？</strong>
+              <p>成功、警告、失败。结果色永远不承担品牌、分类或主操作职责。</p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-category">中性 · Category</span>
+              <strong>它属于什么类型？</strong>
+              <p>能力类型、内容分类、轻量标签。分类默认回到米色与墨色，不伪装成警告。</p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-machine">深墨 · Machine surface</span>
+              <strong>这是系统产物或机器界面吗？</strong>
+              <p>命令、代码、Artifact、运行日志。深色只在“机器表面”出现，不做普通页面底色。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="foundation-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">02 / FOUNDATION</span>
+              <h2 id="foundation-title">大多数界面，其实没有彩色</h2>
+            </div>
+            <p>页面氛围由暖米色阶、暖墨文字和低对比边线建立。点击色块可复制色值。</p>
+          </div>
+
+          <div class="palette-grid">
+            <button class="swatch" type="button" data-copy="#faf9f5">
+              <span class="swatch-color" style="--swatch: #faf9f5">
+                <span class="swatch-hex">#FAF9F5</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Canvas</strong><span class="token">--cb-bg</span>
+                <p>页面底色、输入框底色、默认工作画布。拒绝纯白与冷灰。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#f5f0e8">
+              <span class="swatch-color" style="--swatch: #f5f0e8">
+                <span class="swatch-hex">#F5F0E8</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Surface Soft</strong><span class="token">--cb-surface-soft</span>
+                <p>侧栏、弱分区、非选中模式背景。只提供空间层级。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#efe9de">
+              <span class="swatch-color" style="--swatch: #efe9de">
+                <span class="swatch-hex">#EFE9DE</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Surface Card</strong><span class="token">--cb-surface-card</span>
+                <p>能力卡、信息卡、内容模块。用色块形成层级，不依赖阴影。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#e8e0d2">
+              <span class="swatch-color" style="--swatch: #e8e0d2">
+                <span class="swatch-hex">#E8E0D2</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Cream Strong</strong><span class="token">--cb-selection-bg</span>
+                <p>选中 Tab、当前模式、明确选择。选中态不用珊瑚色。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#141413">
+              <span class="swatch-color" style="--swatch: #141413; --swatch-text: #faf9f5">
+                <span class="swatch-hex">#141413</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Ink</strong><span class="token">--cb-fg</span>
+                <p>标题、主要数据、选中态文字。17.50:1，对比明确但不死黑。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#3d3d3a">
+              <span class="swatch-color" style="--swatch: #3d3d3a; --swatch-text: #faf9f5">
+                <span class="swatch-hex">#3D3D3A</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Body</strong><span class="token">--cb-body</span>
+                <p>正文、说明、表格内容。10.34:1，是产品文本的主力色。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#6c6a64">
+              <span class="swatch-color" style="--swatch: #6c6a64; --swatch-text: #faf9f5">
+                <span class="swatch-hex">#6C6A64</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Muted</strong><span class="token">--cb-muted</span>
+                <p>次级标签、描述、导航辅助信息。5.13:1，可承载普通小字。</p>
+              </span>
+            </button>
+            <button class="swatch" type="button" data-copy="#e6dfd8">
+              <span class="swatch-color" style="--swatch: #e6dfd8">
+                <span class="swatch-hex">#E6DFD8</span><span class="copy-hint">COPY</span>
+              </span>
+              <span class="swatch-meta">
+                <strong>Hairline</strong><span class="token">--cb-border</span>
+                <p>输入框、表格、卡片边界。它表达层级，不表达错误或选中。</p>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="roles-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">03 / SEMANTIC ROLES</span>
+              <h2 id="roles-title">彩色必须有明确职责</h2>
+            </div>
+            <p>
+              原始色值不直接作为正文色。它们通过浅背景、深前景和状态组件组合，才获得可访问的产品表达。
+            </p>
+          </div>
+
+          <div class="role-grid">
+            <article class="role-card">
+              <div class="role-color" style="--role: #cc785c; --role-text: #141413">
+                <span>BRAND</span><span>#CC785C</span>
+              </div>
+              <div class="role-body">
+                <h3>珊瑚 · 品牌锚点</h3>
+                <p>Logo 点缀、焦点环、少量品牌瞬间。产品主按钮使用更深的 Action 色确保可读性。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>品牌标记、focus ring、稀缺的大面积品牌 Callout</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>成功、失败、运行中、选中 Tab、普通卡片装饰</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #a9583e; --role-text: #ffffff">
+                <span>ACTION</span><span>#A9583E</span>
+              </div>
+              <div class="role-body">
+                <h3>深珊瑚 · 主操作</h3>
+                <p>当前产品将原设计的 active 色提升为主行动色；白字对比度 5.06:1。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>每个区域唯一主按钮、关键文本链接、决定性下一步</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>同一屏多个同权按钮、静态标签、选中或状态提示</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #5db8a6; --role-text: #141413">
+                <span>LIVE</span><span>#5DB8A6</span>
+              </div>
+              <div class="role-body">
+                <h3>青色 · 运行反馈</h3>
+                <p>只回答“系统是否正在工作”。原色做点和轨迹，文字使用与墨色混合后的 live-fg。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>导入中、生成中、连接中、实时输出、活动轨迹</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>完成态、主操作、普通链接、品牌装饰</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #efe9de; --role-text: #141413">
+                <span>CATEGORY</span><span>#EFE9DE</span>
+              </div>
+              <div class="role-body">
+                <h3>中性色 · 类型分类</h3>
+                <p>帮助扫读“它是什么”，但不制造状态暗示。分类标签使用 Card + Ink 的中性组合。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>能力类型、内容类别、轻量标签、主题归属</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>警告黄、品牌珊瑚、成功绿、任何状态原色</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #5db872; --role-text: #141413">
+                <span>SUCCESS</span><span>#5DB872</span>
+              </div>
+              <div class="role-body">
+                <h3>绿色 · 成功结果</h3>
+                <p>表示一个动作已经完成且结果可用。使用浅绿背景 + 深绿文字，不用亮绿色正文。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>已发布、已完成、可用、校验通过、正向数据变化</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span><span>运行中、已选择、推荐项、免费标签</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #d4a017; --role-text: #141413">
+                <span>WARNING</span><span>#D4A017</span>
+              </div>
+              <div class="role-body">
+                <h3>金色 · 风险提醒</h3>
+                <p>表达“可以继续，但需要注意”。它不是类别色，也不应制造普遍焦虑。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>待确认、部分完成、即将过期、非阻断风险</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>能力类型、普通提示、品牌点缀、失败结果</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #c64545; --role-text: #ffffff">
+                <span>ERROR</span><span>#C64545</span>
+              </div>
+              <div class="role-body">
+                <h3>红色 · 错误与破坏</h3>
+                <p>只用于失败、校验错误和危险操作。原色可做边线与图标，正文使用 error-fg。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>失败、字段错误、删除、不可恢复、负向数据变化</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>运行中、待处理、普通空态、品牌强调</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+
+            <article class="role-card">
+              <div class="role-color" style="--role: #181715; --role-text: #faf9f5">
+                <span>MACHINE</span><span>#181715</span>
+              </div>
+              <div class="role-body">
+                <h3>深墨 · 机器表面</h3>
+                <p>深色是内容模式，不是另一套主题。它标记命令、代码、Artifact 和系统输出。</p>
+                <ul class="rule-list">
+                  <li>
+                    <span class="rule-label">YES</span
+                    ><span>命令行、运行日志、代码、Artifact、系统控制区</span>
+                  </li>
+                  <li>
+                    <span class="rule-label">NO</span
+                    ><span>普通页面背景、常规表单、营销式大面积装饰</span>
+                  </li>
+                </ul>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="components-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">04 / COMPONENT PROOF</span>
+              <h2 id="components-title">落到组件，语义仍然不变</h2>
+            </div>
+            <p>同一屏里，主操作、当前选择、运行反馈和结果状态彼此可区分，颜色才真正有信息量。</p>
+          </div>
+
+          <div class="component-board">
+            <div class="component-panel">
+              <h3>操作、选择与状态</h3>
+              <div class="button-row" aria-label="按钮示例">
+                <button class="demo-button primary" type="button">开始导入 →</button>
+                <button class="demo-button" type="button">保存草稿</button>
+                <button class="demo-button" type="button" disabled>暂不可用</button>
+              </div>
+              <div class="tab-row" aria-label="标签页示例">
+                <button class="demo-tab active" type="button">全部</button>
+                <button class="demo-tab" type="button">已上架</button>
+                <button class="demo-tab" type="button">草稿</button>
+              </div>
+              <div class="status-row" aria-label="状态示例">
+                <span class="status live">生成中</span>
+                <span class="status success">已上架</span>
+                <span class="status warning">待确认</span>
+                <span class="status error">失败</span>
+              </div>
+            </div>
+
+            <div>
+              <div class="component-panel">
+                <h3>反馈信息</h3>
+                <div class="state-stack">
+                  <div
+                    class="state-message"
+                    style="
+                      --message-bg: var(--live-bg);
+                      --message-fg: var(--live-fg);
+                      --message-border: color-mix(in srgb, var(--teal) 34%, var(--border));
+                      --message-dot: var(--teal);
+                    "
+                  >
+                    正在解析 128 条会话，系统仍在工作。
+                  </div>
+                  <div
+                    class="state-message"
+                    style="
+                      --message-bg: var(--success-bg);
+                      --message-fg: var(--success-fg);
+                      --message-border: color-mix(in srgb, var(--success) 28%, var(--border));
+                      --message-dot: var(--success);
+                    "
+                  >
+                    能力已发布，可以从市场直接使用。
+                  </div>
+                  <div
+                    class="state-message"
+                    style="
+                      --message-bg: var(--error-bg);
+                      --message-fg: var(--error-fg);
+                      --message-border: color-mix(in srgb, var(--error) 30%, var(--border));
+                      --message-dot: var(--error);
+                    "
+                  >
+                    上传失败，请检查网络后重新尝试。
+                  </div>
+                </div>
+              </div>
+
+              <div class="machine-panel">
+                <header><span>COMBO RUNTIME</span><span>artifact / live</span></header>
+                <code>$ combo run persona-generator --mode trial</code>
+                <div class="running-line">正在生成第一版人物画像卡</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="guardrails-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">05 / GUARDRAILS</span>
+              <h2 id="guardrails-title">使用边界，比色值更重要</h2>
+            </div>
+            <p>当一个页面看起来“颜色很多但没有重点”，通常不是色板错了，而是职责越界了。</p>
+          </div>
+
+          <div class="guardrails">
+            <article class="guardrail do">
+              <h3>应该这样用</h3>
+              <ul>
+                <li>让 Canvas / Surface / Ink 构成页面 绝大多数视觉面积。</li>
+                <li>一个操作区域只保留一个珊瑚色主行动。</li>
+                <li>选中态使用米色层级与墨色标记，不抢主按钮颜色。</li>
+                <li>运行中使用青色；动作结束后切换为绿、黄或红。</li>
+                <li>分类、普通数据和热力强度默认使用中性色，不借用结果色。</li>
+                <li>浅色状态底配深色语义文字，原始亮色只做点、线、图标。</li>
+              </ul>
+            </article>
+            <article class="guardrail dont">
+              <h3>不要这样用</h3>
+              <ul>
+                <li>不要因为“这里需要一点颜色”就随机使用珊瑚、青或绿。</li>
+                <li>不要让珊瑚色同时代表主按钮、当前 Tab、成功和错误。</li>
+                <li>不要给分类标签上黄；黄系在产品里只保留给需要关注的 Warning。</li>
+                <li>不要直接用 teal / green / amber 原色承载小号正文。</li>
+                <li>不要把深墨面板扩张成全站深色主题；它只标记机器表面。</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="drift-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">06 / CURRENT DRIFT</span>
+              <h2 id="drift-title">当前代码还要对齐的三处</h2>
+            </div>
+            <p>
+              这些不是换色值，而是让现有组件回到正确角色。色卡定义目标；本轮不直接改动产品结构与业务逻辑。
+            </p>
+          </div>
+
+          <div class="logic-grid">
+            <article class="logic-card">
+              <span class="logic-signal signal-category">Category → Neutral</span>
+              <strong>分类标签不再用 Amber</strong>
+              <p>
+                当前 <code>--cb-category-*</code> 与 Warning 同属黄系。目标改为 Surface Card +
+                Ink；Amber 仅作为保留的编辑性点缀，不进入产品状态。
+              </p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-selection">Data → Neutral</span>
+              <strong>涨跌与置信度不等于成败</strong>
+              <p>
+                当前 data up/down 与 high confidence 借用了
+                success/error。默认应使用中性强度；只有业务明确判定 positive / negative 才映射绿红。
+              </p>
+            </article>
+            <article class="logic-card">
+              <span class="logic-signal signal-live">Retrying → Live</span>
+              <strong>重试中不是错误态</strong>
+              <p>
+                当前 retrying 仍使用 error-fg。重连、重试、恢复中都属于非终态系统反馈，应统一进入
+                Teal / Info 角色。
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="contrast-title">
+          <div class="section-heading">
+            <div>
+              <span class="section-index">07 / TOKEN & CONTRAST</span>
+              <h2 id="contrast-title">实际 Token 与可读性</h2>
+            </div>
+            <p>
+              以下数值来自当前 Creator 与 Runtime 的
+              CSS。品牌原色不是默认正文色，产品角色会主动做深色化或与 Ink 混合。
+            </p>
+          </div>
+
+          <table class="token-table">
+            <thead>
+              <tr>
+                <th>角色</th>
+                <th>实际 Token</th>
+                <th>组合</th>
+                <th>对比度</th>
+                <th>结论</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>标题</td>
+                <td><code>--cb-fg</code></td>
+                <td>#141413 / #FAF9F5</td>
+                <td>17.50:1</td>
+                <td><span class="contrast-good">普通文本通过</span></td>
+              </tr>
+              <tr>
+                <td>正文</td>
+                <td><code>--cb-body</code></td>
+                <td>#3D3D3A / #FAF9F5</td>
+                <td>10.34:1</td>
+                <td><span class="contrast-good">普通文本通过</span></td>
+              </tr>
+              <tr>
+                <td>次级文本</td>
+                <td><code>--cb-muted</code></td>
+                <td>#6C6A64 / #FAF9F5</td>
+                <td>5.13:1</td>
+                <td><span class="contrast-good">普通文本通过</span></td>
+              </tr>
+              <tr>
+                <td>弱说明</td>
+                <td><code>--cb-muted-soft</code></td>
+                <td>#8E8B82 / #FAF9F5</td>
+                <td>3.23:1</td>
+                <td><span class="contrast-large">仅大字 / 非关键信息</span></td>
+              </tr>
+              <tr>
+                <td>品牌珊瑚</td>
+                <td><code>--cb-brand</code></td>
+                <td>#CC785C / #FAF9F5</td>
+                <td>3.11:1</td>
+                <td><span class="contrast-no">不做小号正文</span></td>
+              </tr>
+              <tr>
+                <td>主操作</td>
+                <td><code>--cb-action-primary</code></td>
+                <td>#FFFFFF / #A9583E</td>
+                <td>5.06:1</td>
+                <td><span class="contrast-good">按钮文字通过</span></td>
+              </tr>
+              <tr>
+                <td>深色正文</td>
+                <td><code>--cb-on-dark</code></td>
+                <td>#FAF9F5 / #181715</td>
+                <td>17.00:1</td>
+                <td><span class="contrast-good">普通文本通过</span></td>
+              </tr>
+              <tr>
+                <td>深色次级</td>
+                <td><code>--cb-on-dark-soft</code></td>
+                <td>#A09D96 / #181715</td>
+                <td>6.62:1</td>
+                <td><span class="contrast-good">普通文本通过</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+
+      <footer class="source-note">
+        <span>Source: <code>DESIGN-claude.md</code> + current Creator / Runtime CSS tokens.</span>
+        <span
+          >原则：Coral = Action · Cream + Ink = Selection / Category · Teal = Live · Green/Gold/Red
+          = Outcome</span
+        >
+      </footer>
+    </div>
+
+    <div class="toast" role="status" aria-live="polite">已复制</div>
+    <script>
+      const toast = document.querySelector('.toast');
+      let toastTimer;
+
+      document.querySelectorAll('[data-copy]').forEach((element) => {
+        element.addEventListener('click', async () => {
+          const value = element.dataset.copy;
+          try {
+            await navigator.clipboard.writeText(value);
+            toast.textContent = `已复制 ${value}`;
+          } catch {
+            toast.textContent = value;
+          }
+          toast.classList.add('visible');
+          window.clearTimeout(toastTimer);
+          toastTimer = window.setTimeout(() => toast.classList.remove('visible'), 1600);
+        });
+      });
+    </script>
+  </body>
+</html>

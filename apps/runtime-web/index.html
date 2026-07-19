@@ -3,7 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Combo · 试用</title>
+    <script>
+      (() => {
+        const key = 'combo.theme.preference';
+        let preference = 'system';
+        try {
+          const stored = window.localStorage.getItem(key);
+          if (stored === 'light' || stored === 'dark' || stored === 'system') preference = stored;
+        } catch {}
+        let systemPrefersDark = false;
+        try {
+          systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch {}
+        const resolved =
+          preference === 'system' ? (systemPrefersDark ? 'dark' : 'light') : preference;
+        const root = document.documentElement;
+        root.dataset.theme = resolved;
+        root.dataset.themePreference = preference;
+        root.style.colorScheme = resolved;
+      })();
+    </script>
+    <style>
+      html[data-theme='light'] {
+        background: #faf9f5;
+        color: #141413;
+      }
+      html[data-theme='dark'] {
+        background: #141413;
+        color: #faf9f5;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

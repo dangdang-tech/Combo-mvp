@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ApiError } from './api/index.js';
 import { installGlobalClientErrorHandlers } from './api/telemetry.js';
 import { App } from './App.js';
+import { ThemeProvider } from './theme/ThemeProvider.js';
 import './styles.css';
 import './design-claude.css';
 
@@ -25,8 +26,10 @@ if (!rootEl) throw new Error('#root not found');
 
 createRoot(rootEl).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 );

@@ -1,0 +1,1808 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-theme-preference="system">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Combo 设计语言：暖纸 Light、暖墨 Dark、语义颜色、排版、组件状态、动效与主题契约。"
+    />
+    <title>Combo · 设计语言</title>
+    <script>
+      (() => {
+        const storageKey = 'combo.design.review.theme';
+        const valid = new Set(['system', 'light', 'dark']);
+        let preference = 'system';
+
+        try {
+          const saved = localStorage.getItem(storageKey);
+          if (saved && valid.has(saved)) preference = saved;
+        } catch (_) {
+          // Review page remains usable when storage is unavailable.
+        }
+
+        const systemTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const resolved = preference === 'system' ? systemTheme : preference;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.dataset.themePreference = preference;
+        document.documentElement.style.colorScheme = resolved;
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+
+        /* Foundation · warm paper */
+        --canvas: #faf9f5;
+        --rail: #f5f0e8;
+        --surface: #fffdfa;
+        --surface-raised: #ffffff;
+        --surface-card: #efe9de;
+        --surface-strong: #e8e0d2;
+        --machine: #181715;
+        --machine-raised: #252320;
+        --on-machine: #faf9f5;
+        --on-machine-muted: #a09d96;
+
+        /* Text and line */
+        --ink: #141413;
+        --body: #3d3d3a;
+        --muted: #6c6a64;
+        --muted-soft: #8e8b82;
+        --border: #e6dfd8;
+        --border-strong: #d6cec4;
+
+        /* Semantic color */
+        --brand: #cc785c;
+        --brand-soft: #f3ddd4;
+        --action: #a9583e;
+        --action-hover: #91472f;
+        --on-action: #ffffff;
+        --live: #168577;
+        --live-soft: #e3f2ee;
+        --success: #287a43;
+        --success-soft: #e6f2e9;
+        --warning: #8b6500;
+        --warning-soft: #f7efcf;
+        --danger: #b63d3d;
+        --danger-soft: #f8e7e5;
+
+        /* Geometry */
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 18px;
+        --radius-pill: 999px;
+        --shadow-float: 0 20px 60px rgba(20, 20, 19, 0.11);
+        --shadow-focus: 0 0 0 3px rgba(169, 88, 62, 0.2);
+
+        /* Type */
+        --serif: 'Iowan Old Style', 'Palatino Linotype', 'Noto Serif SC', 'Songti SC', serif;
+        --sans:
+          Inter, 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC',
+          'Microsoft YaHei', sans-serif;
+        --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      }
+
+      html[data-theme='dark'] {
+        color-scheme: dark;
+
+        /* Foundation · warm ink */
+        --canvas: #141413;
+        --rail: #181715;
+        --surface: #181715;
+        --surface-raised: #1f1e1b;
+        --surface-card: #252320;
+        --surface-strong: #3a3835;
+        --machine: #0f0f0e;
+        --machine-raised: #24211d;
+        --on-machine: #faf9f5;
+        --on-machine-muted: #aaa69e;
+
+        --ink: #faf9f5;
+        --body: #d8d4cc;
+        --muted: #a09d96;
+        --muted-soft: #918d86;
+        --border: #383734;
+        --border-strong: #72716f;
+
+        --brand: #cc785c;
+        --brand-soft: #3a2923;
+        --action: #a9583e;
+        --action-hover: #b05e44;
+        --on-action: #ffffff;
+        --live: #89cabc;
+        --live-soft: #26302c;
+        --success: #89ca97;
+        --success-soft: #263025;
+        --warning: #dfb955;
+        --warning-soft: #352e1b;
+        --danger: #d98684;
+        --danger-soft: #332320;
+
+        --shadow-float: 0 24px 72px rgba(0, 0, 0, 0.38);
+        --shadow-focus: 0 0 0 3px rgba(224, 154, 128, 0.24);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(color-mix(in srgb, var(--border) 36%, transparent) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--border) 26%, transparent) 1px,
+            transparent 1px
+          ),
+          var(--canvas);
+        background-size: 48px 48px;
+        color: var(--body);
+        font-family: var(--sans);
+        line-height: 1.58;
+        transition:
+          background-color 160ms ease,
+          color 160ms ease;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      :focus-visible {
+        border-radius: 4px;
+        outline: 2px solid var(--action);
+        outline-offset: 3px;
+      }
+
+      .skip-link {
+        position: fixed;
+        z-index: 20;
+        top: 12px;
+        left: 12px;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        background: var(--ink);
+        color: var(--canvas);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px);
+      }
+
+      .skip-link:focus {
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+      }
+
+      .page {
+        width: min(1400px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 24px 0 96px;
+      }
+
+      .topbar {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        min-height: 64px;
+        border-bottom: 1px solid var(--border);
+        background: color-mix(in srgb, var(--canvas) 90%, transparent);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand-lockup,
+      .topbar-actions,
+      .theme-switch {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand-lockup {
+        gap: 12px;
+        color: var(--ink);
+        font-weight: 650;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 9px;
+        background: var(--ink);
+        color: var(--canvas);
+        font-family: var(--serif);
+        font-size: 21px;
+      }
+
+      .topbar-actions {
+        gap: 12px;
+      }
+
+      .color-card-link {
+        color: var(--muted);
+        font-size: 13px;
+        text-decoration: none;
+      }
+
+      .color-card-link:hover {
+        color: var(--ink);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+
+      .theme-switch {
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-pill);
+        background: var(--rail);
+      }
+
+      .theme-switch button {
+        min-height: 30px;
+        padding: 4px 11px;
+        border: 0;
+        border-radius: var(--radius-pill);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 12px;
+        transition:
+          background-color 140ms ease,
+          color 140ms ease;
+      }
+
+      .theme-switch button[aria-pressed='true'] {
+        background: var(--ink);
+        color: var(--canvas);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
+        gap: 20px;
+        padding: 64px 0 28px;
+      }
+
+      .hero-copy,
+      .hero-contract {
+        min-height: 410px;
+        border-radius: var(--radius-lg);
+      }
+
+      .hero-copy {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: clamp(32px, 5vw, 68px);
+        background: var(--surface-card);
+      }
+
+      .eyebrow,
+      .kicker,
+      .token-name,
+      .meta {
+        font-family: var(--mono);
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow {
+        margin: 0 0 22px;
+        color: var(--action);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      h1,
+      h2,
+      .display-serif {
+        color: var(--ink);
+        font-family: var(--serif);
+        font-weight: 400;
+        letter-spacing: -0.035em;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 980px;
+        margin-bottom: 28px;
+        font-size: clamp(54px, 8vw, 104px);
+        line-height: 0.93;
+      }
+
+      .hero-copy p {
+        max-width: 780px;
+        margin-bottom: 0;
+        font-size: clamp(17px, 2vw, 21px);
+      }
+
+      .hero-contract {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 34px;
+        background: var(--machine);
+        color: var(--on-machine);
+      }
+
+      .hero-contract .eyebrow {
+        color: var(--brand);
+      }
+
+      .hero-contract h2 {
+        margin-bottom: 18px;
+        color: var(--on-machine);
+        font-size: 40px;
+        line-height: 1.02;
+      }
+
+      .hero-contract p {
+        color: var(--on-machine-muted);
+      }
+
+      .contract-list {
+        display: grid;
+        gap: 14px;
+        margin: 28px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .contract-list li {
+        display: grid;
+        grid-template-columns: 26px 1fr;
+        gap: 12px;
+      }
+
+      .number {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--machine-raised);
+        color: var(--on-machine);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .principle-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--border);
+      }
+
+      .principle {
+        min-height: 150px;
+        padding: 24px;
+        background: var(--surface);
+      }
+
+      .principle strong {
+        display: block;
+        margin-bottom: 10px;
+        color: var(--ink);
+        font-size: 15px;
+      }
+
+      .principle p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .section {
+        scroll-margin-top: 88px;
+        margin-top: 88px;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: 1fr minmax(280px, 0.48fr);
+        gap: 40px;
+        align-items: end;
+        margin-bottom: 28px;
+      }
+
+      .kicker {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--action);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .section-heading h2 {
+        margin-bottom: 0;
+        font-size: clamp(40px, 5vw, 68px);
+        line-height: 0.98;
+      }
+
+      .section-heading p {
+        margin-bottom: 3px;
+        color: var(--muted);
+      }
+
+      .mode-pair,
+      .grid-2,
+      .grid-3,
+      .grid-4 {
+        display: grid;
+        gap: 16px;
+      }
+
+      .mode-pair,
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .mode-board {
+        min-height: 430px;
+        padding: clamp(24px, 4vw, 44px);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+      }
+
+      .mode-board.light {
+        border-color: #e6dfd8;
+        background: #faf9f5;
+        color: #3d3d3a;
+      }
+
+      .mode-board.dark {
+        border-color: #383734;
+        background: #141413;
+        color: #d8d4cc;
+      }
+
+      .mode-board h3 {
+        margin-bottom: 6px;
+        font-family: var(--serif);
+        font-size: 34px;
+        font-weight: 400;
+      }
+
+      .mode-board.light h3 {
+        color: #141413;
+      }
+
+      .mode-board.dark h3 {
+        color: #faf9f5;
+      }
+
+      .mode-board > p {
+        max-width: 560px;
+        margin-bottom: 30px;
+      }
+
+      .mode-swatches {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .mode-swatch {
+        display: flex;
+        min-height: 100px;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        font-family: var(--mono);
+        font-size: 10px;
+      }
+
+      .semantic-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .semantic-card,
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+      }
+
+      .semantic-card {
+        min-height: 248px;
+        overflow: hidden;
+      }
+
+      .semantic-sample {
+        display: flex;
+        min-height: 104px;
+        align-items: flex-end;
+        justify-content: space-between;
+        padding: 18px;
+        color: var(--sample-on, #141413);
+        background: var(--sample);
+      }
+
+      .semantic-sample strong {
+        font-family: var(--serif);
+        font-size: 28px;
+        font-weight: 400;
+      }
+
+      .semantic-copy {
+        padding: 18px;
+      }
+
+      .semantic-copy h3,
+      .panel h3 {
+        margin-bottom: 8px;
+        color: var(--ink);
+        font-size: 14px;
+      }
+
+      .semantic-copy p,
+      .panel p,
+      .panel li {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .semantic-copy p:last-child,
+      .panel p:last-child {
+        margin-bottom: 0;
+      }
+
+      .token-name {
+        color: currentColor;
+        font-size: 10px;
+        opacity: 0.72;
+      }
+
+      .pair-table {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+      }
+
+      .pair-row {
+        display: grid;
+        grid-template-columns: minmax(170px, 0.7fr) 1fr 1fr minmax(200px, 0.8fr);
+        min-height: 76px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .pair-row:last-child {
+        border-bottom: 0;
+      }
+
+      .pair-row > div {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+      }
+
+      .pair-row > div + div {
+        border-left: 1px solid var(--border);
+      }
+
+      .pair-row.head {
+        min-height: 44px;
+        background: var(--rail);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .pair-dot {
+        width: 34px;
+        height: 34px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(127, 127, 127, 0.24);
+        border-radius: 50%;
+        background: var(--dot);
+      }
+
+      .pair-value {
+        color: var(--ink);
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .pair-note {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .panel h3 {
+        font-size: 16px;
+      }
+
+      .panel ul {
+        display: grid;
+        gap: 8px;
+        margin: 18px 0 0;
+        padding-left: 18px;
+      }
+
+      .type-specimen {
+        min-height: 300px;
+        padding: 28px;
+        border-radius: var(--radius-md);
+      }
+
+      .type-specimen.serif {
+        background: var(--surface-card);
+      }
+
+      .type-specimen.sans {
+        border: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      .type-specimen.mono {
+        background: var(--machine);
+        color: var(--on-machine-muted);
+      }
+
+      .type-specimen .meta {
+        margin-bottom: 28px;
+        color: var(--action);
+        font-size: 10px;
+      }
+
+      .type-specimen.mono .meta {
+        color: var(--brand);
+      }
+
+      .type-specimen .sample {
+        margin-bottom: 18px;
+        color: var(--ink);
+        font-size: clamp(28px, 4vw, 46px);
+        line-height: 1.08;
+      }
+
+      .type-specimen.serif .sample {
+        font-family: var(--serif);
+      }
+
+      .type-specimen.sans .sample {
+        font-family: var(--sans);
+        font-size: clamp(24px, 3vw, 36px);
+        font-weight: 620;
+      }
+
+      .type-specimen.mono .sample {
+        color: var(--on-machine);
+        font-family: var(--mono);
+        font-size: clamp(17px, 2vw, 24px);
+      }
+
+      .foundation-demo {
+        display: grid;
+        gap: 18px;
+      }
+
+      .space-scale,
+      .radius-scale,
+      .border-scale {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        min-height: 92px;
+      }
+
+      .space-step {
+        width: var(--size);
+        height: var(--size);
+        min-width: 4px;
+        border-radius: 2px;
+        background: var(--brand);
+      }
+
+      .radius-step {
+        width: 64px;
+        height: 64px;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        background: var(--surface-card);
+      }
+
+      .border-step {
+        width: 72px;
+        height: 64px;
+        border: var(--weight) solid var(--border-strong);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+      }
+
+      .shadow-sample {
+        width: 100%;
+        min-height: 92px;
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface-raised);
+        box-shadow: var(--shadow-float);
+      }
+
+      .component-stage {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 16px;
+      }
+
+      .component-panel {
+        padding: 28px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+      }
+
+      .component-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-top: 22px;
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 16px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        font-weight: 650;
+      }
+
+      .button.primary {
+        background: var(--action);
+        color: var(--on-action);
+      }
+
+      .button.secondary {
+        border-color: var(--border-strong);
+        background: var(--surface);
+        color: var(--ink);
+      }
+
+      .button.ghost {
+        color: var(--muted);
+      }
+
+      .button.disabled {
+        border-color: var(--border);
+        background: var(--rail);
+        color: var(--muted-soft);
+        opacity: 0.62;
+      }
+
+      .chip {
+        display: inline-flex;
+        min-height: 28px;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: var(--radius-pill);
+        background: var(--surface-card);
+        color: var(--ink);
+        font-size: 12px;
+      }
+
+      .chip::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--chip-color, var(--muted));
+        content: '';
+      }
+
+      .state-stack {
+        display: grid;
+        gap: 8px;
+        margin-top: 22px;
+      }
+
+      .state-line {
+        display: grid;
+        grid-template-columns: 96px 1fr;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--rail);
+        font-size: 12px;
+      }
+
+      .state-line strong {
+        color: var(--state-color);
+      }
+
+      .machine-panel {
+        padding: 26px;
+        border-radius: var(--radius-md);
+        background: var(--machine);
+        color: var(--on-machine-muted);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .machine-panel strong {
+        display: block;
+        margin-bottom: 12px;
+        color: var(--on-machine);
+      }
+
+      .machine-panel .live-line {
+        color: #89cabc;
+      }
+
+      .machine-panel code {
+        display: block;
+        margin-top: 18px;
+        white-space: pre-wrap;
+      }
+
+      .motion-track {
+        position: relative;
+        overflow: hidden;
+        height: 72px;
+        margin-top: 24px;
+        border-radius: var(--radius-sm);
+        background: var(--rail);
+      }
+
+      .motion-track::before {
+        position: absolute;
+        top: 22px;
+        left: 18px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--action);
+        animation: state-shift 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+        content: '';
+      }
+
+      @keyframes state-shift {
+        0%,
+        18% {
+          transform: translateX(0);
+        }
+        50%,
+        68% {
+          transform: translateX(min(320px, 55vw));
+        }
+        100% {
+          transform: translateX(0);
+        }
+      }
+
+      .do-dont {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .guidance {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--surface);
+      }
+
+      .guidance h3 {
+        margin: 0;
+        padding: 16px 20px;
+        color: var(--guide);
+        background: var(--guide-bg);
+        font-size: 14px;
+      }
+
+      .guidance ul {
+        display: grid;
+        gap: 14px;
+        margin: 0;
+        padding: 24px 24px 26px 42px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .code-contract {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 16px;
+      }
+
+      .code-block {
+        overflow-x: auto;
+        margin: 0;
+        padding: 26px;
+        border-radius: var(--radius-md);
+        background: var(--machine);
+        color: var(--on-machine-muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.7;
+        white-space: pre;
+      }
+
+      .code-block .accent {
+        color: #cc785c;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        margin-top: 96px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .section-heading,
+        .component-stage,
+        .code-contract {
+          grid-template-columns: 1fr;
+        }
+
+        .principle-strip,
+        .semantic-grid,
+        .grid-4 {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+
+        .pair-row {
+          grid-template-columns: minmax(140px, 0.7fr) 1fr 1fr;
+        }
+
+        .pair-row > div:last-child {
+          display: none;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .page {
+          width: min(100% - 28px, 1400px);
+          padding-top: 12px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          padding: 12px 0;
+        }
+
+        .brand-lockup > span:last-child {
+          display: none;
+        }
+
+        .topbar-actions {
+          align-items: flex-end;
+          flex-direction: column-reverse;
+          gap: 6px;
+        }
+
+        .color-card-link {
+          display: none;
+        }
+
+        .theme-switch button {
+          padding-inline: 8px;
+        }
+
+        .hero {
+          padding-top: 36px;
+        }
+
+        .hero-copy,
+        .hero-contract {
+          min-height: 360px;
+        }
+
+        .principle-strip,
+        .mode-pair,
+        .grid-2,
+        .grid-4,
+        .semantic-grid,
+        .do-dont {
+          grid-template-columns: 1fr;
+        }
+
+        .section {
+          margin-top: 68px;
+        }
+
+        .mode-board {
+          min-height: 380px;
+        }
+
+        .mode-swatches {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .pair-row,
+        .pair-row.head {
+          grid-template-columns: minmax(120px, 0.65fr) 1fr 1fr;
+        }
+
+        .pair-row > div {
+          align-items: flex-start;
+          flex-direction: column;
+          padding: 12px;
+        }
+
+        .pair-dot {
+          width: 28px;
+          height: 28px;
+        }
+
+        .footer {
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <div class="page">
+      <header class="topbar">
+        <a class="brand-lockup" href="#top" aria-label="Combo 设计语言首页">
+          <span class="brand-mark" aria-hidden="true">C</span>
+          <span>Combo Design Language</span>
+        </a>
+        <div class="topbar-actions">
+          <a class="color-card-link" href="./combo-color-card.html">查看产品语义色卡 →</a>
+          <div class="theme-switch" role="group" aria-label="页面主题">
+            <button type="button" data-theme-choice="system" aria-pressed="false">跟随系统</button>
+            <button type="button" data-theme-choice="light" aria-pressed="false">亮</button>
+            <button type="button" data-theme-choice="dark" aria-pressed="false">暗</button>
+          </div>
+        </div>
+      </header>
+
+      <main id="main">
+        <section class="hero" id="top">
+          <div class="hero-copy">
+            <div>
+              <p class="eyebrow">Combo · Design Language 01</p>
+              <h1>温暖地组织，<br />准确地行动。</h1>
+            </div>
+            <p>
+              Combo 的视觉不是“多彩”，而是让颜色各司其职。暖纸承载创作与叙事，暖墨承载运行与机器；
+              珊瑚表达身份和主行动，青绿色只说明“正在发生”。
+            </p>
+          </div>
+          <aside class="hero-contract" aria-label="设计语言核心契约">
+            <div>
+              <p class="eyebrow">The Contract</p>
+              <h2>一种语言，<br />两种光线。</h2>
+              <p>
+                Light 与 Dark
+                不是两套品牌。层级、语义、组件状态保持一致，只改变明度关系和可读性配方。
+              </p>
+            </div>
+            <ol class="contract-list">
+              <li><span class="number">1</span><span>颜色先表达功能，再表达装饰。</span></li>
+              <li>
+                <span class="number">2</span><span>每个视图只保留一个占主导地位的行动。</span>
+              </li>
+              <li>
+                <span class="number">3</span><span>创作表面温暖克制，机器表面高对比且精确。</span>
+              </li>
+            </ol>
+          </aside>
+        </section>
+
+        <div class="principle-strip" aria-label="设计原则">
+          <article class="principle">
+            <strong>Semantic, not decorative</strong>
+            <p>不能解释颜色职责，就不要使用颜色。</p>
+          </article>
+          <article class="principle">
+            <strong>Editorial warmth</strong>
+            <p>大字号衬线叙事，暖色块建立内容节奏。</p>
+          </article>
+          <article class="principle">
+            <strong>Operational density</strong>
+            <p>数据和控制保持紧凑、清晰、可扫描。</p>
+          </article>
+          <article class="principle">
+            <strong>Machine clarity</strong>
+            <p>日志、代码和运行表面始终采用深色机器层。</p>
+          </article>
+        </div>
+
+        <section class="section" id="modes">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">01 · Modes</span>
+              <h2>暖纸 Light / 暖墨 Dark</h2>
+            </div>
+            <p>不是纯白与纯黑的反转，而是同一套暖色世界在不同环境光下的明度重排。</p>
+          </div>
+
+          <div class="mode-pair">
+            <article class="mode-board light">
+              <span class="kicker">Light · Warm Paper</span>
+              <h3>把页面当作工作中的纸张</h3>
+              <p>低对比暖白画布，内容卡片依靠色块深浅分层；边框比阴影更常用。</p>
+              <div class="mode-swatches" aria-label="Light 模式基础色">
+                <span class="mode-swatch" style="background: #faf9f5; color: #141413"
+                  ><b>Canvas</b><span>#FAF9F5</span></span
+                >
+                <span class="mode-swatch" style="background: #f5f0e8; color: #141413"
+                  ><b>Rail</b><span>#F5F0E8</span></span
+                >
+                <span class="mode-swatch" style="background: #efe9de; color: #141413"
+                  ><b>Card</b><span>#EFE9DE</span></span
+                >
+                <span class="mode-swatch" style="background: #fffdfa; color: #141413"
+                  ><b>Surface</b><span>#FFFDFA</span></span
+                >
+                <span class="mode-swatch" style="background: #141413; color: #faf9f5"
+                  ><b>Ink</b><span>#141413</span></span
+                >
+                <span class="mode-swatch" style="background: #181715; color: #faf9f5"
+                  ><b>Machine</b><span>#181715</span></span
+                >
+              </div>
+            </article>
+
+            <article class="mode-board dark">
+              <span class="kicker" style="color: #cc785c">Dark · Warm Ink</span>
+              <h3>让层级从墨色里浮现</h3>
+              <p>暖黑降低眩光，卡片用略亮的褐墨建立深度；品牌与状态色提高明度而不增加饱和噪音。</p>
+              <div class="mode-swatches" aria-label="Dark 模式基础色">
+                <span class="mode-swatch" style="background: #141413; color: #faf9f5"
+                  ><b>Canvas</b><span>#141413</span></span
+                >
+                <span class="mode-swatch" style="background: #181715; color: #faf9f5"
+                  ><b>Rail</b><span>#181715</span></span
+                >
+                <span class="mode-swatch" style="background: #252320; color: #faf9f5"
+                  ><b>Card</b><span>#252320</span></span
+                >
+                <span class="mode-swatch" style="background: #1f1e1b; color: #faf9f5"
+                  ><b>Raised</b><span>#1F1E1B</span></span
+                >
+                <span class="mode-swatch" style="background: #faf9f5; color: #141413"
+                  ><b>Ink</b><span>#FAF9F5</span></span
+                >
+                <span class="mode-swatch" style="background: #0f0f0e; color: #faf9f5"
+                  ><b>Machine</b><span>#0F0F0E</span></span
+                >
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="semantics">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">02 · Color Semantics</span>
+              <h2>每种颜色只有一个主要职责</h2>
+            </div>
+            <p>色相不是栏目装饰，也不是随机轮换。它应该让用户在阅读文字前，就能判断对象的性质。</p>
+          </div>
+
+          <div class="semantic-grid">
+            <article class="semantic-card">
+              <div class="semantic-sample" style="--sample: var(--brand); --sample-on: #faf9f5">
+                <strong>品牌</strong><span class="token-name">brand</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>珊瑚：身份与编辑强调</h3>
+                <p>用于品牌标记、精选内容和少量编辑性点睛。不是所有按钮的默认颜色。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div
+                class="semantic-sample"
+                style="--sample: var(--action); --sample-on: var(--on-action)"
+              >
+                <strong>行动</strong><span class="token-name">action</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>深珊瑚：主行动</h3>
+                <p>用于提交、创建、发布等不可忽略的下一步。一个区域通常只有一个。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div class="semantic-sample" style="--sample: var(--surface-card)">
+                <strong>选择</strong><span class="token-name">selection</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>中性色：选择与类别</h3>
+                <p>选中项、分类标签和导航归属使用暖灰层级，不借用警告色制造错误暗示。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div
+                class="semantic-sample"
+                style="--sample: var(--live-soft); --sample-on: var(--live)"
+              >
+                <strong>实时</strong><span class="token-name">live</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>青绿色：正在发生</h3>
+                <p>运行中、同步中、重试中、在线与流式输出。完成后必须退出这个状态。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div
+                class="semantic-sample"
+                style="--sample: var(--success-soft); --sample-on: var(--success)"
+              >
+                <strong>成功</strong><span class="token-name">success</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>绿色：确定的正向结果</h3>
+                <p>只用于已成功、已通过和确认增长，不把普通正数或所有趋势自动染绿。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div
+                class="semantic-sample"
+                style="--sample: var(--warning-soft); --sample-on: var(--warning)"
+              >
+                <strong>警告</strong><span class="token-name">warning</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>金色：需要注意但可继续</h3>
+                <p>用于配额临界、待确认和非阻塞风险。不得用于普通分类或装饰高亮。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div
+                class="semantic-sample"
+                style="--sample: var(--danger-soft); --sample-on: var(--danger)"
+              >
+                <strong>错误</strong><span class="token-name">danger</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>红色：失败与破坏性动作</h3>
+                <p>用于错误、删除和不可恢复风险。重试过程本身属于实时，不持续占用红色。</p>
+              </div>
+            </article>
+            <article class="semantic-card">
+              <div
+                class="semantic-sample"
+                style="--sample: var(--machine); --sample-on: var(--on-machine)"
+              >
+                <strong>机器</strong><span class="token-name">machine</span>
+              </div>
+              <div class="semantic-copy">
+                <h3>暖黑：代码、日志与运行表面</h3>
+                <p>稳定的高对比工作区，Light 与 Dark 中都保持比页面更深，形成“进入机器”的边界。</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="tokens">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">03 · Paired Tokens</span>
+              <h2>Token 成对，而不是颜色反相</h2>
+            </div>
+            <p>
+              组件只读取语义 token。每个 token 在 Light 与 Dark 下都有独立值，角色不变，配方可变。
+            </p>
+          </div>
+
+          <div class="pair-table" role="table" aria-label="亮暗主题 Token 对照">
+            <div class="pair-row head" role="row">
+              <div>Role / Token</div>
+              <div>Light</div>
+              <div>Dark</div>
+              <div>Usage</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-bg</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #faf9f5"></span
+                ><code class="pair-value">#FAF9F5</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #141413"></span
+                ><code class="pair-value">#141413</code>
+              </div>
+              <div class="pair-note">页面画布</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-surface-card</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #efe9de"></span
+                ><code class="pair-value">#EFE9DE</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #252320"></span
+                ><code class="pair-value">#252320</code>
+              </div>
+              <div class="pair-note">内容色块与选择</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-fg</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #141413"></span
+                ><code class="pair-value">#141413</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #faf9f5"></span
+                ><code class="pair-value">#FAF9F5</code>
+              </div>
+              <div class="pair-note">标题与首要信息</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-action-primary</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #a9583e"></span
+                ><code class="pair-value">#A9583E</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #a9583e"></span
+                ><code class="pair-value">#A9583E</code>
+              </div>
+              <div class="pair-note">主行动背景</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-feedback-live-fg</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #3f7f73"></span
+                ><code class="pair-value">#3F7F73</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #89cabc"></span
+                ><code class="pair-value">#89CABC</code>
+              </div>
+              <div class="pair-note">运行、同步、重试</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-border</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #e6dfd8"></span
+                ><code class="pair-value">#E6DFD8</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #383734"></span
+                ><code class="pair-value">#383734</code>
+              </div>
+              <div class="pair-note">结构分隔，不作强调</div>
+            </div>
+            <div class="pair-row" role="row">
+              <div><code class="pair-value">--cb-surface-dark</code></div>
+              <div>
+                <span class="pair-dot" style="--dot: #181715"></span
+                ><code class="pair-value">#181715</code>
+              </div>
+              <div>
+                <span class="pair-dot" style="--dot: #0f0f0e"></span
+                ><code class="pair-value">#0F0F0E</code>
+              </div>
+              <div class="pair-note">机器表面</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" id="type">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">04 · Typography</span>
+              <h2>三种声音，三类信息</h2>
+            </div>
+            <p>
+              字体不是风格混搭。衬线负责叙事，无衬线负责操作，等宽字体负责机器输出和可核验的值。
+            </p>
+          </div>
+
+          <div class="grid-3">
+            <article class="type-specimen serif">
+              <p class="meta">Serif · Narrative</p>
+              <p class="sample">让能力被理解，而不只是被列出。</p>
+              <p>用于页面主标题、章节标题、编辑性引语。避免用于按钮、表格和密集配置。</p>
+            </article>
+            <article class="type-specimen sans">
+              <p class="meta">Sans · Operations</p>
+              <p class="sample">创建组合并配置运行方式</p>
+              <p>用于正文、导航、表单、按钮与数据标签。保持紧凑但不拥挤。</p>
+            </article>
+            <article class="type-specimen mono">
+              <p class="meta">Mono · Machine</p>
+              <p class="sample">RUNNING · 18.4s<br />3 tools connected</p>
+              <p>用于日志、代码、Token、时间戳与状态元数据，不用于长篇叙述。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="foundations">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">05 · Geometry & Depth</span>
+              <h2>用色块和线建立层级</h2>
+            </div>
+            <p>Combo 的表面是平整而有节奏的。阴影只说明“悬浮”，不为每张卡片制造无意义的高度。</p>
+          </div>
+
+          <div class="grid-4">
+            <article class="panel foundation-demo">
+              <h3>Spacing · 4 / 8 基线</h3>
+              <p>组件内部 8–24，卡片 24–32，章节 64–96。</p>
+              <div class="space-scale" aria-label="间距比例">
+                <span class="space-step" style="--size: 4px"></span
+                ><span class="space-step" style="--size: 8px"></span
+                ><span class="space-step" style="--size: 12px"></span
+                ><span class="space-step" style="--size: 16px"></span
+                ><span class="space-step" style="--size: 24px"></span
+                ><span class="space-step" style="--size: 32px"></span>
+              </div>
+            </article>
+            <article class="panel foundation-demo">
+              <h3>Radius · 8 / 12 / 18</h3>
+              <p>控制 8，卡片 12，大型叙事色块 18；标签才用胶囊。</p>
+              <div class="radius-scale" aria-label="圆角比例">
+                <span class="radius-step" style="--radius: 8px"></span
+                ><span class="radius-step" style="--radius: 12px"></span
+                ><span class="radius-step" style="--radius: 18px"></span>
+              </div>
+            </article>
+            <article class="panel foundation-demo">
+              <h3>Border · 1px first</h3>
+              <p>1px 用于结构，2px 只用于焦点、当前拖放或强状态。</p>
+              <div class="border-scale" aria-label="边框比例">
+                <span class="border-step" style="--weight: 1px"></span
+                ><span class="border-step" style="--weight: 2px"></span>
+              </div>
+            </article>
+            <article class="panel foundation-demo">
+              <h3>Shadow · floating only</h3>
+              <p>菜单、浮层和拖拽对象可使用阴影；静态内容卡片依赖色块。</p>
+              <div class="shadow-sample"><span class="token-name">--cb-shadow-float</span></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="components">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">06 · Components & States</span>
+              <h2>状态先于装饰</h2>
+            </div>
+            <p>组件的默认、悬停、焦点、禁用、运行、成功、警告和错误必须共享同一套语义关系。</p>
+          </div>
+
+          <div class="component-stage">
+            <article class="component-panel">
+              <h3>行动层级</h3>
+              <p>Primary 是当前最清晰的下一步；Secondary 是可逆的辅助动作；Ghost 是低干扰工具。</p>
+              <div class="component-row" aria-label="按钮示例">
+                <span class="button primary">创建组合</span>
+                <span class="button secondary">保存草稿</span>
+                <span class="button ghost">查看详情</span>
+                <span class="button disabled">暂不可用</span>
+              </div>
+              <div class="component-row" aria-label="标签示例">
+                <span class="chip">研究</span>
+                <span class="chip" style="--chip-color: var(--live)">运行中</span>
+                <span class="chip" style="--chip-color: var(--success)">已完成</span>
+                <span class="chip" style="--chip-color: var(--warning)">待确认</span>
+              </div>
+            </article>
+
+            <article class="component-panel">
+              <h3>反馈层级</h3>
+              <p>文字、图标和背景共同表达，不让颜色成为唯一信息通道。</p>
+              <div class="state-stack">
+                <div class="state-line" style="--state-color: var(--live)">
+                  <strong>● 运行中</strong><span>正在解析 12 个来源</span>
+                </div>
+                <div class="state-line" style="--state-color: var(--success)">
+                  <strong>✓ 已完成</strong><span>能力已成功上传</span>
+                </div>
+                <div class="state-line" style="--state-color: var(--warning)">
+                  <strong>△ 待确认</strong><span>发布前检查权限范围</span>
+                </div>
+                <div class="state-line" style="--state-color: var(--danger)">
+                  <strong>× 失败</strong><span>上传中断，请重试</span>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="component-stage" style="margin-top: 16px">
+            <article class="machine-panel">
+              <strong>MACHINE SURFACE · LIVE</strong>
+              <span class="live-line">● streaming output</span>
+              <code
+                >session_4c28 / runtime tool.search 284ms success tool.compose 712ms running</code
+              >
+            </article>
+            <article class="panel">
+              <h3>数据保持中性</h3>
+              <p>
+                图表默认使用 Ink
+                灰阶与透明度建立序列。只有“成功/失败”已成为业务含义时，才使用绿/红。
+              </p>
+              <ul>
+                <li>排名、占比、密度：中性灰阶</li>
+                <li>实时采样：青绿色</li>
+                <li>通过率、失败率：状态色，但必须配标签</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="motion">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">07 · Motion</span>
+              <h2>动效只解释变化</h2>
+            </div>
+            <p>
+              用动效连接前后状态，而不是让页面持续“活跃”。默认 120–180ms，复杂布局转换不超过 280ms。
+            </p>
+          </div>
+
+          <div class="grid-3">
+            <article class="panel">
+              <h3>微交互 · 120–160ms</h3>
+              <p>按钮、标签和输入框的 hover / focus / pressed。只改变必要属性。</p>
+            </article>
+            <article class="panel">
+              <h3>状态切换 · 160–220ms</h3>
+              <p>载入完成、内容替换、局部展开。使用 ease-out，让结果快速抵达。</p>
+              <div class="motion-track" aria-hidden="true"></div>
+            </article>
+            <article class="panel">
+              <h3>Reduced motion</h3>
+              <p>
+                尊重 <code>prefers-reduced-motion</code>：移除位移动画与循环动画，保留即时状态更新。
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="accessibility">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">08 · Accessibility</span>
+              <h2>可读性是系统约束</h2>
+            </div>
+            <p>
+              主题切换不能以降低辨识度为代价。无论环境光如何，信息层级、焦点和状态都必须可感知。
+            </p>
+          </div>
+
+          <div class="grid-4">
+            <article class="panel">
+              <h3>正文 ≥ 4.5:1</h3>
+              <p>正文和小字号文字达到 WCAG AA；大字号至少 3:1。</p>
+            </article>
+            <article class="panel">
+              <h3>焦点永远可见</h3>
+              <p>键盘焦点使用 2px 轮廓与 3px 间距，不依赖 hover。</p>
+            </article>
+            <article class="panel">
+              <h3>颜色不是唯一通道</h3>
+              <p>状态同时提供文字、图标或形状，图表提供标签与图例。</p>
+            </article>
+            <article class="panel">
+              <h3>系统偏好优先</h3>
+              <p>默认跟随系统；显式选择持久化，但用户可随时恢复 System。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="guidance">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">09 · Do / Don't</span>
+              <h2>一眼判断是否属于 Combo</h2>
+            </div>
+            <p>不是每个页面都要使用所有色彩。统一来自边界明确，而不是把同一组颜色平均撒满产品。</p>
+          </div>
+
+          <div class="do-dont">
+            <article
+              class="guidance"
+              style="--guide: var(--success); --guide-bg: var(--success-soft)"
+            >
+              <h3>DO · 推荐</h3>
+              <ul>
+                <li>让珊瑚集中在品牌时刻和主行动上。</li>
+                <li>让选择、分类和普通数据保持中性。</li>
+                <li>让青绿色只代表正在发生、在线或同步。</li>
+                <li>让 Dark 保留暖色温，并保持机器层更深。</li>
+                <li>用边框与色块建立结构，只给悬浮对象阴影。</li>
+              </ul>
+            </article>
+            <article
+              class="guidance"
+              style="--guide: var(--danger); --guide-bg: var(--danger-soft)"
+            >
+              <h3>DON'T · 避免</h3>
+              <ul>
+                <li>不要为了“丰富”让卡片随机使用品牌色、青色和黄色。</li>
+                <li>不要把分类标签染成警告色。</li>
+                <li>不要把重试中、加载中误画成错误。</li>
+                <li>不要默认将上升染绿、下降染红；先确认业务含义。</li>
+                <li>不要在暗色模式中直接反相图片、阴影或语义色。</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section" id="implementation">
+          <div class="section-heading">
+            <div>
+              <span class="kicker">10 · Theme Contract</span>
+              <h2>System / Light / Dark</h2>
+            </div>
+            <p>
+              产品使用三态偏好和二态解析结果。组件只关心解析后的主题与语义
+              token，不直接读取系统媒体查询。
+            </p>
+          </div>
+
+          <div class="code-contract">
+            <article class="panel">
+              <h3>命名规则</h3>
+              <ul>
+                <li><code>--cb-bg / --cb-surface-*</code>：画布与层级</li>
+                <li><code>--cb-fg / --cb-muted / --cb-border</code>：内容与结构</li>
+                <li><code>--cb-action-*</code>：可操作层级</li>
+                <li><code>--cb-feedback-live-*</code>：正在发生</li>
+                <li><code>--cb-state-success|warning|error-*</code>：确定结果</li>
+                <li><code>--cb-surface-dark-*</code>：机器表面</li>
+              </ul>
+            </article>
+            <pre
+              class="code-block"
+              aria-label="主题实现示例"
+            ><code><span class="accent">preference</span> = "system" | "light" | "dark"
+<span class="accent">resolvedTheme</span> = "light" | "dark"
+
+html.dataset.themePreference = preference
+html.dataset.theme = resolvedTheme
+html.style.colorScheme = resolvedTheme
+
+/* Components consume roles, never raw hex */
+.primary-action {
+  background: var(--cb-action-primary);
+  color: var(--cb-on-action-primary);
+}
+
+/* System only listens while preference = system */
+matchMedia("(prefers-color-scheme: dark)")</code></pre>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Combo Design Language · Review artifact</span>
+        <span>先定义职责，再选择颜色；先验证可读性，再增加表现力。</span>
+      </footer>
+    </div>
+
+    <script>
+      (() => {
+        const storageKey = 'combo.design.review.theme';
+        const media = matchMedia('(prefers-color-scheme: dark)');
+        const buttons = [...document.querySelectorAll('[data-theme-choice]')];
+
+        const resolveTheme = (preference) => {
+          if (preference === 'light' || preference === 'dark') return preference;
+          return media.matches ? 'dark' : 'light';
+        };
+
+        const applyTheme = (preference, persist = true) => {
+          const safePreference = ['system', 'light', 'dark'].includes(preference)
+            ? preference
+            : 'system';
+          const resolved = resolveTheme(safePreference);
+
+          document.documentElement.dataset.themePreference = safePreference;
+          document.documentElement.dataset.theme = resolved;
+          document.documentElement.style.colorScheme = resolved;
+          buttons.forEach((button) => {
+            button.setAttribute(
+              'aria-pressed',
+              String(button.dataset.themeChoice === safePreference),
+            );
+          });
+
+          if (persist) {
+            try {
+              localStorage.setItem(storageKey, safePreference);
+            } catch (_) {
+              // Theme still applies for the current review session.
+            }
+          }
+        };
+
+        buttons.forEach((button) => {
+          button.addEventListener('click', () => applyTheme(button.dataset.themeChoice));
+        });
+
+        const onSystemThemeChange = () => {
+          if (document.documentElement.dataset.themePreference === 'system') {
+            applyTheme('system', false);
+          }
+        };
+
+        if (typeof media.addEventListener === 'function') {
+          media.addEventListener('change', onSystemThemeChange);
+        } else {
+          media.addListener(onSystemThemeChange);
+        }
+
+        applyTheme(document.documentElement.dataset.themePreference, false);
+      })();
+    </script>
+  </body>
+</html>
