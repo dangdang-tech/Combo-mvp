@@ -5,7 +5,9 @@ packages:
   - 'infra'
   - 'scripts'
 allowBuilds:
+  '@bundled-es-modules/glob': false
   '@google/genai': false
   esbuild: true
   msgpackr-extract: true
   protobufjs: false
+  style-dictionary: false

@@ -1,0 +1,38 @@
+.cb-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: calc(var(--cb-space-1) / 2) var(--cb-space-2);
+  border-radius: var(--cb-radius-pill);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cb-badge--neutral {
+  background: var(--cb-muted-bg);
+  color: var(--cb-muted);
+}
+
+.cb-badge--ok {
+  background: var(--cb-ok-soft);
+  color: var(--cb-ok);
+}
+
+.cb-badge--warn {
+  background: var(--cb-warn-soft);
+  color: var(--cb-warn);
+}
+
+.cb-badge--danger {
+  background: var(--cb-danger-soft);
+  color: var(--cb-danger);
+}
+
+.cb-badge--accent {
+  background: var(--cb-accent-soft);
+  color: var(--cb-accent);
+}

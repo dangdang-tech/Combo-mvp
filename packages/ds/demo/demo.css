@@ -1,0 +1,169 @@
+/* demo 画廊自身的布局与外观样式，全部取值引用 --cb-* 语义 token（结构性 1px 描边除外）。 */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--cb-bg);
+  color: var(--cb-fg);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-md);
+  line-height: 1.6;
+}
+
+.cb-demo-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* —— 左侧锚点目录 —— */
+
+.cb-demo-sidebar {
+  position: sticky;
+  top: 0;
+  flex: none;
+  width: var(--cb-sidebar-w);
+  height: 100vh;
+  overflow-y: auto;
+  padding: var(--cb-space-5) var(--cb-space-4);
+  background: var(--cb-rail);
+  border-right: 1px solid var(--cb-line-2);
+}
+
+.cb-demo-brand {
+  margin: 0 0 var(--cb-space-5);
+  font-family: var(--cb-font-brand);
+  font-size: var(--cb-text-xl);
+}
+
+.cb-demo-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cb-space-1);
+}
+
+.cb-demo-nav-link {
+  padding: var(--cb-space-1) var(--cb-space-2);
+  border-radius: var(--cb-radius-control);
+  color: var(--cb-muted);
+  font-size: var(--cb-text-sm);
+  text-decoration: none;
+  transition:
+    background-color var(--cb-duration-fast) var(--cb-ease-standard),
+    color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.cb-demo-nav-link:hover {
+  background: var(--cb-muted-bg);
+  color: var(--cb-fg);
+}
+
+/* —— 右侧主区 —— */
+
+.cb-demo-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--cb-space-5) var(--cb-space-6) var(--cb-space-8);
+}
+
+.cb-demo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cb-space-4);
+  margin-bottom: var(--cb-space-6);
+  padding-bottom: var(--cb-space-4);
+  border-bottom: 1px solid var(--cb-line-2);
+}
+
+.cb-demo-title {
+  margin: 0;
+  font-family: var(--cb-font-brand);
+  font-size: var(--cb-text-2xl);
+}
+
+.cb-demo-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-3);
+}
+
+.cb-demo-control {
+  display: flex;
+  align-items: center;
+  gap: var(--cb-space-2);
+  color: var(--cb-muted);
+  font-size: var(--cb-text-sm);
+}
+
+.cb-demo-select,
+.cb-demo-theme-toggle {
+  padding: var(--cb-space-1) var(--cb-space-3);
+  border: 1px solid var(--cb-line-1);
+  border-radius: var(--cb-radius-control);
+  background: var(--cb-surface);
+  color: var(--cb-fg);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-sm);
+}
+
+.cb-demo-theme-toggle {
+  cursor: pointer;
+  transition: background-color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.cb-demo-theme-toggle:hover {
+  background: var(--cb-muted-bg);
+}
+
+/* —— 组件分节与 story 卡片 —— */
+
+.cb-demo-group {
+  margin-bottom: var(--cb-space-7);
+  scroll-margin-top: var(--cb-space-5);
+}
+
+.cb-demo-group-title {
+  margin: 0 0 var(--cb-space-4);
+  padding-bottom: var(--cb-space-2);
+  border-bottom: 1px solid var(--cb-line-2);
+  font-family: var(--cb-font-serif);
+  font-size: var(--cb-text-xl);
+}
+
+.cb-demo-story {
+  margin-bottom: var(--cb-space-4);
+  border: 1px solid var(--cb-line-2);
+  border-radius: var(--cb-radius-card);
+  background: var(--cb-surface);
+  box-shadow: var(--cb-shadow-surface);
+}
+
+.cb-demo-story-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--cb-space-2);
+  padding: var(--cb-space-3) var(--cb-space-4);
+  border-bottom: 1px solid var(--cb-line-3);
+}
+
+.cb-demo-story-name {
+  font-size: var(--cb-text-sm);
+  font-weight: 600;
+}
+
+.cb-demo-story-note {
+  color: var(--cb-muted);
+  font-size: var(--cb-text-xs);
+}
+
+.cb-demo-story-canvas {
+  padding: var(--cb-space-4);
+  overflow-x: auto;
+}

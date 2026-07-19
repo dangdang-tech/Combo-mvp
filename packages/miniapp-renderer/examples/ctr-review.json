@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "root": {
+    "type": "stack",
+    "gap": "lg",
+    "children": [
+      { "type": "heading", "level": 2, "text": "女装主推款 CTR 判断" },
+      {
+        "type": "text",
+        "variant": "muted",
+        "text": "基于近三场投放复盘会话沉淀的主推款点击率判断经验，输入最新素材数据即可复跑。"
+      },
+      {
+        "type": "card",
+        "variant": "surface",
+        "padding": "md",
+        "children": [
+          {
+            "type": "stack",
+            "gap": "sm",
+            "children": [
+              {
+                "type": "list-item",
+                "title": "候选 A：法式方领连衣裙",
+                "description": "近 7 天素材 CTR 4.2%，高于品类均值 1.8 个点，连续 3 天达标",
+                "badge": { "variant": "ok", "text": "主推" }
+              },
+              {
+                "type": "list-item",
+                "title": "候选 B：泡泡袖真丝衬衫",
+                "description": "CTR 2.9%，点击集中在 25 至 30 岁人群，素材量不足",
+                "badge": { "variant": "neutral", "text": "观察" }
+              },
+              {
+                "type": "list-item",
+                "title": "候选 C：高腰阔腿裤",
+                "description": "CTR 1.6%，低于品类均值，素材已进入疲劳期",
+                "badge": { "variant": "warn", "text": "淘汰" }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "markdown",
+        "content": "## 结论\n\n- **法式方领连衣裙**满足主推条件：CTR 连续 3 天高于 4%，且素材尚未进入衰减期。\n- 泡泡袖真丝衬衫建议追加 2 组新素材，3 天后再复跑本判断。\n- 高腰阔腿裤建议撤出主推位，释放预算给候选 A。\n\n> 判断标准：候选款 CTR 高于品类均值 1.5 个点且连续 3 天保持，才能接管主推位。"
+      },
+      {
+        "type": "citation",
+        "index": 1,
+        "label": "2026-06-24 投放复盘会话",
+        "quote": "连衣裙这条素材连着三天点击都在四个点以上，可以切主推了，阔腿裤先停。"
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "gap": "sm",
+        "children": [
+          {
+            "type": "button",
+            "variant": "primary",
+            "text": "用最新数据复跑判断",
+            "actionId": "rerun-ctr-review"
+          },
+          { "type": "timestamp", "value": "2026-07-05T14:30:00+08:00", "mode": "relative" }
+        ]
+      }
+    ]
+  }
+}

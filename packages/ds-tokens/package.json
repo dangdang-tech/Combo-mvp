@@ -1,0 +1,24 @@
+{
+  "name": "@cb/ds-tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Combo 设计 token 单一事实源：DTCG JSON（原料层/语义层/动效层）经 style-dictionary 构建出 --cb-* CSS 变量，供 web、runtime-web 与组件包共用",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./dist/tokens.css",
+    "./tokens.flat.json": "./dist/tokens.flat.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs && node scripts/check-alias-only.mjs && node scripts/check-mode-parity.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "style-dictionary": "^4.3.0",
+    "vitest": "^2.1.8"
+  }
+}

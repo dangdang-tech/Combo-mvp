@@ -1,0 +1,81 @@
+/* Input 组件样式：颜色、间距、圆角、字体、动效全部引用 --cb-* 语义 token。
+ * 1px 描边是结构性尺寸；焦点环宽度用 --cb-focus-ring-w token，颜色均来自 token。 */
+
+.cb-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cb-space-1);
+  font-family: var(--cb-font-sans);
+}
+
+.cb-input-label {
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  color: var(--cb-muted);
+}
+
+.cb-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cb-input-control {
+  width: 100%;
+  padding: var(--cb-space-2) var(--cb-space-3);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-md);
+  color: var(--cb-fg);
+  background: var(--cb-surface-raised);
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius-control);
+  outline: none;
+  transition:
+    border-color var(--cb-duration-fast) var(--cb-ease-standard),
+    box-shadow var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.cb-input-control::placeholder {
+  color: var(--cb-muted);
+}
+
+.cb-input-control[type='search']::-webkit-search-cancel-button,
+.cb-input-control[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.cb-input-control:focus {
+  border-color: var(--cb-focus-ring);
+  box-shadow: 0 0 0 var(--cb-focus-ring-w) color-mix(in srgb, var(--cb-focus-ring) 32%, transparent);
+}
+
+.cb-input-control[aria-invalid='true'] {
+  border-color: var(--cb-danger);
+}
+
+.cb-input-control[aria-invalid='true']:focus {
+  border-color: var(--cb-danger);
+  box-shadow: 0 0 0 var(--cb-focus-ring-w) var(--cb-danger-line);
+}
+
+.cb-input-control:disabled {
+  background: var(--cb-muted-bg);
+  color: var(--cb-muted);
+  cursor: not-allowed;
+}
+
+.cb-input-icon {
+  position: absolute;
+  left: var(--cb-space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--cb-space-4);
+  height: var(--cb-space-4);
+  color: var(--cb-muted);
+  pointer-events: none;
+}
+
+.cb-input-search .cb-input-control {
+  padding-left: calc(var(--cb-space-3) + var(--cb-space-4) + var(--cb-space-2));
+}

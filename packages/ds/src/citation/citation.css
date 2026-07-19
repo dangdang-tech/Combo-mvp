@@ -1,0 +1,58 @@
+/* Citation 行内引用样式：颜色/间距/圆角/字体全部引用 --cb-* 语义 token；
+ * 引文块左边框为结构性 1px 描边。 */
+
+.cb-citation {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--cb-muted);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  line-height: 1.5;
+  vertical-align: baseline;
+  overflow-wrap: anywhere;
+}
+
+/* [n] 序号：上标风格徽标，accent-soft 底 accent 字。 */
+.cb-citation-index {
+  display: inline-block;
+  margin-right: var(--cb-space-1);
+  padding: 0 var(--cb-space-1);
+  background: var(--cb-accent-soft);
+  color: var(--cb-accent);
+  border-radius: var(--cb-radius-control);
+  font-family: var(--cb-font-mono);
+  font-size: var(--cb-text-xs);
+  line-height: 1.4;
+}
+
+.cb-citation-label {
+  color: inherit;
+}
+
+.cb-citation-link {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-color: var(--cb-line-1);
+  transition:
+    color var(--cb-duration-fast) var(--cb-ease-standard),
+    text-decoration-color var(--cb-duration-fast) var(--cb-ease-standard);
+}
+
+.cb-citation-link:hover {
+  color: var(--cb-accent);
+  text-decoration-color: var(--cb-accent);
+}
+
+/* 原文引文块：正常体 muted 文字，line-3 左边框。 */
+.cb-citation-quote {
+  display: block;
+  margin-top: var(--cb-space-1);
+  padding-left: var(--cb-space-3);
+  border-left: 1px solid var(--cb-line-3);
+  color: var(--cb-muted);
+  font-family: var(--cb-font-sans);
+  font-size: var(--cb-text-sm);
+  font-style: normal;
+  line-height: 1.6;
+}
