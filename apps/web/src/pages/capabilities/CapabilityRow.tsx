@@ -39,26 +39,28 @@ export function CapabilityRow({
       <td className="cb-cap-row__metric">
         <span className="cb-cap-row__placeholder">暂无数据 / 上线后填充</span>
       </td>
-      <td className="cb-cap-row__actions">
-        <a className="cb-cap-action cb-cap-action--trial" href={trialUrl(cap.id)}>
-          试用
-        </a>
-        <button
-          type="button"
-          className="cb-cap-action cb-cap-action--toggle"
-          data-published={cap.published ? 'true' : 'false'}
-          onClick={() => onToggle(!cap.published)}
-          disabled={pending}
-        >
-          {pending ? '处理中…' : cap.published ? '下架' : '发布'}
-        </button>
-        {cap.published && (
-          <CopyButton
-            text={shareUrl(cap.id)}
-            label="复制链接"
-            className="cb-cap-action cb-cap-action--copy"
-          />
-        )}
+      <td className="cb-cap-row__actions-cell">
+        <div className="cb-cap-row__actions">
+          <a className="cb-cap-action cb-cap-action--trial" href={trialUrl(cap.id)}>
+            试用
+          </a>
+          <button
+            type="button"
+            className="cb-cap-action cb-cap-action--toggle"
+            data-published={cap.published ? 'true' : 'false'}
+            onClick={() => onToggle(!cap.published)}
+            disabled={pending}
+          >
+            {pending ? '处理中…' : cap.published ? '下架' : '发布'}
+          </button>
+          {cap.published && (
+            <CopyButton
+              text={shareUrl(cap.id)}
+              label="复制链接"
+              className="cb-cap-action cb-cap-action--copy"
+            />
+          )}
+        </div>
       </td>
     </tr>
   );

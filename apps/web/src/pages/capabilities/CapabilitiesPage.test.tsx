@@ -36,6 +36,10 @@ describe('CapabilitiesPage — 表格渲染', () => {
     expect(within(table).getByRole('columnheader', { name: '收益' })).toBeInTheDocument();
 
     const rowA = (await screen.findByText('周报整理')).closest('tr')!;
+    const rowACells = within(rowA).getAllByRole('cell');
+    expect(rowACells).toHaveLength(6);
+    expect(rowACells[5]).toHaveClass('cb-cap-row__actions-cell');
+    expect(rowACells[5]?.firstElementChild).toHaveClass('cb-cap-row__actions');
     expect(within(rowA).getByText('未上架')).toBeInTheDocument();
     expect(within(rowA).queryByText('workflow')).toBeNull();
     expect(within(rowA).getByRole('link', { name: '试用' })).toHaveAttribute(
