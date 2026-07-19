@@ -1531,7 +1531,164 @@ body {
   line-height: 1.6;
 }
 
-/* ---------- 能力页列表 ---------- */
+/* ---------- 能力页：状态筛选 + 经营表格 ---------- */
+.cb-capabilities__filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.cb-capabilities__filters::-webkit-scrollbar {
+  display: none;
+}
+
+.cb-filter-chip {
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--cb-muted);
+  border-radius: var(--cb-radius-control);
+  padding: 7px 16px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cb-filter-chip--active {
+  background: var(--cb-accent-soft);
+  color: var(--cb-fg);
+}
+
+.cb-cap-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.cb-cap-table {
+  width: 100%;
+  min-width: 940px;
+  border: 1px solid var(--cb-border);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--cb-radius-card);
+  background: var(--cb-surface);
+  overflow: hidden;
+  table-layout: fixed;
+  font-size: 14px;
+}
+
+.cb-cap-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cb-border);
+  background: var(--cb-paper);
+  color: var(--cb-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.cb-cap-table th:nth-child(1) {
+  width: 29%;
+}
+
+.cb-cap-table th:nth-child(2) {
+  width: 13%;
+}
+
+.cb-cap-table th:nth-child(3) {
+  width: 14%;
+}
+
+.cb-cap-table th:nth-child(4) {
+  width: 11%;
+}
+
+.cb-cap-table th:nth-child(5) {
+  width: 14%;
+}
+
+.cb-cap-table th:nth-child(6) {
+  width: 19%;
+}
+
+.cb-cap-row td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--cb-border);
+  vertical-align: middle;
+}
+
+.cb-cap-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.cb-cap-row__title,
+.cb-cap-row__tagline {
+  display: block;
+}
+
+.cb-cap-row__title {
+  color: var(--cb-fg);
+  font-weight: 600;
+}
+
+.cb-cap-row__tagline {
+  margin-top: 3px;
+  color: var(--cb-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cb-cap-row__placeholder {
+  color: var(--cb-muted);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+.cb-cap-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cb-cap-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border: 1px solid var(--cb-border);
+  background: var(--cb-surface);
+  color: var(--cb-fg);
+  border-radius: var(--cb-radius-control);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cb-cap-action:hover {
+  border-color: var(--cb-accent);
+  color: var(--cb-accent);
+}
+
+.cb-cap-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.cb-capabilities__filtered-empty {
+  margin-bottom: 16px;
+}
+
+/* 保留旧列表样式，供历史嵌入点渐进迁移。 */
 .cb-caps {
   list-style: none;
   margin: 0;

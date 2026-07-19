@@ -26,7 +26,7 @@ describe('CapabilitiesPage — Annotation 7 任务结果语境', () => {
       await screen.findByRole('heading', { level: 2, name: '本次提取结果' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('这次上传提取出的能力项：发布拿分享令牌，或先去试用。'),
+      screen.getByText('这次上传提取出的能力项：查看状态、发布、试用与分享。'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /只看单个任务/ })).toBeNull();
     expect(screen.queryByText(/只看单个任务的能力项/)).toBeNull();

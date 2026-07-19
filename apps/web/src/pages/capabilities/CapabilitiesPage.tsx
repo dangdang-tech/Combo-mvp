@@ -1,7 +1,7 @@
 // 能力页：GET /capabilities 列表（可按 ?taskId= 过滤），每项发布/下架 + 分享令牌 + 去试用。
 // 发布是能力项上的标记动作：POST /capabilities/:id/publish|unpublish 返回 PublishResult，
 // 就地合并进缓存（不整页重拉）。「去试用」跳 runtime-web（同域 /try/ 子路径）。
-import { type ReactElement, type ReactNode } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   useInfiniteQuery,
@@ -21,6 +21,14 @@ import { useDocumentTitle } from '../../shell/useDocumentTitle.js';
 import { CapabilityRow } from './CapabilityRow.js';
 
 type CapabilityPages = InfiniteData<Page<CapabilityView>>;
+
+type CapabilityFilter = 'all' | 'published' | 'unpublished';
+
+const CAPABILITY_FILTERS: ReadonlyArray<{ key: CapabilityFilter; label: string }> = [
+  { key: 'all', label: '全部' },
+  { key: 'published', label: '已上架' },
+  { key: 'unpublished', label: '未上架' },
+];
 
 /** 把 PublishResult 就地合并进列表缓存（所有 capabilities 查询键，含带 taskId 过滤的）。 */
 export function mergePublishResult(
@@ -50,6 +58,7 @@ export function mergePublishResult(
 export function CapabilitiesPage(): ReactElement {
   const [params] = useSearchParams();
   const taskId = params.get('taskId') ?? undefined;
+  const [filter, setFilter] = useState<CapabilityFilter>('all');
   useDocumentTitle(taskId ? '本次提取结果 · Combo' : '我的能力 · Combo');
   const qc = useQueryClient();
 
@@ -75,6 +84,14 @@ export function CapabilitiesPage(): ReactElement {
   });
 
   const items = capsQuery.data?.pages.flatMap((p) => p.items) ?? [];
+  const visibleItems = useMemo(
+    () =>
+      items.filter((cap) => {
+        if (filter === 'all') return true;
+        return filter === 'published' ? cap.published : !cap.published;
+      }),
+    [filter, items],
+  );
 
   let body: ReactNode;
   if (capsQuery.isPending) {
@@ -94,16 +111,54 @@ export function CapabilitiesPage(): ReactElement {
   } else {
     body = (
       <>
-        <ul className="cb-caps">
-          {items.map((cap) => (
-            <CapabilityRow
-              key={cap.id}
-              cap={cap}
-              pending={toggleMutation.isPending && toggleMutation.variables?.id === cap.id}
-              onToggle={(publish) => toggleMutation.mutate({ id: cap.id, publish })}
-            />
+        <div className="cb-capabilities__filters" role="group" aria-label="按发布状态筛选">
+          {CAPABILITY_FILTERS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`cb-filter-chip${filter === item.key ? ' cb-filter-chip--active' : ''}`}
+              aria-pressed={filter === item.key}
+              onClick={() => setFilter(item.key)}
+            >
+              {item.label}
+            </button>
           ))}
-        </ul>
+        </div>
+
+        {visibleItems.length === 0 ? (
+          <div className="cb-empty cb-capabilities__filtered-empty" role="status">
+            <p className="cb-empty__title">该筛选下还没有能力项</p>
+            <p className="cb-empty__hint">切换状态，或继续加载更多能力项。</p>
+            <button type="button" className="cb-empty__action" onClick={() => setFilter('all')}>
+              查看全部
+            </button>
+          </div>
+        ) : (
+          <div className="cb-cap-table-wrap">
+            <table className="cb-cap-table" aria-label={taskId ? '本次提取能力项' : '我的能力'}>
+              <thead>
+                <tr>
+                  <th scope="col">能力体</th>
+                  <th scope="col">状态</th>
+                  <th scope="col">本月调用</th>
+                  <th scope="col">消耗趋势</th>
+                  <th scope="col">收益</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleItems.map((cap) => (
+                  <CapabilityRow
+                    key={cap.id}
+                    cap={cap}
+                    pending={toggleMutation.isPending && toggleMutation.variables?.id === cap.id}
+                    onToggle={(publish) => toggleMutation.mutate({ id: cap.id, publish })}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <div className="cb-pager">
           {capsQuery.hasNextPage ? (
             <button
@@ -130,8 +185,8 @@ export function CapabilitiesPage(): ReactElement {
         </h2>
         <p className="cb-page__lead">
           {taskId
-            ? '这次上传提取出的能力项：发布拿分享令牌，或先去试用。'
-            : '从你的对话历史提取出的能力项：发布拿分享令牌，或先去试用。'}
+            ? '这次上传提取出的能力项：查看状态、发布、试用与分享。'
+            : '管理你创建的能力体：查看状态、发布、试用与分享。'}
         </p>
       </div>
 

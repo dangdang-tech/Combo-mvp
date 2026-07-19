@@ -1,5 +1,5 @@
-// 能力项行：名称/发布状态 + 分享令牌 + 「去试用」「发布/下架」动作。
-// 能力页与任务详情页（提取完就地展示）共用。
+// 能力表格行：只使用当前 CapabilityView 的真实状态与动作。
+// 经营指标尚未接入，显式展示占位，不把设计稿模拟数字带进生产。
 import { type ReactElement } from 'react';
 import type { CapabilityView } from '@cb/shared';
 import { trialUrl } from '../../api/index.js';
@@ -20,37 +20,46 @@ export function CapabilityRow({
   onToggle: (publish: boolean) => void;
 }): ReactElement {
   return (
-    <li className="cb-caps__item">
-      <div className="cb-caps__main">
-        <p className="cb-caps__name">
-          {cap.name}
-          <span className={`cb-status-badge is-${cap.published ? 'published' : 'unpublished'}`}>
-            {cap.published ? '已发布' : '未发布'}
-          </span>
-        </p>
-        <p className="cb-caps__summary">{cap.summary}</p>
-        {cap.published && (
-          <p className="cb-caps__share">
-            {/* 裸 shareToken 无任何路由可消费（断头路）；先给真正能用的试用链接，token 语义等后端落地。 */}
-            分享链接：<code className="cb-caps__token">{shareUrl(cap.id)}</code>
-            <CopyButton text={shareUrl(cap.id)} />
-          </p>
-        )}
-      </div>
-      <div className="cb-caps__actions">
-        <a className="cb-caps__trial" href={trialUrl(cap.id)}>
-          去试用
+    <tr className="cb-cap-row" data-capability={cap.id}>
+      <td className="cb-cap-row__name">
+        <span className="cb-cap-row__title">{cap.name}</span>
+        <span className="cb-cap-row__tagline">{cap.summary}</span>
+      </td>
+      <td className="cb-cap-row__status">
+        <span className={`cb-status-badge is-${cap.published ? 'published' : 'unpublished'}`}>
+          {cap.published ? '已上架' : '未上架'}
+        </span>
+      </td>
+      <td className="cb-cap-row__metric">
+        <span className="cb-cap-row__placeholder">暂无数据 / 上线后填充</span>
+      </td>
+      <td className="cb-cap-row__metric">
+        <span className="cb-cap-row__placeholder">—</span>
+      </td>
+      <td className="cb-cap-row__metric">
+        <span className="cb-cap-row__placeholder">暂无数据 / 上线后填充</span>
+      </td>
+      <td className="cb-cap-row__actions">
+        <a className="cb-cap-action cb-cap-action--trial" href={trialUrl(cap.id)}>
+          试用
         </a>
         <button
           type="button"
-          className="cb-caps__toggle"
+          className="cb-cap-action cb-cap-action--toggle"
           data-published={cap.published ? 'true' : 'false'}
           onClick={() => onToggle(!cap.published)}
           disabled={pending}
         >
           {pending ? '处理中…' : cap.published ? '下架' : '发布'}
         </button>
-      </div>
-    </li>
+        {cap.published && (
+          <CopyButton
+            text={shareUrl(cap.id)}
+            label="复制链接"
+            className="cb-cap-action cb-cap-action--copy"
+          />
+        )}
+      </td>
+    </tr>
   );
 }

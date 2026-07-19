@@ -1,4 +1,4 @@
-// 能力页测试：列表渲染（名称/简介/发布状态/分享令牌/试用链接）+ 发布/下架交互。
+// 能力页测试：表格渲染（名称/简介/真实发布状态/指标占位/试用链接）+ 发布/下架交互。
 import { describe, it, expect, afterEach } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -24,25 +24,47 @@ const PUBLISHED = makeCapability({
   shareToken: 'share-token-b',
 });
 
-describe('CapabilitiesPage — 列表渲染', () => {
-  it('显示名称/简介/发布状态但不显示类型后缀；已发布的显示分享令牌；每项有试用链接', async () => {
+describe('CapabilitiesPage — 表格渲染', () => {
+  it('显示截图式六列表头、名称/简介/真实发布状态与可用操作', async () => {
     fm = installFetchMock({ status: 200, json: paginatedBody([DRAFT, PUBLISHED]) });
     renderPage(<CapabilitiesPage />, { route: '/capabilities' });
 
-    const rowA = (await screen.findByText('周报整理')).closest('li')!;
-    expect(within(rowA).getByText('未发布')).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: '我的能力' });
+    expect(within(table).getByRole('columnheader', { name: '能力体' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '本月调用' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '消耗趋势' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: '收益' })).toBeInTheDocument();
+
+    const rowA = (await screen.findByText('周报整理')).closest('tr')!;
+    expect(within(rowA).getByText('未上架')).toBeInTheDocument();
     expect(within(rowA).queryByText('workflow')).toBeNull();
-    expect(within(rowA).queryByText(/分享令牌/)).toBeNull();
-    expect(within(rowA).getByRole('link', { name: '去试用' })).toHaveAttribute(
+    expect(within(rowA).getByRole('link', { name: '试用' })).toHaveAttribute(
       'href',
       '/try/c/cap-a',
     );
+    expect(within(rowA).queryByRole('button', { name: '复制链接' })).toBeNull();
 
-    const rowB = screen.getByText('代码评审').closest('li')!;
-    expect(within(rowB).getByText('已发布')).toBeInTheDocument();
+    const rowB = screen.getByText('代码评审').closest('tr')!;
+    expect(within(rowB).getByText('已上架')).toBeInTheDocument();
     expect(within(rowB).getByText('按团队规范给出评审意见。')).toBeInTheDocument();
-    // 分享展示的是可用的完整试用链接（裸 shareToken 无路由可消费）。
-    expect(within(rowB).getByText((text) => text.includes('/try/c/cap-b'))).toBeInTheDocument();
+    expect(within(rowB).getByRole('button', { name: '复制链接' })).toBeInTheDocument();
+    // 经营指标没有后端数据，必须明确占位，不能显示设计稿模拟数字。
+    expect(within(rowB).getAllByText('暂无数据 / 上线后填充')).toHaveLength(2);
+    expect(within(rowB).queryByText('1284')).toBeNull();
+    expect(within(rowB).queryByText('368.00')).toBeNull();
+  });
+
+  it('筛选只提供真实可判定状态：全部 / 已上架 / 未上架', async () => {
+    fm = installFetchMock({ status: 200, json: paginatedBody([DRAFT, PUBLISHED]) });
+    renderPage(<CapabilitiesPage />, { route: '/capabilities' });
+    await screen.findByText('周报整理');
+
+    await userEvent.click(screen.getByRole('button', { name: '已上架' }));
+    expect(screen.queryByText('周报整理')).toBeNull();
+    expect(screen.getByText('代码评审')).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: 'Alpha·审核中' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '已退回' })).toBeNull();
   });
 
   it('?taskId= 过滤：请求带 taskId', async () => {
@@ -61,7 +83,7 @@ describe('CapabilitiesPage — 列表渲染', () => {
 });
 
 describe('CapabilitiesPage — 发布 / 下架交互', () => {
-  it('发布：POST /capabilities/:id/publish → 徽章转已发布 + 显示分享令牌', async () => {
+  it('发布：POST /capabilities/:id/publish → 徽章转已上架 + 显示复制链接', async () => {
     fm = installFetchMock([
       { status: 200, json: paginatedBody([DRAFT]) },
       {
@@ -75,18 +97,18 @@ describe('CapabilitiesPage — 发布 / 下架交互', () => {
       },
     ]);
     renderPage(<CapabilitiesPage />, { route: '/capabilities' });
-    const row = (await screen.findByText('周报整理')).closest('li')!;
+    const row = (await screen.findByText('周报整理')).closest('tr')!;
 
     await userEvent.click(within(row).getByRole('button', { name: '发布' }));
 
     const post = fm.calls.find((c) => c.method === 'POST');
     expect(post?.url).toBe('/api/v1/capabilities/cap-a/publish');
-    expect(await within(row).findByText('已发布')).toBeInTheDocument();
-    expect(within(row).getByText((text) => text.includes('/try/c/cap-a'))).toBeInTheDocument();
+    expect(await within(row).findByText('已上架')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: '复制链接' })).toBeInTheDocument();
     expect(within(row).getByRole('button', { name: '下架' })).toBeInTheDocument();
   });
 
-  it('下架：POST /capabilities/:id/unpublish → 徽章转未发布（share_token 保留语义由后端定）', async () => {
+  it('下架：POST /capabilities/:id/unpublish → 徽章转未上架（share_token 保留语义由后端定）', async () => {
     fm = installFetchMock([
       { status: 200, json: paginatedBody([PUBLISHED]) },
       {
@@ -95,14 +117,15 @@ describe('CapabilitiesPage — 发布 / 下架交互', () => {
       },
     ]);
     renderPage(<CapabilitiesPage />, { route: '/capabilities' });
-    const row = (await screen.findByText('代码评审')).closest('li')!;
+    const row = (await screen.findByText('代码评审')).closest('tr')!;
 
     await userEvent.click(within(row).getByRole('button', { name: '下架' }));
 
     const post = fm.calls.find((c) => c.method === 'POST');
     expect(post?.url).toBe('/api/v1/capabilities/cap-b/unpublish');
-    expect(await within(row).findByText('未发布')).toBeInTheDocument();
+    expect(await within(row).findByText('未上架')).toBeInTheDocument();
     expect(within(row).getByRole('button', { name: '发布' })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '复制链接' })).toBeNull();
   });
 
   it('发布失败 → 人话错误（绝不裸露错误码）', async () => {
@@ -121,7 +144,7 @@ describe('CapabilitiesPage — 发布 / 下架交互', () => {
       },
     ]);
     renderPage(<CapabilitiesPage />, { route: '/capabilities' });
-    const row = (await screen.findByText('周报整理')).closest('li')!;
+    const row = (await screen.findByText('周报整理')).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: '发布' }));
     expect(await screen.findByText('没找到对应内容，可能已被删除。')).toBeInTheDocument();
     expect(screen.queryByText(/404/)).toBeNull();
