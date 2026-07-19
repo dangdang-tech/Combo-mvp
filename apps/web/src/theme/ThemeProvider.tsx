@@ -3,7 +3,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useId,
   useMemo,
   useState,
   type ReactElement,
@@ -140,55 +139,31 @@ export function useResolvedTheme(): ResolvedTheme {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 }
 
-const THEME_OPTIONS: ReadonlyArray<{
-  value: ThemePreference;
-  label: string;
-  shortLabel: string;
-  icon: string;
-}> = [
-  { value: 'system', label: '跟随系统', shortLabel: '系统', icon: '◐' },
-  { value: 'light', label: '亮色模式', shortLabel: '亮色', icon: '☀' },
-  { value: 'dark', label: '暗色模式', shortLabel: '暗色', icon: '☾' },
-];
-
 export function ThemeSwitcher(): ReactElement {
-  const { preference, resolvedTheme, setPreference } = useTheme();
-  const groupId = useId();
+  const { resolvedTheme, setPreference } = useTheme();
+  const nextTheme: ResolvedTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
+  const currentLabel = resolvedTheme === 'dark' ? '暗色' : '亮色';
+  const nextLabel = nextTheme === 'dark' ? '暗色' : '亮色';
 
   return (
-    <fieldset
+    <button
+      type="button"
       className="cb-theme-switch"
       data-resolved-theme={resolvedTheme}
-      aria-label="外观模式"
-      title={`当前：${THEME_OPTIONS.find((option) => option.value === preference)?.label ?? '跟随系统'}`}
+      aria-label={`切换到${nextLabel}模式`}
+      title={`当前${currentLabel}模式，点击切换到${nextLabel}模式`}
+      onClick={() => setPreference(nextTheme)}
     >
-      <legend className="cb-theme-switch__legend">外观模式</legend>
-      {THEME_OPTIONS.map((option) => {
-        const id = `${groupId}-${option.value}`;
-        return (
-          <label
-            className="cb-theme-switch__option"
-            key={option.value}
-            htmlFor={id}
-            title={option.label}
-          >
-            <input
-              id={id}
-              type="radio"
-              name={groupId}
-              value={option.value}
-              aria-label={option.label}
-              checked={preference === option.value}
-              onChange={() => setPreference(option.value)}
-            />
-            <span className="cb-theme-switch__icon" aria-hidden="true">
-              {option.icon}
-            </span>
-            <span className="cb-theme-switch__text">{option.shortLabel}</span>
-            <span className="cb-theme-switch__sr">{option.label}</span>
-          </label>
-        );
-      })}
-    </fieldset>
+      {resolvedTheme === 'dark' ? (
+        <svg className="cb-theme-switch__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z" />
+        </svg>
+      ) : (
+        <svg className="cb-theme-switch__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" />
+        </svg>
+      )}
+    </button>
   );
 }

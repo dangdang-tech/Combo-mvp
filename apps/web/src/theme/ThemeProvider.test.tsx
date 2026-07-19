@@ -69,7 +69,7 @@ describe('theme contract', () => {
     ).toBe('system');
   });
 
-  it('offers one accessible three-state switch and persists the preference', async () => {
+  it('offers one accessible toggle and persists the opposite resolved theme', async () => {
     const user = userEvent.setup();
     render(
       <ThemeProvider>
@@ -77,13 +77,36 @@ describe('theme contract', () => {
       </ThemeProvider>,
     );
 
-    expect(screen.getAllByRole('radio')).toHaveLength(3);
-    await user.click(screen.getByRole('radio', { name: '暗色模式' }));
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+    const toggle = screen.getByRole('button', { name: '切换到暗色模式' });
+    expect(toggle).toHaveAttribute('data-resolved-theme', 'light');
+    await user.click(toggle);
 
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
     expect(document.documentElement).toHaveAttribute('data-theme-preference', 'dark');
     expect(document.documentElement.style.colorScheme).toBe('dark');
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
+  });
+
+  it('uses the resolved system theme as the first explicit toggle target', async () => {
+    installMatchMedia(true);
+    const user = userEvent.setup();
+    render(
+      <ThemeProvider>
+        <main>Combo</main>
+      </ThemeProvider>,
+    );
+
+    const toggle = screen.getByRole('button', { name: '切换到亮色模式' });
+    expect(document.documentElement).toHaveAttribute('data-theme-preference', 'system');
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBeNull();
+    await user.click(toggle);
+
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light');
+    expect(document.documentElement).toHaveAttribute('data-theme-preference', 'light');
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
   });
 
   it('follows OS changes only while the system preference is active', async () => {
@@ -98,7 +121,7 @@ describe('theme contract', () => {
     act(() => media.setDark(true));
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
 
-    await user.click(screen.getByRole('radio', { name: '亮色模式' }));
+    await user.click(screen.getByRole('button', { name: '切换到亮色模式' }));
     act(() => media.setDark(false));
     act(() => media.setDark(true));
     expect(document.documentElement).toHaveAttribute('data-theme', 'light');

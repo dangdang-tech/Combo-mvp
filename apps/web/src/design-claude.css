@@ -215,7 +215,7 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cb-focus-ring) 15%, transparent);
 }
 
-/* One shared, three-state appearance control; it does not alter route structure. */
+/* One shared appearance action. The first visit follows the OS; a click chooses the opposite. */
 .cb-theme-switch {
   position: fixed;
   z-index: 80;
@@ -223,74 +223,46 @@ body {
   bottom: 16px;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
+  width: 34px;
   height: 32px;
   margin: 0;
-  padding: 3px;
+  padding: 0;
   border: 1px solid var(--cb-border);
   border-radius: var(--cb-radius-pill);
   background: color-mix(in srgb, var(--cb-surface-raised) 92%, transparent);
+  color: var(--cb-muted);
   box-shadow: var(--cb-shadow-float);
   backdrop-filter: blur(12px);
-}
-
-.cb-theme-switch__legend,
-.cb-theme-switch__sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.cb-theme-switch__option {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--cb-radius-pill);
-  color: var(--cb-muted);
   cursor: pointer;
-}
-
-.cb-theme-switch__option input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
 }
 
 .cb-theme-switch__icon {
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: inherit;
-  font: 500 14px/1 var(--cb-font-sans);
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.cb-theme-switch__text {
-  display: none;
-}
-
-.cb-theme-switch__option:hover .cb-theme-switch__icon {
+.cb-theme-switch:hover {
+  border-color: var(--cb-selection-border);
   background: var(--cb-surface-card);
   color: var(--cb-fg);
 }
 
-.cb-theme-switch__option input:checked + .cb-theme-switch__icon {
+.cb-theme-switch:active {
   background: var(--cb-selection-bg);
   color: var(--cb-selection-fg);
 }
 
-.cb-theme-switch__option input:focus-visible + .cb-theme-switch__icon {
+.cb-theme-switch:focus-visible {
   outline: 2px solid var(--cb-focus-ring);
   outline-offset: 2px;
 }
