@@ -5,6 +5,7 @@ import { ApiError } from './api/index.js';
 import { installGlobalClientErrorHandlers } from './api/telemetry.js';
 import { App } from './App.js';
 import './styles.css';
+import './design-claude.css';
 
 installGlobalClientErrorHandlers();
 
