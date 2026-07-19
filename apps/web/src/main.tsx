@@ -7,6 +7,7 @@ import { App } from './App.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
 import './styles.css';
 import './design-claude.css';
+import './pages/landing/landing.css';
 
 installGlobalClientErrorHandlers();
 

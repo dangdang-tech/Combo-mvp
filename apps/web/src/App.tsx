@@ -16,6 +16,7 @@ import { TaskDetailPage } from './pages/tasks/TaskDetailPage.js';
 import { CapabilitiesPage } from './pages/capabilities/CapabilitiesPage.js';
 import { PublicCapabilityPage } from './pages/public/PublicCapabilityPage.js';
 import { PublicCreatorPage } from './pages/public/PublicCreatorPage.js';
+import { LandingPage } from './pages/landing/LandingPage.js';
 
 /** 受保护组根：AuthProvider 只包受保护子树，公开页匿名访问根本不发 /me。 */
 function ProtectedRoot(): ReactElement {
@@ -33,7 +34,6 @@ export function App(): ReactElement {
         <Route element={<ProtectedRoot />}>
           <Route element={<RequireAuth />}>
             <Route element={<ProtectedLayout />}>
-              <Route index element={<Navigate to="/tasks" replace />} />
               {/* 旧 IA 别名：/creator 是重构前的工作台路径，旧书签/外链落过来不该 404。 */}
               <Route path="/creator" element={<Navigate to="/tasks" replace />} />
               <Route path="/tasks" element={<TasksPage />} />
@@ -44,6 +44,7 @@ export function App(): ReactElement {
         </Route>
 
         <Route element={<PublicLayout />}>
+          <Route index element={<LandingPage />} />
           {/* 公开能力页 / 公开创作者主页：匿名可读，数据走前端 mock 层（publicApi）。 */}
           <Route path="/a/:slug" element={<PublicCapabilityPage />} />
           <Route path="/c/:slug" element={<PublicCreatorPage />} />
