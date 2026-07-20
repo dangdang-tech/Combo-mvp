@@ -10,7 +10,7 @@
     "smoke": "./smoke.sh",
     "acceptance:smoke": "./acceptance-smoke.sh",
     "typecheck": "tsc -b",
-    "test": "echo 'no tests in scripts' && exit 0"
+    "test": "node --test publish-logto-branding.test.mjs"
   },
   "dependencies": {
     "@cb/shared": "workspace:*"

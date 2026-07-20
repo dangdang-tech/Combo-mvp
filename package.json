@@ -19,6 +19,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm -r run test",
+    "test:logto": "node --test scripts/publish-logto-branding.test.mjs",
+    "logto:validate": "node scripts/publish-logto-branding.mjs --dry-run",
+    "logto:publish": "node scripts/publish-logto-branding.mjs --apply",
     "dev": "pnpm -r --parallel run dev",
     "clean": "pnpm -r exec rm -rf dist tsconfig.tsbuildinfo"
   },
