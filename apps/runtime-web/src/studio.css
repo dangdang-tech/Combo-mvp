@@ -988,6 +988,28 @@
   background: transparent;
 }
 
+.rt-studio-test__submitted-prompt {
+  border: 1px solid color-mix(in srgb, var(--cb-action-primary) 24%, var(--cb-border));
+  border-radius: var(--cb-radius-control);
+  padding: 14px;
+  background: color-mix(in srgb, var(--cb-action-primary) 7%, var(--cb-bg));
+}
+
+.rt-studio-test__submitted-prompt span {
+  color: var(--cb-action-link);
+  font-family: var(--cb-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+
+.rt-studio-test__submitted-prompt p {
+  margin: 9px 0 0;
+  color: var(--cb-fg);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
 .rt-intake__eyebrow {
   margin-bottom: 7px;
   color: var(--cb-action-link);

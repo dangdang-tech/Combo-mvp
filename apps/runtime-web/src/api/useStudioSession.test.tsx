@@ -38,5 +38,6 @@ describe('useStudioTestRun', () => {
     });
 
     expect(apiPostMock).toHaveBeenCalledTimes(1);
+    expect(result.current.prompt).toBe('真实任务一');
   });
 });

@@ -18,6 +18,7 @@ export function useStudioState(sessionId: string | undefined, enabled: boolean) 
 
 export interface StudioTestRunState {
   isRunning: boolean;
+  prompt: string;
   outputText: string;
   error: string | null;
   testSessionId: string | null;
@@ -29,6 +30,7 @@ export function useStudioTestRun(studioSessionId: string | undefined): StudioTes
   const qc = useQueryClient();
   const sourceRef = useRef<EventSource | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [prompt, setPrompt] = useState('');
   const [outputText, setOutputText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [testSessionId, setTestSessionId] = useState<string | null>(null);
@@ -42,6 +44,7 @@ export function useStudioTestRun(studioSessionId: string | undefined): StudioTes
     sourceRef.current = null;
     busyRef.current = false;
     setIsRunning(false);
+    setPrompt('');
     setOutputText('');
     setError(null);
     setTestSessionId(null);
@@ -95,17 +98,19 @@ export function useStudioTestRun(studioSessionId: string | undefined): StudioTes
   };
 
   const run = (revisionId: string, prompt: string): boolean => {
-    if (!studioSessionId || busyRef.current || !prompt.trim()) return false;
+    const normalizedPrompt = prompt.trim();
+    if (!studioSessionId || busyRef.current || !normalizedPrompt) return false;
     busyRef.current = true;
     sourceRef.current?.close();
     setIsRunning(true);
     setOutputText('');
     setError(null);
+    setPrompt(normalizedPrompt);
     setRevisionId(revisionId);
     const expectedStudioSessionId = studioSessionId;
     void apiPost<CreateStudioTestResult>(`/runtime/studio/sessions/${studioSessionId}/tests`, {
       revisionId,
-      prompt: prompt.trim(),
+      prompt: normalizedPrompt,
     })
       .then((result) => {
         if (studioSessionRef.current !== expectedStudioSessionId) return;
@@ -121,5 +126,5 @@ export function useStudioTestRun(studioSessionId: string | undefined): StudioTes
     return true;
   };
 
-  return { isRunning, outputText, error, testSessionId, revisionId, run };
+  return { isRunning, prompt, outputText, error, testSessionId, revisionId, run };
 }

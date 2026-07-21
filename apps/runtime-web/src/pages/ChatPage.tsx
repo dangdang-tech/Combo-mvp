@@ -306,6 +306,40 @@ function TrialIntakeForm({
   );
 }
 
+function StudioTestInputReceipt({
+  revisionNo,
+  prompt,
+  isRunning,
+  onNewTask,
+}: {
+  revisionNo: number;
+  prompt: string;
+  isRunning: boolean;
+  onNewTask: () => void;
+}) {
+  return (
+    <section className="rt-intake" aria-label="本次 Miniapp 提交">
+      <div className="rt-intake__head">
+        <div className="rt-intake__eyebrow">MINIAPP SUBMISSION</div>
+        <h2>UI R{revisionNo} 发起的真实任务</h2>
+        <p>这是刚才由 Miniapp 主按钮提交给 Combo Runtime 的原始任务，会与本次结果一起保留。</p>
+      </div>
+      <div className="rt-studio-test__submitted-prompt">
+        <span>本次提交</span>
+        <p>{prompt}</p>
+      </div>
+      <button
+        type="button"
+        className="rt-btn rt-intake__start"
+        disabled={isRunning}
+        onClick={onNewTask}
+      >
+        {isRunning ? '真实任务运行中…' : '换一个任务'}
+      </button>
+    </section>
+  );
+}
+
 function TrialGeneratingCard({
   capability,
   process,
@@ -865,6 +899,7 @@ export function ChatPage() {
   const [previewSize, setPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
   const [previewVersionNumber, setPreviewVersionNumber] = useState<number | null>(null);
   const [studioView, setStudioView] = useState<'preview' | 'test'>('preview');
+  const [isEditingTestInput, setIsEditingTestInput] = useState(false);
   const [mobilePane, setMobilePane] = useState<'agent' | 'preview'>('agent');
   const startedSlugRef = useRef<string | undefined>(undefined);
   const autoBootstrapRef = useRef<string | null>(null);
@@ -1068,6 +1103,13 @@ export function ChatPage() {
         ?.text.trim() ?? ''
     );
   }, [latestTestSessionQ.data?.messages, localTestMatchesCurrentRevision, studioTest.outputText]);
+  const latestTestPrompt = useMemo(() => {
+    if (localTestMatchesCurrentRevision && studioTest.prompt.trim()) {
+      return studioTest.prompt.trim();
+    }
+    const messages = latestTestSessionQ.data?.messages ?? [];
+    return messages.find((message) => message.role === 'user')?.text.trim() ?? '';
+  }, [latestTestSessionQ.data?.messages, localTestMatchesCurrentRevision, studioTest.prompt]);
   const latestTestArtifact = useMemo(() => {
     const artifacts = latestTestSessionQ.data?.artifacts ?? [];
     const key = selectPrimaryArtifactKey(artifacts);
@@ -1165,6 +1207,7 @@ export function ChatPage() {
     if (!currentRevision || !canStartCurrentTest) return false;
     const started = studioTest.run(currentRevision.id, prompt);
     if (!started) return false;
+    setIsEditingTestInput(false);
     setStudioView('test');
     setMobilePane('preview');
     return true;
@@ -1357,13 +1400,22 @@ export function ChatPage() {
                 {studioView === 'test' && currentRevision ? (
                   <div className="rt-studio-test">
                     <div className="rt-studio-test__input">
-                      <TrialIntakeForm
-                        capability={capability}
-                        disabled={studioTest.isRunning}
-                        mode="test"
-                        revisionNo={currentRevision.revisionNo}
-                        onSubmit={startStudioTest}
-                      />
+                      {latestTestPrompt && !isEditingTestInput ? (
+                        <StudioTestInputReceipt
+                          revisionNo={currentRevision.revisionNo}
+                          prompt={latestTestPrompt}
+                          isRunning={studioTest.isRunning}
+                          onNewTask={() => setIsEditingTestInput(true)}
+                        />
+                      ) : (
+                        <TrialIntakeForm
+                          capability={capability}
+                          disabled={studioTest.isRunning}
+                          mode="test"
+                          revisionNo={currentRevision.revisionNo}
+                          onSubmit={startStudioTest}
+                        />
+                      )}
                     </div>
                     <div className="rt-studio-test__result" aria-live="polite">
                       <div className="rt-studio-test__result-head">
