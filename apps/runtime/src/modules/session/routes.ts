@@ -19,6 +19,7 @@ import { requireCreatorIdentity, resolveRuntimeOwnerId } from '../../platform/ht
 import { startAguiStream } from '../agent/agui-emitter.js';
 import { runAgui } from '../agent/agui-run.js';
 import { composeSystemPrompt } from '../agent/compose-prompt.js';
+import { withDesignStudioInstructions } from '../agent/design-studio-prompt.js';
 import {
   getCreatorCapabilityVersionForTrial,
   getPublishedCapability,
@@ -369,6 +370,10 @@ export async function registerSessionRoutes(
     if (!parsed.success) return badRequest(reply, req.id);
     const userText = runInputToText(parsed.data);
     if (!userText) return badRequest(reply, req.id);
+    const runSession: SessionRow =
+      parsed.data.intent === 'design'
+        ? { ...row, instructions: withDesignStudioInstructions(row.instructions) }
+        : row;
 
     const run = await createRun(ctx.pool, {
       sessionId: row.id,
@@ -387,9 +392,10 @@ export async function registerSessionRoutes(
     void runAgui({
       env: ctx.env,
       pool: ctx.pool,
-      session: row,
+      session: runSession,
       runId: run.id,
       userText,
+      ...(parsed.data.intent ? { intent: parsed.data.intent } : {}),
       emitter,
       log: req.log,
     })

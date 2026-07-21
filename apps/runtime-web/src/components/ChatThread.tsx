@@ -14,9 +14,15 @@ export interface ChatThreadProps {
   /** 流式中的助手正文（未落库前的实时显示）。 */
   streamingText: string | null;
   onOpenArtifact: (ref: ArtifactRef) => void;
+  assistantLabel?: string;
 }
 
-export function ChatThread({ messages, streamingText, onOpenArtifact }: ChatThreadProps) {
+export function ChatThread({
+  messages,
+  streamingText,
+  onOpenArtifact,
+  assistantLabel = '能力',
+}: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -25,11 +31,16 @@ export function ChatThread({ messages, streamingText, onOpenArtifact }: ChatThre
   return (
     <div className="rt-thread">
       {messages.map((m) => (
-        <MessageBubble key={m.id} message={m} onOpenArtifact={onOpenArtifact} />
+        <MessageBubble
+          key={m.id}
+          message={m}
+          assistantLabel={assistantLabel}
+          onOpenArtifact={onOpenArtifact}
+        />
       ))}
       {streamingText !== null && (
         <div className="rt-msg rt-msg--assistant">
-          <div className="rt-msg__role">能力</div>
+          <div className="rt-msg__role">{assistantLabel}</div>
           <AssistantBody text={streamingText} streaming />
         </div>
       )}
@@ -40,9 +51,11 @@ export function ChatThread({ messages, streamingText, onOpenArtifact }: ChatThre
 
 function MessageBubble({
   message,
+  assistantLabel,
   onOpenArtifact,
 }: {
   message: RuntimeMessage;
+  assistantLabel: string;
   onOpenArtifact: (ref: ArtifactRef) => void;
 }) {
   if (message.role === 'user') {
@@ -54,7 +67,7 @@ function MessageBubble({
   }
   return (
     <div className="rt-msg rt-msg--assistant">
-      <div className="rt-msg__role">能力</div>
+      <div className="rt-msg__role">{assistantLabel}</div>
       <AssistantBody text={message.text} />
       {message.artifacts.length > 0 && (
         <div className="rt-msg__artifacts">

@@ -24,6 +24,9 @@ export type RunStatus = z.infer<typeof RunStatusSchema>;
 export const RunStageStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
 export type RunStageStatus = z.infer<typeof RunStageStatusSchema>;
 
+export const RunIntentSchema = z.enum(['capability', 'design']);
+export type RunIntent = z.infer<typeof RunIntentSchema>;
+
 export const RunStageSchema = z.object({
   key: z.string(),
   label: z.string(),
@@ -236,6 +239,7 @@ export type LatestTrialSessionResult = z.infer<typeof LatestTrialSessionResultSc
 export const RunInputSchema = z.object({
   contentParts: z.array(RunContentPartSchema).min(1),
   lockedElements: z.array(LockedElementSchema).optional(),
+  intent: RunIntentSchema.optional(),
 });
 export type RunInput = z.infer<typeof RunInputSchema>;
 

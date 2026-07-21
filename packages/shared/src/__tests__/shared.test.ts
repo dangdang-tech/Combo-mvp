@@ -47,6 +47,7 @@ import {
   traceIdFromHeaders,
   traceIdFromUrl,
   uuidToTraceHex,
+  RunInputSchema,
 } from '../index.js';
 import { z } from 'zod';
 
@@ -69,6 +70,19 @@ describe('Trace helpers', () => {
       }),
     ).toBe(uuid);
     expect(traceIdFromUrl(`/api/v1/runtime/runs/r1/events?traceId=${uuid}`)).toBe(uuid);
+  });
+});
+
+describe('Runtime run input', () => {
+  const contentParts = [{ type: 'text' as const, text: '把主按钮改成红色' }];
+
+  it('accepts the dedicated Design Agent intent without changing normal runs', () => {
+    expect(RunInputSchema.safeParse({ contentParts, intent: 'design' }).success).toBe(true);
+    expect(RunInputSchema.safeParse({ contentParts }).success).toBe(true);
+  });
+
+  it('rejects unknown run intents', () => {
+    expect(RunInputSchema.safeParse({ contentParts, intent: 'preview-only' }).success).toBe(false);
   });
 });
 

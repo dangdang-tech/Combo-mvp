@@ -83,9 +83,9 @@ interface ArtifactDbRow {
 export async function getArtifacts(pool: Pool, sessionId: string): Promise<RuntimeArtifact[]> {
   const res = await pool.query<ArtifactDbRow>(
     `SELECT a.artifact_key,
-            a.kind,
-            a.title,
-            a.latest_version,
+            (array_agg(v.kind ORDER BY v.version DESC))[1] AS kind,
+            (array_agg(v.title ORDER BY v.version DESC))[1] AS title,
+            MAX(v.version)::int AS latest_version,
             COALESCE(
               json_agg(
                 json_build_object(
@@ -102,17 +102,19 @@ export async function getArtifacts(pool: Pool, sessionId: string): Promise<Runti
               '[]'
             ) AS versions
        FROM rt_chat_artifacts a
-       LEFT JOIN rt_chat_artifact_versions v ON v.artifact_id = a.id
-      WHERE a.session_id = $1
-        -- 只返回【被某条已落库消息引用】的产物：产物在工具 execute 内自成事务先提交，若该回合随后失败
-        --   （断线/saveTurn 异常/LLM 运行时错误）assistant 消息没写成，产物就成了孤儿；按引用过滤掉它，
-        --   避免详情里冒出一个没有对应回复、还自动展开的产物（孤儿行留库，可由后续 sweeper 清理）。
+       JOIN rt_chat_artifact_versions v
+         ON v.artifact_id = a.id
+        -- 只返回【被已落库消息精确引用】的版本。artifact 工具先提交版本，若 saveTurn 随后失败，
+        -- 该版本就是孤儿；按 artifactKey + version 过滤，避免已有 key 的失败新版本污染可见 latest。
         AND EXISTS (
           SELECT 1 FROM rt_chat_messages m
            WHERE m.session_id = a.session_id
-             AND m.artifacts @> jsonb_build_array(jsonb_build_object('artifactKey', a.artifact_key))
+             AND m.artifacts @> jsonb_build_array(
+               jsonb_build_object('artifactKey', a.artifact_key, 'version', v.version)
+             )
         )
-      GROUP BY a.id, a.artifact_key, a.kind, a.title, a.latest_version
+      WHERE a.session_id = $1
+      GROUP BY a.id, a.artifact_key
       ORDER BY a.created_at ASC`,
     [sessionId],
   );

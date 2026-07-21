@@ -33,11 +33,21 @@ interface ArtifactDetails {
   version: number;
 }
 
+export interface ArtifactValidationInput {
+  artifactKey: string;
+  kind: ArtifactKind;
+  title: string;
+  language: string | null;
+  content: string;
+}
+
 export interface ArtifactToolContext {
   pool: Pool;
   sessionId: string;
   /** 本回合产出的 artifact 引用（run 落助手消息用）。 */
   collected: ArtifactRef[];
+  /** Optional per-run guard. Returning a message rejects the write before touching storage. */
+  validateArtifact?: (artifact: ArtifactValidationInput) => string | null;
   /** 产出/更新一个产物后回调，带该产物的【完整版本历史】；线协议（自定义 SSE / AG-UI state）各自 emit。 */
   onArtifact: (artifact: RuntimeArtifact) => void;
 }
@@ -62,13 +72,19 @@ export function createArtifactTool(
       const kind = params.kind as ArtifactKind;
       const content =
         kind === 'structured' ? normalizeStructuredArtifactContent(params.content) : params.content;
-      const { version } = await upsertArtifact(ctx.pool, {
-        sessionId: ctx.sessionId,
+      const candidate: ArtifactValidationInput = {
         artifactKey: params.artifactKey,
         kind,
         title: params.title,
         language,
         content,
+      };
+      const validationError = ctx.validateArtifact?.(candidate);
+      if (validationError) throw new Error(validationError);
+
+      const { version } = await upsertArtifact(ctx.pool, {
+        sessionId: ctx.sessionId,
+        ...candidate,
       });
 
       // 记入本回合 artifact 引用（同 key 覆盖为最新版本）。

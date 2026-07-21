@@ -26,6 +26,7 @@ import { createProductionSession, useSession } from '../api/runtime.js';
 import { useAguiSession } from '../api/useAguiSession.js';
 import { ArtifactRenderer } from '../components/ArtifactRenderer.js';
 import { ChatThread } from '../components/ChatThread.js';
+import { DesignAgentPanel } from '../components/DesignAgentPanel.js';
 import { SessionSidebar } from '../components/SessionSidebar.js';
 
 function latestVersion(artifact: RuntimeArtifact | null) {
@@ -824,6 +825,9 @@ export function ChatPage() {
   const [createFailed, setCreateFailed] = useState(false);
   const [productionPending, setProductionPending] = useState(false);
   const [productionError, setProductionError] = useState<string | null>(null);
+  const [previewSize, setPreviewSize] = useState<'desktop' | 'mobile'>('desktop');
+  const [previewVersionNumber, setPreviewVersionNumber] = useState<number | null>(null);
+  const [mobilePane, setMobilePane] = useState<'agent' | 'preview'>('agent');
   const startedSlugRef = useRef<string | undefined>(undefined);
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -855,7 +859,23 @@ export function ChatPage() {
   const activeArtifact = selectedArtifactKey
     ? (agui.artifacts.find((artifact) => artifact.artifactKey === selectedArtifactKey) ?? null)
     : null;
+  const htmlArtifacts = agui.artifacts.filter(
+    (artifact) =>
+      artifact.artifactKey !== 'mock-full-html' &&
+      artifact.versions.some((version) => version.kind === 'html'),
+  );
   const activeVersion = latestVersion(activeArtifact);
+  const activeHtmlVersions =
+    activeArtifact?.versions.filter((version) => version.kind === 'html') ?? [];
+  const latestHtmlVersion = activeHtmlVersions[activeHtmlVersions.length - 1] ?? null;
+  const previewVersion =
+    activeHtmlVersions.find((version) => version.version === previewVersionNumber) ??
+    latestHtmlVersion;
+
+  useEffect(() => {
+    setPreviewVersionNumber(null);
+  }, [sessionId]);
+
   const hasStarted = agui.messages.length > 0;
   const hasPriorMessages = (detail?.messages.length ?? 0) > 0;
   const hasPersistedAssistantOutput = (detail?.messages ?? []).some(
@@ -864,8 +884,13 @@ export function ChatPage() {
       message.runId !== null &&
       (message.text.trim().length > 0 || message.artifacts.length > 0),
   );
+  const hasPersistedHtmlPage = (detail?.artifacts ?? []).some(
+    (artifact) =>
+      artifact.artifactKey === 'main' &&
+      artifact.versions.some((version) => version.kind === 'html'),
+  );
   const hasRealArtifact = Boolean(
-    activeVersion && activeArtifact?.artifactKey !== 'mock-full-html',
+    latestHtmlVersion && activeArtifact?.artifactKey !== 'mock-full-html',
   );
 
   const activeSession = detail ? toSessionListItem(detail.session, detail.capability) : undefined;
@@ -873,7 +898,17 @@ export function ChatPage() {
   const isTrialSession = sessionMode === 'trial';
   const isDraftTrial = isTrialSession && capability?.status === 'draft';
   const publishReturnTo = safeReturnTo(searchParams.get('returnTo'));
-  const canConfirmDraftTrial = isDraftTrial && hasPersistedAssistantOutput && !agui.isRunning;
+  const canConfirmDraftTrial =
+    isDraftTrial && hasPersistedAssistantOutput && hasPersistedHtmlPage && !agui.isRunning;
+
+  useEffect(() => {
+    if (!isDraftTrial) return;
+    setMobilePane(hasPriorMessages ? 'preview' : 'agent');
+  }, [hasPriorMessages, isDraftTrial, sessionId]);
+
+  useEffect(() => {
+    if (isDraftTrial && agui.error) setMobilePane('agent');
+  }, [agui.error, isDraftTrial]);
 
   const backToPublish = useCallback(() => {
     if (!capability || !sessionId) return;
@@ -924,6 +959,14 @@ export function ChatPage() {
       })),
     [agui.messages],
   );
+  const studioMessages = useMemo(
+    () =>
+      uiMessages.map((message) => ({
+        ...message,
+        artifacts: message.artifacts.filter((artifact) => artifact.kind === 'html'),
+      })),
+    [uiMessages],
+  );
 
   if (slug && !sessionId) {
     return (
@@ -941,32 +984,109 @@ export function ChatPage() {
     return <div className="rt-loading rt-error">会话加载失败或不存在。</div>;
   }
 
-  const toolbarTitle = hasStarted ? (activeArtifact?.title ?? capability.name) : capability.name;
+  const toolbarTitle = isDraftTrial
+    ? capability.name
+    : hasStarted
+      ? (activeArtifact?.title ?? capability.name)
+      : capability.name;
   const toolbarVersion =
-    hasStarted && activeArtifact ? activeArtifact.latestVersion : capability.version;
-  const showInitialGenerating = agui.isRunning && !hasPriorMessages;
-  const showArtifact = hasStarted && hasRealArtifact && !showInitialGenerating;
+    isDraftTrial || !hasStarted || !activeArtifact
+      ? capability.version
+      : activeArtifact.latestVersion;
+  const isViewingHistory = Boolean(
+    previewVersion && latestHtmlVersion && previewVersion.version !== latestHtmlVersion.version,
+  );
+  const showDraftStudio = isDraftTrial;
+  const showInitialGenerating =
+    agui.isRunning && (showDraftStudio ? !hasRealArtifact : !hasPriorMessages);
+  const showArtifact =
+    hasStarted &&
+    (isDraftTrial ? previewVersion?.kind === 'html' : activeVersion?.kind === 'html') &&
+    !showInitialGenerating;
   const showCompanionChat = hasStarted && !showInitialGenerating;
+  const previewStatus = agui.error
+    ? hasRealArtifact
+      ? '修改失败 · 已保留上一版'
+      : '生成失败 · 尚未产生页面'
+    : isViewingHistory && previewVersion
+      ? `历史 v${previewVersion.version} · 只读`
+      : agui.isRunning
+        ? hasRealArtifact
+          ? '正在完成页面修改'
+          : '正在生成页面'
+        : previewVersion
+          ? `已保存到本次试用 · 页面 v${previewVersion.version}`
+          : '等待生成';
+
+  const sendStudioMessage = (text: string): void => {
+    setPreviewVersionNumber(null);
+    agui.send(text, undefined, 'design');
+    setMobilePane('preview');
+  };
 
   return (
-    <div className="rt-app rt-trial-app" data-mode={sessionMode}>
-      <SessionSidebar
-        activeSession={activeSession}
-        activeSessionId={sessionId}
-        capabilitySlug={capability.slug}
-      />
+    <div
+      className={`rt-app rt-trial-app${showDraftStudio ? ' rt-trial-app--studio' : ''}`}
+      data-mode={sessionMode}
+      data-mobile-pane={mobilePane}
+    >
+      {showDraftStudio ? (
+        <DesignAgentPanel
+          title={capability.name}
+          versionLabel={
+            latestHtmlVersion ? `页面 v${latestHtmlVersion.version}` : `能力 v${capability.version}`
+          }
+          started={hasStarted}
+          messages={studioMessages}
+          isRunning={agui.isRunning}
+          readOnlyHistory={isViewingHistory}
+          historyVersion={previewVersion?.version}
+          latestVersion={latestHtmlVersion?.version}
+          error={agui.error}
+          intake={
+            <TrialIntakeForm
+              capability={capability}
+              disabled={agui.isRunning}
+              onSubmit={sendStudioMessage}
+            />
+          }
+          onBack={() => window.location.assign(publishReturnTo)}
+          onSend={sendStudioMessage}
+          onInterrupt={agui.interrupt}
+          onReturnLatest={() => setPreviewVersionNumber(null)}
+          onOpenArtifact={(ref) => {
+            if (ref.kind !== 'html') return;
+            agui.setActiveKey(ref.artifactKey);
+            setPreviewVersionNumber(ref.version);
+          }}
+        />
+      ) : (
+        <SessionSidebar
+          activeSession={activeSession}
+          activeSessionId={sessionId}
+          capabilitySlug={capability.slug}
+        />
+      )}
       <div className="rt-trial">
         <header className="rt-trial__toolbar">
           <div className="rt-trial__title-group">
             <h1>{toolbarTitle}</h1>
             <span className="rt-version-chip">v{toolbarVersion}</span>
             <span className={`rt-mode-chip rt-mode-chip--${sessionMode}`}>
-              {isTrialSession ? (isDraftTrial ? '草稿试用' : '试用') : '正式使用'}
+              {isTrialSession ? (isDraftTrial ? 'Miniapp 编辑' : '试用') : '正式使用'}
             </span>
           </div>
           {isDraftTrial && hasStarted ? (
             <div className="rt-trial__actions">
-              {canConfirmDraftTrial ? (
+              {isViewingHistory ? (
+                <button
+                  type="button"
+                  className="rt-toolbar-pill"
+                  onClick={() => setPreviewVersionNumber(null)}
+                >
+                  返回最新版后继续
+                </button>
+              ) : canConfirmDraftTrial ? (
                 <>
                   <button type="button" className="rt-toolbar-pill" onClick={rejectDraftTrial}>
                     不符合预期，换一个
@@ -976,7 +1096,7 @@ export function ChatPage() {
                     className="rt-toolbar-pill rt-toolbar-pill--accent"
                     onClick={backToPublish}
                   >
-                    满意，继续发布
+                    保存试用结果，返回能力页
                   </button>
                 </>
               ) : agui.isRunning ? (
@@ -1007,35 +1127,162 @@ export function ChatPage() {
           ) : null}
         </header>
 
-        <main className="rt-genui">
+        <main className={`rt-genui${showDraftStudio ? ' rt-genui--studio' : ''}`}>
           <div
             ref={canvasRef}
             className="rt-genui__canvas"
             data-state={showInitialGenerating ? 'running' : hasStarted ? 'output' : 'intake'}
           >
             {productionError && <div className="rt-inline-error">{productionError}</div>}
-            {showArtifact && activeVersion ? (
-              <div className="rt-artifact-stage">
-                <ArtifactRenderer artifact={activeVersion} />
-              </div>
-            ) : hasStarted && !agui.isRunning ? (
-              <div className="rt-empty">暂无产物</div>
-            ) : null}
-            {!hasStarted && !agui.isRunning && (
-              <div className="rt-genui__stage rt-genui__stage--intake">
-                <TrialIntakeForm
-                  capability={capability}
-                  disabled={agui.isRunning}
-                  onSubmit={(prompt) => agui.send(prompt)}
-                />
-              </div>
+            {showDraftStudio ? (
+              <section className="rt-design-preview" aria-label="Miniapp 页面预览">
+                <header className="rt-design-preview__bar">
+                  <div className="rt-design-preview__identity">
+                    <strong>页面预览</strong>
+                    <span
+                      className={
+                        agui.error
+                          ? 'is-error'
+                          : isViewingHistory
+                            ? 'is-history'
+                            : agui.isRunning
+                              ? 'is-running'
+                              : ''
+                      }
+                      aria-live="polite"
+                    >
+                      {previewStatus}
+                    </span>
+                  </div>
+                  <div className="rt-design-preview__tools">
+                    {htmlArtifacts.length > 1 && activeArtifact && (
+                      <label className="rt-design-preview__select">
+                        <span className="rt-sr-only">选择页面产物</span>
+                        <select
+                          value={
+                            htmlArtifacts.some(
+                              (artifact) => artifact.artifactKey === activeArtifact.artifactKey,
+                            )
+                              ? activeArtifact.artifactKey
+                              : ''
+                          }
+                          onChange={(event) => {
+                            setPreviewVersionNumber(null);
+                            agui.setActiveKey(event.target.value);
+                          }}
+                        >
+                          <option value="" disabled>
+                            选择页面
+                          </option>
+                          {htmlArtifacts.map((artifact) => (
+                            <option key={artifact.artifactKey} value={artifact.artifactKey}>
+                              {artifact.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {activeHtmlVersions.length > 1 && previewVersion && (
+                      <label className="rt-design-preview__select">
+                        <span className="rt-sr-only">查看历史版本</span>
+                        <select
+                          value={previewVersion.version}
+                          onChange={(event) => setPreviewVersionNumber(Number(event.target.value))}
+                          aria-label="查看历史版本"
+                        >
+                          {activeHtmlVersions.map((version) => (
+                            <option key={version.version} value={version.version}>
+                              页面 v{version.version}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <div className="rt-design-preview__devices" role="group" aria-label="预览尺寸">
+                      <button
+                        type="button"
+                        aria-pressed={previewSize === 'desktop'}
+                        onClick={() => setPreviewSize('desktop')}
+                      >
+                        <span aria-hidden="true">▣</span>
+                        桌面
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={previewSize === 'mobile'}
+                        onClick={() => setPreviewSize('mobile')}
+                      >
+                        <span aria-hidden="true">▯</span>
+                        手机
+                      </button>
+                    </div>
+                  </div>
+                </header>
+
+                <div className="rt-design-preview__surface" data-size={previewSize}>
+                  {showArtifact && previewVersion ? (
+                    <div className="rt-design-preview__viewport">
+                      <div className="rt-artifact-stage">
+                        <ArtifactRenderer
+                          key={`${previewVersion.artifactKey}-${previewVersion.version}`}
+                          artifact={previewVersion}
+                        />
+                      </div>
+                    </div>
+                  ) : showInitialGenerating ? (
+                    <div className="rt-genui__stage rt-genui__stage--center">
+                      <TrialGeneratingCard capability={capability} process={agui.trialProcess} />
+                    </div>
+                  ) : hasStarted && !agui.isRunning ? (
+                    <div className="rt-design-preview__empty">
+                      <span aria-hidden="true">▧</span>
+                      <h2>还没有可预览的页面</h2>
+                      <p>让左侧 Design Agent 把当前结果生成为完整的 HTML 页面。</p>
+                      <button type="button" onClick={() => setMobilePane('agent')}>
+                        去对话修改
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rt-design-preview__empty">
+                      <span aria-hidden="true">▧</span>
+                      <h2>你的 Miniapp 会在这里生成</h2>
+                      <p>先在左侧补充本次任务，首版完成后可以继续对话修改。</p>
+                    </div>
+                  )}
+                  {agui.isRunning && hasRealArtifact && (
+                    <div className="rt-design-preview__updating">
+                      <span aria-hidden="true" />
+                      正在预览新版本，生成完成前不会标记为已保存
+                    </div>
+                  )}
+                </div>
+              </section>
+            ) : (
+              <>
+                {showArtifact && activeVersion ? (
+                  <div className="rt-artifact-stage">
+                    <ArtifactRenderer artifact={activeVersion} />
+                  </div>
+                ) : hasStarted && !agui.isRunning ? (
+                  <div className="rt-empty">暂无产物</div>
+                ) : null}
+                {!hasStarted && !agui.isRunning && (
+                  <div className="rt-genui__stage rt-genui__stage--intake">
+                    <TrialIntakeForm
+                      capability={capability}
+                      disabled={agui.isRunning}
+                      onSubmit={(prompt) => agui.send(prompt)}
+                    />
+                  </div>
+                )}
+                {showInitialGenerating && (
+                  <div className="rt-genui__stage rt-genui__stage--center">
+                    <TrialGeneratingCard capability={capability} process={agui.trialProcess} />
+                  </div>
+                )}
+              </>
             )}
-            {showInitialGenerating && (
-              <div className="rt-genui__stage rt-genui__stage--center">
-                <TrialGeneratingCard capability={capability} process={agui.trialProcess} />
-              </div>
-            )}
-            {showCompanionChat && (
+            {showCompanionChat && !showDraftStudio && (
               <FloatingChat
                 containerRef={canvasRef}
                 sessionId={sessionId ?? detail.session.id}
@@ -1051,6 +1298,24 @@ export function ChatPage() {
           </div>
         </main>
       </div>
+      {showDraftStudio && (
+        <nav className="rt-studio-mobile-nav" aria-label="工作台视图">
+          <button
+            type="button"
+            aria-pressed={mobilePane === 'agent'}
+            onClick={() => setMobilePane('agent')}
+          >
+            Design Agent
+          </button>
+          <button
+            type="button"
+            aria-pressed={mobilePane === 'preview'}
+            onClick={() => setMobilePane('preview')}
+          >
+            页面预览
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

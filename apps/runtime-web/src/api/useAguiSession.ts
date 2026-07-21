@@ -8,6 +8,7 @@ import {
   type ArtifactRef,
   type CreateRunResult,
   type LockedElement,
+  type RunIntent,
   type RuntimeArtifact,
   type SessionDetail,
   type TrialProcessState,
@@ -36,7 +37,7 @@ export interface AguiSession {
   isRunning: boolean;
   error: string | null;
   setActiveKey: (key: string | null) => void;
-  send: (text: string, lockedElements?: LockedElement[]) => void;
+  send: (text: string, lockedElements?: LockedElement[], intent?: RunIntent) => void;
   interrupt: () => void;
 }
 
@@ -241,7 +242,7 @@ export function useAguiSession(
     };
   };
 
-  const send = (text: string, lockedElements?: LockedElement[]): void => {
+  const send = (text: string, lockedElements?: LockedElement[], intent?: RunIntent): void => {
     if (!sessionId || isRunning) return;
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -252,6 +253,7 @@ export function useAguiSession(
     void apiPost<CreateRunResult>(`/runtime/sessions/${sessionId}/runs`, {
       contentParts: [{ type: 'text', text: trimmed }],
       ...(lockedElements && lockedElements.length > 0 ? { lockedElements } : {}),
+      ...(intent ? { intent } : {}),
     })
       .then((result) => attachEvents(result.run.id, result.eventsUrl))
       .catch(() => {

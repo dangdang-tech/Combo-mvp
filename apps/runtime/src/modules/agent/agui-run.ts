@@ -4,12 +4,19 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
-import type { ArtifactRef, RunStage, RunStageStatus, TrialProcessState } from '@cb/shared';
+import type {
+  ArtifactRef,
+  RunIntent,
+  RunStage,
+  RunStageStatus,
+  TrialProcessState,
+} from '@cb/shared';
 import type { Env } from '../../platform/config/env.js';
-import { createArtifactTool } from '../artifact/artifact-tool.js';
+import { createArtifactTool, type ArtifactValidationInput } from '../artifact/artifact-tool.js';
 import { saveTurn, type SessionRow } from '../session/repo.js';
 import type { AguiEmitter } from './agui-emitter.js';
 import { buildAgent } from './build-agent.js';
+import { hasDesignStudioPage, isCompleteDesignStudioHtml } from './design-studio-prompt.js';
 import { hasLlmCredential } from './model.js';
 
 export interface TurnLogger {
@@ -23,6 +30,7 @@ export interface RunAguiInput {
   runId?: string | null;
   /** 已折叠结构化输入后的有效用户文本（取自 RunAgentInput 最新一条 user 消息）。 */
   userText: string;
+  intent?: RunIntent;
   emitter: AguiEmitter;
   log: TurnLogger;
 }
@@ -36,13 +44,24 @@ const TRIAL_STAGE_TEMPLATES: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'layout_cards', label: '排版产物卡' },
 ];
 
+const DESIGN_STAGE_TEMPLATES: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'read_page', label: '理解页面与修改要求' },
+  { key: 'preserve_capability', label: '保留 Agent 能力与业务边界' },
+  { key: 'update_frontend', label: '更新 Miniapp 前端' },
+  { key: 'finalize_page', label: '整理页面版本' },
+];
+
 /** RFC 6901 JSON Pointer 段转义（产物 key 可能含特殊字符）。 */
 function ptr(seg: string): string {
   return seg.replace(/~/g, '~0').replace(/\//g, '~1');
 }
 
-function trialProcessState(index: number, status: RunStageStatus): TrialProcessState {
-  const steps: RunStage[] = TRIAL_STAGE_TEMPLATES.map((stage, i) => ({
+function trialProcessState(
+  templates: ReadonlyArray<{ key: string; label: string }>,
+  index: number,
+  status: RunStageStatus,
+): TrialProcessState {
+  const steps: RunStage[] = templates.map((stage, i) => ({
     ...stage,
     status: i < index ? 'completed' : i === index ? status : 'pending',
   }));
@@ -55,13 +74,14 @@ function trialProcessState(index: number, status: RunStageStatus): TrialProcessS
 
 export async function runAgui(input: RunAguiInput): Promise<RunAguiResult> {
   const { env, pool, session, runId, userText, emitter, log } = input;
+  const stageTemplates = input.intent === 'design' ? DESIGN_STAGE_TEMPLATES : TRIAL_STAGE_TEMPLATES;
 
   emitter.runStarted();
   let currentStage = 0;
   const emitStage = (index: number, status: RunStageStatus): void => {
     currentStage = index;
     emitter.stateDelta([
-      { op: 'add', path: '/trialProcess', value: trialProcessState(index, status) },
+      { op: 'add', path: '/trialProcess', value: trialProcessState(stageTemplates, index, status) },
     ]);
   };
   emitStage(0, 'running');
@@ -79,6 +99,7 @@ export async function runAgui(input: RunAguiInput): Promise<RunAguiResult> {
   const userId = randomUUID();
   const assistantId = randomUUID();
   const collected: ArtifactRef[] = [];
+  let designPageContent: string | null = null;
   let textOpen = false;
   let assistantText = '';
 
@@ -93,8 +114,24 @@ export async function runAgui(input: RunAguiInput): Promise<RunAguiResult> {
     pool,
     sessionId: session.id,
     collected,
+    ...(input.intent === 'design'
+      ? {
+          validateArtifact: (artifact: ArtifactValidationInput): string | null => {
+            if (artifact.artifactKey !== 'main') return null;
+            if (artifact.kind !== 'html' || !isCompleteDesignStudioHtml(artifact.content)) {
+              return 'Design Agent 的 main 产物必须是完整 HTML 文档，请修正后重新提交。';
+            }
+            return null;
+          },
+        }
+      : {}),
     // 产物 → 共享状态：add /artifacts/<key>（RFC 6902 'add' 对已存在成员即替换）+ 置 activeArtifactKey。
     onArtifact: (full) => {
+      if (full.artifactKey === 'main') {
+        const pageVersion =
+          full.versions.find((version) => version.version === full.latestVersion) ?? null;
+        designPageContent = pageVersion?.kind === 'html' ? pageVersion.content : null;
+      }
       emitStage(3, 'running');
       emitter.stateDelta([
         { op: 'add', path: `/artifacts/${ptr(full.artifactKey)}`, value: full },
@@ -166,6 +203,18 @@ export async function runAgui(input: RunAguiInput): Promise<RunAguiResult> {
     return emitter.signal.aborted ? 'interrupted' : 'failed';
   }
 
+  if (
+    input.intent === 'design' &&
+    (!hasDesignStudioPage(collected) || !isCompleteDesignStudioHtml(designPageContent))
+  ) {
+    closeTextIfOpen();
+    emitStage(stageTemplates.length - 1, 'failed');
+    emitter.runError('这次修改没有生成可预览页面，请重试或换一种描述。');
+    await emitter.flush();
+    emitter.end();
+    return 'failed';
+  }
+
   closeTextIfOpen();
 
   try {
@@ -186,7 +235,7 @@ export async function runAgui(input: RunAguiInput): Promise<RunAguiResult> {
     return 'failed';
   }
 
-  emitStage(TRIAL_STAGE_TEMPLATES.length - 1, 'completed');
+  emitStage(stageTemplates.length - 1, 'completed');
   emitter.runFinished();
   await emitter.flush();
   emitter.end();
