@@ -90,7 +90,7 @@ export function Shell(): ReactElement {
 
       {/* 主区：普通页仅内容；上传向导页额外带面包屑栏。 */}
       <div className="cb-shell__main">
-        <CloudReviewBar />
+        {!isWizard && <CloudReviewBar placement="page" />}
         {isWizard && (
           <header className="cb-shell__topbar">
             {/* 向导顶栏左侧面包屑（Figma STEP：上传能力 / Combo Builder）。 */}
@@ -105,6 +105,7 @@ export function Shell(): ReactElement {
             {/* 向导顶栏右上：「保存草稿」+ 真实账号头像同处一条栏（Figma STEP 顶栏右侧）。
                 保存草稿由更深的 WizardShell 经插槽上抬注册，此处只渲染（无注册时为空）。 */}
             <div className="cb-shell__topbar-right">
+              <CloudReviewBar placement="topbar" />
               <TopbarActionSlot />
               <AccountAvatar account={account} className="cb-shell__topbar-avatar" />
             </div>

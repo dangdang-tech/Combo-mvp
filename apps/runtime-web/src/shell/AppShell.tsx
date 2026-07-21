@@ -11,8 +11,8 @@ export function AppShell() {
           <span />
         </div>
         <span className="rt-topbar__eyebrow">COMBO · CAPABILITY RUNTIME</span>
+        <CloudReviewBar />
       </header>
-      <CloudReviewBar />
       <main className="rt-shell__main">
         <Outlet />
       </main>
