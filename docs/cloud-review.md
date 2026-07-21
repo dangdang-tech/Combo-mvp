@@ -86,6 +86,6 @@ bash scripts/cloud-review-smoke.sh
 
 ## 仍需人工完成
 
-- DNS 与云主机 Nginx/TLS：将预览域名反代到 `127.0.0.1:30081`；防火墙不要直接向公网开放 30081、30901、30902。
+- DNS 与云主机 Nginx/TLS：当前固定入口使用 `review.43-160-242-46.sslip.io`，对象存储使用 `review-s3.43-160-242-46.sslip.io`；宿主反代模板见 `infra/nginx/cloud-review-host.conf`。防火墙不要直接向公网开放 30081、30901、30902。
 - Logto：创建独立 preview application 或至少登记预览域名的 callback/logout URI，并把对应值写入 `combo-preview-env`。
 - Secret：按上文一次性创建预览专属三 Secret；不要把生产 Secret 导出后改名复用。
