@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { ArtifactRef, RuntimeMessage, StudioRevision } from '@cb/shared';
+import type { ComboElementSelection } from './ArtifactRenderer.js';
 import { ChatThread } from './ChatThread.js';
 import { ComboWordmark } from './ComboBrand.js';
 
@@ -9,6 +10,28 @@ const QUICK_EDITS = [
   '优化手机端布局和交互',
   '让结果区更清楚、更容易行动',
 ] as const;
+
+const ANNOTATION_EDITS = [
+  ['突出重点', '提升这里的视觉层级与行动指向，但不要改变功能。'],
+  ['收紧间距', '收紧这里的间距和信息密度，让内容更利落、更容易扫读。'],
+  ['精简文案', '精简这里的标题和说明，保留原意并让用户更快理解下一步。'],
+  ['优化手机端', '只优化这里在手机尺寸下的布局、触控尺寸和阅读顺序。'],
+] as const;
+
+const ROLE_LABELS: Record<string, string> = {
+  button: '操作按钮',
+  heading: '标题',
+  input: '输入区域',
+  link: '链接',
+  region: '内容区块',
+  form: '表单',
+};
+
+interface QueuedEdit {
+  text: string;
+  label: string;
+  element: ComboElementSelection | null;
+}
 
 export interface DesignAgentPanelProps {
   title: string;
@@ -21,13 +44,24 @@ export interface DesignAgentPanelProps {
   readOnlyHistory: boolean;
   historyVersion?: number;
   latestVersion?: number;
+  revisionNo?: number;
+  verified: boolean;
+  isTestRunning: boolean;
+  reusableTestPrompt: string;
+  annotationAvailable: boolean;
+  annotationEnabled: boolean;
+  selectedElement: ComboElementSelection | null;
   error: string | null;
   onBack: () => void;
-  onSend: (text: string) => boolean;
+  onSend: (text: string, element?: ComboElementSelection) => boolean;
   onInterrupt: () => void;
   onReturnLatest: () => void;
   onSelectRevision: (revisionNo: number) => void;
   onOpenArtifact: (ref: ArtifactRef) => void;
+  onToggleAnnotation: () => void;
+  onClearAnnotation: () => void;
+  onOpenTest: () => void;
+  onRerunTest: () => boolean;
 }
 
 function revisionTime(value: string): string {
@@ -37,6 +71,15 @@ function revisionTime(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
+}
+
+function clipped(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
+}
+
+function elementRole(element: ComboElementSelection): string {
+  return (element.role && ROLE_LABELS[element.role]) || element.tagName.toUpperCase();
 }
 
 export function DesignAgentPanel({
@@ -50,6 +93,13 @@ export function DesignAgentPanel({
   readOnlyHistory,
   historyVersion,
   latestVersion,
+  revisionNo,
+  verified,
+  isTestRunning,
+  reusableTestPrompt,
+  annotationAvailable,
+  annotationEnabled,
+  selectedElement,
   error,
   onBack,
   onSend,
@@ -57,10 +107,14 @@ export function DesignAgentPanel({
   onReturnLatest,
   onSelectRevision,
   onOpenArtifact,
+  onToggleAnnotation,
+  onClearAnnotation,
+  onOpenTest,
+  onRerunTest,
 }: DesignAgentPanelProps) {
   const [text, setText] = useState('');
   const [view, setView] = useState<'conversation' | 'versions'>('conversation');
-  const [queued, setQueued] = useState<string[]>([]);
+  const [queued, setQueued] = useState<QueuedEdit[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wasRunningRef = useRef(false);
   const bootstrapFailed = revisions.length === 0 && !isBootstrapping && Boolean(error);
@@ -77,19 +131,37 @@ export function DesignAgentPanel({
     if (!wasRunningRef.current || queued.length === 0 || readOnlyHistory) return;
     wasRunningRef.current = false;
     const [next, ...rest] = queued;
-    if (next && onSend(next)) setQueued(rest);
+    if (!next) return;
+    const accepted = next.element ? onSend(next.text, next.element) : onSend(next.text);
+    if (accepted) setQueued(rest);
   }, [error, isBootstrapping, isRunning, onSend, queued, readOnlyHistory]);
+
+  useEffect(() => {
+    if (!selectedElement) return;
+    setView('conversation');
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+  }, [selectedElement?.key]);
 
   const submit = (): void => {
     const trimmed = text.trim();
     if (!trimmed || readOnlyHistory) return;
+    const element = selectedElement ? { ...selectedElement } : null;
     const accepted = isRunning || isBootstrapping;
     if (accepted) {
-      setQueued((current) => [...current, trimmed]);
+      setQueued((current) => [
+        ...current,
+        {
+          text: trimmed,
+          label: element ? `标注「${clipped(element.label, 40)}」：${trimmed}` : trimmed,
+          element,
+        },
+      ]);
     } else {
-      if (!onSend(trimmed)) return;
+      const sent = element ? onSend(trimmed, element) : onSend(trimmed);
+      if (!sent) return;
     }
     setText('');
+    if (element) onClearAnnotation();
   };
 
   const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>): void => {
@@ -103,6 +175,14 @@ export function DesignAgentPanel({
   const useQuickEdit = (prompt: string): void => {
     setText(prompt);
     window.requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const verificationAction = (): void => {
+    if (reusableTestPrompt) {
+      onRerunTest();
+      return;
+    }
+    onOpenTest();
   };
 
   return (
@@ -216,7 +296,7 @@ export function DesignAgentPanel({
                   ? '你可以现在就描述下一步修改，我会排在首版之后继续执行。'
                   : bootstrapFailed
                     ? '上一版要求没有成功，你可以重试首版，或者直接换一种描述。'
-                    : '先在右侧直接体验；任何文案、布局和视觉调整都可以继续告诉我。'}
+                    : '直接体验右侧页面；可以用文字描述修改，也可以标注页面中的具体位置。'}
               </p>
               {bootstrapFailed && (
                 <button
@@ -266,7 +346,7 @@ export function DesignAgentPanel({
               </button>
             )}
           </div>
-        ) : (
+        ) : !selectedElement && !annotationEnabled ? (
           <div className="rt-design-agent__quick-edits" role="group" aria-label="修改建议">
             {QUICK_EDITS.map((prompt) => (
               <button key={prompt} type="button" onClick={() => useQuickEdit(prompt)}>
@@ -274,13 +354,51 @@ export function DesignAgentPanel({
               </button>
             ))}
           </div>
+        ) : null}
+
+        {revisionNo && (
+          <div
+            className="rt-design-agent__revision-status"
+            data-status={isTestRunning ? 'running' : verified ? 'verified' : 'saved'}
+          >
+            <span aria-hidden="true" />
+            <div>
+              <strong>
+                {isTestRunning
+                  ? `UI R${revisionNo} 正在执行真实任务`
+                  : verified
+                    ? `UI R${revisionNo} 已通过真实任务`
+                    : `UI R${revisionNo} 修改已保存`}
+              </strong>
+              <small>
+                {verified
+                  ? '可以继续修改；新 Revision 会保留复测路径。'
+                  : reusableTestPrompt
+                    ? '可用上一次真实任务复测当前版本。'
+                    : '运行一次真实任务，确认 Miniapp 可以正常工作。'}
+              </small>
+            </div>
+            <button
+              type="button"
+              disabled={readOnlyHistory || isRunning || isBootstrapping || isTestRunning}
+              onClick={verificationAction}
+            >
+              {isTestRunning
+                ? '验证中…'
+                : reusableTestPrompt
+                  ? verified
+                    ? '再测一次'
+                    : '用上次任务复测'
+                  : '运行真实任务'}
+            </button>
+          </div>
         )}
 
         {queued.length > 0 && (
           <div className="rt-design-agent__queue" aria-live="polite">
             <strong>接下来</strong>
             {queued.map((item, index) => (
-              <span key={`${item}-${index}`}>{item}</span>
+              <span key={`${item.label}-${index}`}>{item.label}</span>
             ))}
           </div>
         )}
@@ -289,6 +407,63 @@ export function DesignAgentPanel({
           <div className="rt-design-agent__error" role="alert">
             {error}
           </div>
+        )}
+
+        {selectedElement ? (
+          <section className="rt-design-agent__annotation" aria-label="当前页面标注">
+            <header>
+              <span aria-hidden="true">⌖</span>
+              <div>
+                <small>已标注 · {elementRole(selectedElement)}</small>
+                <strong>{clipped(selectedElement.label, 74)}</strong>
+              </div>
+              <button type="button" onClick={onClearAnnotation} aria-label="移除页面标注">
+                ×
+              </button>
+            </header>
+            {selectedElement.text && selectedElement.text !== selectedElement.label && (
+              <p>{clipped(selectedElement.text, 140)}</p>
+            )}
+            <div className="rt-design-agent__annotation-actions" aria-label="标注修改建议">
+              {ANNOTATION_EDITS.map(([label, instruction]) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={readOnlyHistory}
+                  onClick={() => useQuickEdit(instruction)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : annotationEnabled ? (
+          <div className="rt-design-agent__annotation-guide" role="status">
+            <span aria-hidden="true">⌖</span>
+            <div>
+              <strong>点击右侧页面中要修改的位置</strong>
+              <small>选择后会回到这里，把它作为下一条修改的上下文。</small>
+            </div>
+            <button type="button" onClick={onToggleAnnotation}>
+              取消
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="rt-design-agent__annotation-trigger"
+            disabled={!annotationAvailable || readOnlyHistory}
+            onClick={onToggleAnnotation}
+          >
+            <span aria-hidden="true">⌖</span>
+            <span>
+              <strong>标注页面</strong>
+              <small>
+                {annotationAvailable ? '点选页面内容，只修改这一处' : '页面准备好后即可标注'}
+              </small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </button>
         )}
 
         <div className="rt-design-agent__composer">
@@ -300,7 +475,9 @@ export function DesignAgentPanel({
             placeholder={
               readOnlyHistory
                 ? '返回当前版本后继续修改'
-                : '描述下一步修改，例如：让输入区更紧凑，把结果作为页面重点…'
+                : selectedElement
+                  ? '告诉我这里要怎么改…'
+                  : '描述下一步修改，例如：让输入区更紧凑，把结果作为页面重点…'
             }
             aria-label="描述页面修改"
             onChange={(event) => setText(event.target.value)}
@@ -314,7 +491,11 @@ export function DesignAgentPanel({
               disabled={readOnlyHistory || !text.trim()}
               onClick={submit}
             >
-              {isRunning || isBootstrapping ? '加入队列 ↑' : '应用修改 ↑'}
+              {isRunning || isBootstrapping
+                ? '加入队列 ↑'
+                : selectedElement
+                  ? '修改这里 ↑'
+                  : '应用修改 ↑'}
             </button>
           </div>
         </div>

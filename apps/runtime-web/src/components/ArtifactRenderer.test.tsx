@@ -129,12 +129,13 @@ describe('ArtifactRenderer Runtime bridge', () => {
   });
 
   it('sends inspection state to the iframe when the bridge is ready', () => {
-    render(
+    const onElementSelect = vi.fn();
+    const { rerender } = render(
       <ArtifactRenderer
         artifact={htmlArtifact()}
         inspectionEnabled
         selectedElementKey="run-primary"
-        onElementSelect={vi.fn()}
+        onElementSelect={onElementSelect}
       />,
     );
     const frame = screen.getByTitle('每日待办 Miniapp') as HTMLIFrameElement;
@@ -154,6 +155,26 @@ describe('ArtifactRenderer Runtime bridge', () => {
         version: 1,
         enabled: true,
         selectedElementKey: 'run-primary',
+      },
+      '*',
+    );
+
+    postMessage.mockClear();
+    rerender(
+      <ArtifactRenderer
+        artifact={htmlArtifact()}
+        inspectionEnabled={false}
+        selectedElementKey={null}
+        onElementSelect={onElementSelect}
+      />,
+    );
+
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'combo:inspection-state',
+        version: 1,
+        enabled: false,
+        selectedElementKey: null,
       },
       '*',
     );

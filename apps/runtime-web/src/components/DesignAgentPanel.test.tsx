@@ -2,6 +2,14 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DesignAgentPanel, type DesignAgentPanelProps } from './DesignAgentPanel.js';
 
+const resultElement = {
+  key: 'result-main',
+  label: '今日安排结果',
+  role: 'region',
+  text: '3 项任务已经排好',
+  tagName: 'section',
+};
+
 function props(overrides: Partial<DesignAgentPanelProps> = {}): DesignAgentPanelProps {
   return {
     title: '每日待办管家',
@@ -23,6 +31,13 @@ function props(overrides: Partial<DesignAgentPanelProps> = {}): DesignAgentPanel
     isRunning: false,
     isBootstrapping: false,
     readOnlyHistory: false,
+    revisionNo: 1,
+    verified: false,
+    isTestRunning: false,
+    reusableTestPrompt: '',
+    annotationAvailable: true,
+    annotationEnabled: false,
+    selectedElement: null,
     error: null,
     onBack: vi.fn(),
     onSend: vi.fn(() => true),
@@ -30,6 +45,10 @@ function props(overrides: Partial<DesignAgentPanelProps> = {}): DesignAgentPanel
     onReturnLatest: vi.fn(),
     onSelectRevision: vi.fn(),
     onOpenArtifact: vi.fn(),
+    onToggleAnnotation: vi.fn(),
+    onClearAnnotation: vi.fn(),
+    onOpenTest: vi.fn(),
+    onRerunTest: vi.fn(() => true),
     ...overrides,
   };
 }
@@ -158,5 +177,110 @@ describe('DesignAgentPanel', () => {
 
     expect(onSend).toHaveBeenCalledWith('把结果区改成卡片');
     expect(composer).toHaveValue('把结果区改成卡片');
+  });
+
+  it('opens page annotation mode from the same left-hand composer', () => {
+    const onToggleAnnotation = vi.fn();
+    render(<DesignAgentPanel {...props({ onToggleAnnotation })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /标注页面/ }));
+
+    expect(onToggleAnnotation).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+  });
+
+  it('attaches a selected page element to the main composer and clears it after sending', () => {
+    const onSend = vi.fn(() => true);
+    const onClearAnnotation = vi.fn();
+    render(
+      <DesignAgentPanel
+        {...props({ selectedElement: resultElement, onSend, onClearAnnotation })}
+      />,
+    );
+
+    expect(screen.getByRole('region', { name: '当前页面标注' })).toHaveTextContent('今日安排结果');
+    expect(screen.queryByText(/data-combo-key/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '收紧间距' }));
+    const composer = screen.getByRole('textbox', { name: '描述页面修改' });
+    expect(composer).toHaveValue('收紧这里的间距和信息密度，让内容更利落、更容易扫读。');
+    fireEvent.click(screen.getByRole('button', { name: '修改这里 ↑' }));
+
+    expect(onSend).toHaveBeenCalledWith(expect.stringContaining('收紧这里的间距'), resultElement);
+    expect(onClearAnnotation).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the annotation and input when a scoped send is rejected', () => {
+    const onSend = vi.fn(() => false);
+    const onClearAnnotation = vi.fn();
+    render(
+      <DesignAgentPanel
+        {...props({ selectedElement: resultElement, onSend, onClearAnnotation })}
+      />,
+    );
+    const composer = screen.getByRole('textbox', { name: '描述页面修改' });
+
+    fireEvent.change(composer, { target: { value: '把这里改成更克制的卡片' } });
+    fireEvent.click(screen.getByRole('button', { name: '修改这里 ↑' }));
+
+    expect(composer).toHaveValue('把这里改成更克制的卡片');
+    expect(screen.getByRole('region', { name: '当前页面标注' })).toBeInTheDocument();
+    expect(onClearAnnotation).not.toHaveBeenCalled();
+  });
+
+  it('keeps the selected element snapshot when a scoped edit is queued', () => {
+    const onSend = vi.fn(() => true);
+    const anotherElement = {
+      ...resultElement,
+      key: 'run-primary',
+      label: '开始整理',
+      role: 'button',
+      text: '开始整理',
+      tagName: 'button',
+    };
+    const { rerender } = render(
+      <DesignAgentPanel {...props({ isRunning: true, selectedElement: resultElement, onSend })} />,
+    );
+    const composer = screen.getByRole('textbox', { name: '描述页面修改' });
+    fireEvent.change(composer, { target: { value: '突出结果数字' } });
+    fireEvent.click(screen.getByRole('button', { name: '加入队列 ↑' }));
+
+    rerender(
+      <DesignAgentPanel {...props({ isRunning: true, selectedElement: anotherElement, onSend })} />,
+    );
+    rerender(<DesignAgentPanel {...props({ selectedElement: anotherElement, onSend })} />);
+
+    expect(onSend).toHaveBeenCalledWith('突出结果数字', resultElement);
+  });
+
+  it('keeps the real-task verification loop in the left panel', () => {
+    const onRerunTest = vi.fn(() => true);
+    render(
+      <DesignAgentPanel
+        {...props({ reusableTestPrompt: '整理今天最重要的三件事', onRerunTest })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '用上次任务复测' }));
+    expect(onRerunTest).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables annotation and verification actions for historical revisions', () => {
+    render(
+      <DesignAgentPanel
+        {...props({
+          readOnlyHistory: true,
+          historyVersion: 1,
+          latestVersion: 3,
+          selectedElement: resultElement,
+          reusableTestPrompt: '整理今天最重要的三件事',
+        })}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: '突出重点' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '用上次任务复测' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: '描述页面修改' })).toBeDisabled();
   });
 });

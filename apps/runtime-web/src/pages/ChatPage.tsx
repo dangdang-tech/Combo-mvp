@@ -29,7 +29,10 @@ import { ArtifactRenderer, type ComboElementSelection } from '../components/Arti
 import { ChatThread } from '../components/ChatThread.js';
 import { DesignAgentPanel } from '../components/DesignAgentPanel.js';
 import { SessionSidebar } from '../components/SessionSidebar.js';
-import { StudioInspector } from '../components/StudioInspector.js';
+import {
+  buildContextualStudioPrompt,
+  formatStudioAnnotationMessage,
+} from '../lib/studioAnnotation.js';
 
 function latestVersion(artifact: RuntimeArtifact | null) {
   return (
@@ -1103,6 +1106,7 @@ export function ChatPage() {
         .filter((message) => !message.text.startsWith(AUTO_STUDIO_PROMPT))
         .map((message) => ({
           ...message,
+          text: formatStudioAnnotationMessage(message.text),
           artifacts: message.artifacts.filter((artifact) => artifact.kind === 'html'),
         })),
     [uiMessages],
@@ -1210,6 +1214,9 @@ export function ChatPage() {
     (isDraftTrial ? previewVersion?.kind === 'html' : activeVersion?.kind === 'html') &&
     !showInitialGenerating;
   const showCompanionChat = hasStarted && !showInitialGenerating;
+  const annotationAvailable = Boolean(
+    !isViewingHistory && showArtifact && previewVersion && studioElements.length > 0,
+  );
   const previewStatus = studioPanelError
     ? hasRealArtifact
       ? '修改失败 · 已保留上一版'
@@ -1226,10 +1233,12 @@ export function ChatPage() {
             ? `UI R${currentRevision.revisionNo} 已自动保存 · 待试用`
             : '正在准备首版';
 
-  const sendStudioMessage = (text: string): boolean => {
-    const started = agui.send(text, undefined, 'design');
+  const sendStudioMessage = (text: string, element?: ComboElementSelection): boolean => {
+    const prompt = element ? buildContextualStudioPrompt(element, text) : text;
+    const started = agui.send(prompt, undefined, 'design');
     if (!started) return false;
     setInspectionEnabled(false);
+    setSelectedStudioElement(null);
     setPreviewVersionNumber(null);
     setStudioView('preview');
     setMobilePane('preview');
@@ -1239,6 +1248,8 @@ export function ChatPage() {
   const selectStudioRevision = (revisionNo: number): void => {
     const revision = revisions.find((item) => item.revisionNo === revisionNo);
     if (!revision) return;
+    setInspectionEnabled(false);
+    setSelectedStudioElement(null);
     setPreviewVersionNumber(revision.artifactVersion);
     setStudioView('preview');
     setMobilePane('preview');
@@ -1249,6 +1260,7 @@ export function ChatPage() {
     const started = studioTest.run(currentRevision.id, prompt);
     if (!started) return false;
     setInspectionEnabled(false);
+    setSelectedStudioElement(null);
     setIsEditingTestInput(false);
     setStudioView('test');
     setMobilePane('preview');
@@ -1271,8 +1283,32 @@ export function ChatPage() {
 
   const selectStudioElement = (element: ComboElementSelection): void => {
     setSelectedStudioElement(element);
+    setInspectionEnabled(false);
+    setStudioView('preview');
+    setMobilePane('agent');
+  };
+
+  const toggleStudioAnnotation = (): void => {
+    if (inspectionEnabled) {
+      setInspectionEnabled(false);
+      return;
+    }
+    setSelectedStudioElement(null);
     setInspectionEnabled(true);
     setStudioView('preview');
+    setMobilePane('preview');
+  };
+
+  const clearStudioAnnotation = (): void => {
+    setInspectionEnabled(false);
+    setSelectedStudioElement(null);
+  };
+
+  const openStudioTest = (): void => {
+    clearStudioAnnotation();
+    setPreviewVersionNumber(null);
+    setStudioView('test');
+    setMobilePane('preview');
   };
 
   return (
@@ -1293,12 +1329,23 @@ export function ChatPage() {
           readOnlyHistory={isViewingHistory}
           historyVersion={selectedStudioRevision?.revisionNo}
           latestVersion={currentRevision?.revisionNo}
+          revisionNo={selectedStudioRevision?.revisionNo}
+          verified={Boolean(selectedStudioRevision?.verified)}
+          isTestRunning={currentTestIsRunning}
+          reusableTestPrompt={reusableTestPrompt}
+          annotationAvailable={annotationAvailable}
+          annotationEnabled={inspectionEnabled}
+          selectedElement={selectedStudioElement}
           error={studioPanelError}
           onBack={() => window.location.assign(publishReturnTo)}
           onSend={sendStudioMessage}
           onInterrupt={agui.interrupt}
           onReturnLatest={() => setPreviewVersionNumber(null)}
           onSelectRevision={selectStudioRevision}
+          onToggleAnnotation={toggleStudioAnnotation}
+          onClearAnnotation={clearStudioAnnotation}
+          onOpenTest={openStudioTest}
+          onRerunTest={() => (reusableTestPrompt ? startStudioTest(reusableTestPrompt) : false)}
           onOpenArtifact={(ref) => {
             const revision = revisions.find(
               (item) =>
@@ -1352,10 +1399,7 @@ export function ChatPage() {
                   type="button"
                   className="rt-toolbar-pill rt-toolbar-pill--accent"
                   disabled={studioTest.isRunning}
-                  onClick={() => {
-                    setStudioView('test');
-                    setMobilePane('preview');
-                  }}
+                  onClick={openStudioTest}
                 >
                   {studioTest.isRunning
                     ? '真实任务运行中…'
@@ -1401,11 +1445,7 @@ export function ChatPage() {
                       role="tab"
                       aria-selected={studioView === 'test'}
                       disabled={!currentRevision}
-                      onClick={() => {
-                        setInspectionEnabled(false);
-                        setPreviewVersionNumber(null);
-                        setStudioView('test');
-                      }}
+                      onClick={openStudioTest}
                     >
                       真实任务
                       {currentRevision?.verified && <span aria-label="任务校验已通过">✓</span>}
@@ -1439,11 +1479,11 @@ export function ChatPage() {
                           type="button"
                           className="rt-design-preview__inspect"
                           aria-pressed={inspectionEnabled}
-                          disabled={!showArtifact || !previewVersion}
-                          onClick={() => setInspectionEnabled((current) => !current)}
+                          disabled={!annotationAvailable && !inspectionEnabled}
+                          onClick={toggleStudioAnnotation}
                         >
                           <span aria-hidden="true">⌖</span>
-                          {inspectionEnabled ? '退出点选' : '选择元素'}
+                          {inspectionEnabled ? '退出标注' : '标注页面'}
                         </button>
                         <div
                           className="rt-design-preview__devices"
@@ -1538,10 +1578,7 @@ export function ChatPage() {
                     </div>
                   </div>
                 ) : (
-                  <div
-                    className="rt-design-preview__workbench"
-                    data-inspector-active={inspectionEnabled || Boolean(selectedStudioElement)}
-                  >
+                  <div className="rt-design-preview__workbench">
                     <div className="rt-design-preview__surface" data-size={previewSize}>
                       {showArtifact && previewVersion ? (
                         <div className="rt-design-preview__viewport">
@@ -1586,49 +1623,7 @@ export function ChatPage() {
                           正在生成 UI R{(currentRevision?.revisionNo ?? 0) + 1}；当前版本保持可用
                         </div>
                       )}
-                      {currentRevision && !isViewingHistory && !agui.isRunning && (
-                        <div className="rt-design-preview__loop-status">
-                          <span>
-                            UI R{currentRevision.revisionNo} 已自动保存
-                            {currentRevision.verified ? ' · 真实任务已通过' : ' · 修改后待运行'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (reusableTestPrompt) {
-                                startStudioTest(reusableTestPrompt);
-                              } else {
-                                setStudioView('test');
-                              }
-                            }}
-                          >
-                            {reusableTestPrompt
-                              ? currentRevision.verified
-                                ? '用同案例再跑一次'
-                                : '用上次案例重跑'
-                              : '运行真实任务'}
-                          </button>
-                        </div>
-                      )}
                     </div>
-                    <StudioInspector
-                      elements={studioElements}
-                      selectedElement={selectedStudioElement}
-                      inspectionEnabled={inspectionEnabled}
-                      revisionNo={selectedStudioRevision?.revisionNo}
-                      verified={Boolean(selectedStudioRevision?.verified)}
-                      readOnly={isViewingHistory}
-                      isRunning={agui.isRunning || isBootstrapping}
-                      isTestRunning={studioTest.isRunning}
-                      reusableTestPrompt={reusableTestPrompt}
-                      onToggleInspection={() => setInspectionEnabled((current) => !current)}
-                      onSelectElement={selectStudioElement}
-                      onClearSelection={() => setSelectedStudioElement(null)}
-                      onApplyEdit={sendStudioMessage}
-                      onRerunTest={() =>
-                        reusableTestPrompt ? startStudioTest(reusableTestPrompt) : false
-                      }
-                    />
                   </div>
                 )}
               </section>
