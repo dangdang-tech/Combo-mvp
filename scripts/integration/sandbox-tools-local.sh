@@ -436,8 +436,9 @@ docker run -d --name "$SANDBOX_CONTAINER" --network "$NETWORK" --network-alias s
   "$IMAGE" -c "set -e; printf stale >/workspace/stale.txt; mkdir /workspace/stale-dir; printf stale >/workspace/stale-dir/nested.txt; chmod 000 /workspace; /usr/local/bin/wipe-workspace; test ! -e /workspace/stale.txt; test ! -e /workspace/stale-dir; exec /usr/local/bin/sandboxd" >/dev/null
 
 docker run --name "$DRIVER_CONTAINER" --network "$NETWORK" --read-only \
+  --user "$LOCAL_UID:$LOCAL_GID" \
   --cap-drop ALL --security-opt no-new-privileges --pids-limit 32 --memory 256m --cpus 0.5 \
-  --tmpfs /tmp:rw,size=16777216,mode=0700 \
+  --tmpfs "/tmp:rw,size=16777216,mode=0700,uid=$LOCAL_UID,gid=$LOCAL_GID" \
   -e SANDBOX_E2E_WORKSPACE_MODE="$WORKSPACE_MODE" \
   --mount "type=bind,src=$TMP_DIR/driver.mjs,dst=/test/driver.mjs,readonly" \
   --mount "type=bind,src=$KEY_FILE,dst=/test/keys.json,readonly" \
