@@ -78,15 +78,12 @@ describe('CapabilitiesPage — 表格渲染', () => {
     expect(fm.calls[0]?.url).toContain('taskId=task-1');
   });
 
-  it('空列表 → 同时给出上传与能力市集两条下一步', async () => {
+  it('空列表 → 市集关闭时只引导上传真实任务', async () => {
     fm = installFetchMock({ status: 200, json: paginatedBody([]) });
     renderPage(<CapabilitiesPage />, { route: '/capabilities' });
     expect(await screen.findByText('还没有能力项')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '去上传任务' })).toHaveAttribute('href', '/tasks');
-    expect(screen.getByRole('link', { name: '先逛能力市集' })).toHaveAttribute(
-      'href',
-      '/try/market',
-    );
+    expect(screen.queryByRole('link', { name: '先逛能力市集' })).not.toBeInTheDocument();
   });
 });
 

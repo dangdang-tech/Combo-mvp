@@ -53,10 +53,10 @@ describe('SessionSidebar 会话操作', () => {
       '/session/session-other?returnTo=%2Fcreate%2Fcapabilities%3FdraftId%3Ddraft-1',
     );
     expect(archivedSessionTarget(CURRENT.id, CURRENT.id, [CURRENT], returnTo)).toBe(returnTo);
-    expect(archivedSessionTarget(CURRENT.id, CURRENT.id, [CURRENT])).toBe('/market');
+    expect(archivedSessionTarget(CURRENT.id, CURRENT.id, [CURRENT])).toBe('/capabilities');
     expect(archivedSessionTarget(OTHER.id, CURRENT.id, [CURRENT, OTHER])).toBeNull();
     expect(isRuntimeNavigationTarget('/session/session-other')).toBe(true);
-    expect(isRuntimeNavigationTarget('/market')).toBe(true);
+    expect(isRuntimeNavigationTarget('/capabilities')).toBe(false);
     expect(isRuntimeNavigationTarget(returnTo)).toBe(false);
   });
 

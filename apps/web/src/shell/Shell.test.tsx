@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Shell } from './Shell.js';
 
 describe('Shell navigation', () => {
-  it('renders the capability market as a cross-bundle anchor in expanded and collapsed modes', async () => {
+  it('does not expose the capability market while it is closed', async () => {
     globalThis.localStorage.clear();
     render(
       <MemoryRouter initialEntries={['/tasks']}>
@@ -17,10 +17,10 @@ describe('Shell navigation', () => {
       </MemoryRouter>,
     );
 
-    const marketLink = screen.getByRole('link', { name: '能力市集' });
-    expect(marketLink).toHaveAttribute('href', '/try/market');
+    expect(screen.queryByRole('link', { name: '能力市集' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '我的能力' })).toHaveAttribute('href', '/capabilities');
 
     await userEvent.click(screen.getByRole('button', { name: '收起侧栏' }));
-    expect(screen.getByRole('link', { name: '能力市集' })).toHaveAttribute('title', '能力市集');
+    expect(screen.getByRole('link', { name: '我的能力' })).toHaveAttribute('title', '我的能力');
   });
 });

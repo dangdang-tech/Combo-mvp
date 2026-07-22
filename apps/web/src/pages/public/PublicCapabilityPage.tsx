@@ -49,11 +49,8 @@ export function PublicCapabilityPage(): ReactElement {
         <p className="cb-public-capability__tagline">{capability.tagline}</p>
         <p className="cb-public-capability__description">{capability.description}</p>
         <div className="cb-public-capability__actions">
-          <a className="cb-public__action" href="/try/market">
-            开始使用
-          </a>
-          <a className="cb-public__action cb-public__action--ghost" href="/try/market">
-            返回市集
+          <a className="cb-public__action" href="/capabilities">
+            返回我的 Agent
           </a>
         </div>
       </header>

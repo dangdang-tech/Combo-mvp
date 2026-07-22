@@ -1,6 +1,6 @@
 // 左侧会话栏：按能力隔离——给了 capabilityId 只列该能力下的会话，「新会话」也在
 // 该能力下直接开（GET /runtime/sessions?capabilityId= + POST /runtime/sessions）；
-// 换能力走底部的市集入口。头部是 Combo 字标 + 返回按钮，底部常驻当前登录账号。
+// 换能力回创作端的 Agent 列表。头部是 Combo 字标 + 返回按钮，底部常驻当前登录账号。
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SESSION_TITLE_MAX_LENGTH, type Role, type SessionView } from '@cb/shared';
@@ -41,11 +41,11 @@ export function archivedSessionTarget(
   const nextSession = sessions.find((session) => session.id !== archivedSessionId);
   return nextSession
     ? appendRuntimeReturnTo(`/session/${nextSession.id}`, returnTo)
-    : (safeRuntimeReturnTo(returnTo) ?? '/market');
+    : (safeRuntimeReturnTo(returnTo) ?? '/capabilities');
 }
 
 export function isRuntimeNavigationTarget(target: string): boolean {
-  return target === '/market' || target.startsWith('/session/');
+  return target.startsWith('/session/');
 }
 
 export function SessionSidebar({
@@ -116,15 +116,15 @@ export function SessionSidebar({
   return (
     <nav className="rt-sidebar">
       <div className="rt-sidebar__head">
-        {/* 品牌回消费端首页（市集）。/creator 是创作端旧 IA，消费者点 logo 不该被弹进创作端（#27）。 */}
-        <Link
-          to="/market"
+        {/* 市集暂未开放，品牌回到用户已有 Agent 的列表。 */}
+        <a
+          href="/capabilities"
           className="rt-sidebar__brand"
-          aria-label="Combo 试用 首页"
+          aria-label="Combo 我的 Agent"
           onClick={onNavigate}
         >
           <ComboWordmark className="rt-sidebar__brand-word" />
-        </Link>
+        </a>
         {/* 返回发布页只对带 returnTo 进来的创作者渲染；消费者没有「发布流程」可回（#27）。 */}
         {safeReturnTo && (
           <button
@@ -176,9 +176,9 @@ export function SessionSidebar({
         )}
       </div>
       <div className="rt-sidebar__foot">
-        <Link to="/market" className="rt-sidebar__market" onClick={onNavigate}>
-          换个能力 · 去市集
-        </Link>
+        <a href="/capabilities" className="rt-sidebar__market" onClick={onNavigate}>
+          返回我的 Agent
+        </a>
       </div>
       <div className="rt-sidebar__user">
         <span className="rt-sidebar__user-avatar" aria-hidden="true">

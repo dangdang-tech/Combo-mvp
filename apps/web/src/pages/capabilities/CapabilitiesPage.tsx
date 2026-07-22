@@ -113,9 +113,6 @@ export function CapabilitiesPage(): ReactElement {
             <Link className="cb-empty__action cb-empty__action--primary" to="/tasks">
               去上传任务
             </Link>
-            <a className="cb-empty__action" href="/try/market">
-              先逛能力市集
-            </a>
           </div>
         </div>
       </div>

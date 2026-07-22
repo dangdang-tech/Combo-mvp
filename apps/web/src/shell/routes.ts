@@ -1,7 +1,7 @@
 // 导航单一真源：Shell 侧栏与 <Routes> 都读这里，不各写一套。
 // 两页结构：任务（默认页，建任务 + 进度）→ 能力（提取产出的能力项，发布/试用）。
 import type { ComponentType, SVGProps } from 'react';
-import { IconCapabilities, IconMarket, IconTasks } from './icons.js';
+import { IconCapabilities, IconTasks } from './icons.js';
 
 export interface NavItem {
   /** 路由 path（react-router）。 */
@@ -18,5 +18,4 @@ export interface NavItem {
 export const CREATOR_NAV: NavItem[] = [
   { path: '/tasks', label: '上传任务', icon: IconTasks },
   { path: '/capabilities', label: '我的能力', icon: IconCapabilities },
-  { path: '/try/market', label: '能力市集', icon: IconMarket, external: true },
 ];

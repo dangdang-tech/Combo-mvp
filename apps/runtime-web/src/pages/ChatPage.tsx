@@ -4,7 +4,7 @@
 //   - 有产物后画布渲染产物（多产物顶部 chips 切换），左侧对话负责反复微调；
 //   - 恢复：GET /runtime/sessions/:id（详情真源）；实时：/stream SSE（useSessionStream）。
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import type { ArtifactView } from '@cb/shared';
 import { useArtifactContent, useSession } from '../api/runtime.js';
 import { useSessionStream } from '../api/useSessionStream.js';
@@ -143,9 +143,9 @@ export function ChatPage() {
                     返回发布流程
                   </button>
                 ) : (
-                  <Link className="rt-toolbar-pill" to="/market">
-                    返回能力市集
-                  </Link>
+                  <a className="rt-toolbar-pill" href="/capabilities">
+                    返回我的 Agent
+                  </a>
                 )}
               </div>
             </header>
