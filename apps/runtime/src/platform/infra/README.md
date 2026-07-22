@@ -1,22 +1,33 @@
-# platform/infra —— 外部资源客户端
+# platform/infra 外部资源与沙箱客户端
 
-这个目录负责全部外部资源的客户端封装：数据库连接池、Redis、对象存储、登录服务验签、模型选择和跨实例事件总线，并把常用的几个聚合成一个基础设施容器注入应用。客户端都是惰性创建，引入模块本身不发起连接。
+这个目录封装 Runtime 使用的数据库、Redis、对象存储、登录验签、模型选择和可选沙箱基础设施。功能关闭时只创建禁用的 SandboxBackend，不加载 Kubernetes 客户端模块，也不读取集群配置。
 
-## 文件
+## 现有资源文件
 
-- `index.ts` 定义基础设施容器 InfraContext（环境变量、数据库句柄、对象存储、事件总线）和组装函数 buildInfra，并转发导出本目录其余文件的全部内容。
-- `db.ts` 封装 PostgreSQL 连接池：定义各仓储统一依赖的最小数据库句柄类型（可直查、可领单连接开事务），提供 withTransaction 事务工具、SELECT 1 就绪探针和优雅关闭。
-- `redis.ts` 惰性维护普通命令连接和专用订阅连接两个 ioredis 单例，提供 PING 就绪探针和统一关闭函数。订阅连接不执行普通命令。
-- `redis-interrupt-bus.ts` 提供进程内与 Redis 两种打断广播总线。Redis 实现使用共享订阅连接监听固定频道，并把消息扇出给本进程的执行句柄；发布失败只影响本次尽力而为的打断。
-- `object-store.ts` 封装对象存储（S3 协议，本地用 MinIO）：只实现读文本、读字节、写对象三个动作，另提供列举一条对象的就绪探针和关闭函数。
-- `logto.ts` 封装登录服务（Logto）的令牌验签：经服务发现取公钥集验证 JWT 的签名、签发方、受众和有效期，把失败严格区分为「令牌无效」和「上游不可达」两类，并提供就绪探针和从令牌载荷提取角色、账号、邮箱的工具函数。
-- `dev-session.ts` 是开发环境的种子登录验证分支：验证创作端签发的对称密钥 JWT，只在非生产且显式开启且密钥非空时可用，仅作为 Logto 判定无效后的兜底尝试。
-- `redis-event-log.ts` 实现会话事件日志端口：按会话写入 Redis Stream，追加事件时刷新六小时有效期，并按 20000 条上限近似修剪；补发使用开区间和升序分批读取。
-- `event-bus.ts` 实现 Redis 发布订阅直播：每个实例复用共享订阅连接，按会话频道引用计数并在进程内扇出。文件保留的内存实现只供单元测试使用。
-- `llm.ts` 负责模型与凭据解析：支持 anthropic 直连和 openrouter 两种来源，来源未显式配置时按密钥存在性自动判定，模型 id 可用环境变量覆盖，并提供「是否配了可用密钥」的判定供就绪探针和轮次降级使用。
+- `index.ts` 组装数据库、对象存储、Redis 事件设施和 SandboxBackend。
+- `db.ts` 封装 PostgreSQL 连接池、可取消事务、事务级锁等待与语句超时、就绪探针和关闭逻辑。
+- `redis.ts`、`redis-interrupt-bus.ts`、`redis-event-log.ts` 和 `event-bus.ts` 负责 Redis 连接、跨实例打断、事件日志和实时直播。终态事件使用 Redis 脚本按 `runId` 幂等追加。
+- `object-store.ts` 封装 MinIO 或 S3 的对象读写，并让 Artifact 写入把中止信号传给 S3 客户端。
+- `logto.ts` 和 `dev-session.ts` 负责生产登录验签与受限开发登录。
+- `llm.ts` 负责模型来源、模型编号和 Runtime 内凭据选择。
 
-## 上下游
+## 沙箱文件
 
-被谁使用：`bootstrap/app.ts` 调 buildInfra 组装容器并挂成 app.infra，同时创建 Redis 会话闸；业务处理器经 req.server.infra 取用；`platform/middleware/auth.ts` 用 `logto.ts` 和 `dev-session.ts` 验登录态；`platform/http/health.ts` 检查各项依赖；`modules/agent/build-agent.ts` 用 `llm.ts` 选模型；各模块的 repo 和 `modules/agent/` 消费数据库、对象存储、事件总线和会话闸。
+- `sandbox-backend.ts` 定义四个模型工具唯一可用的远程端口、稳定错误和默认禁用实现。这里没有宿主实现。
+- `sandbox-capability.ts` 解析 Runtime 内的 Ed25519 私钥，为单次请求签发短期能力令牌，并只把公钥交给 Pod。
+- `sandbox-client.ts` 调用 sandboxd 的 JSON 与 NDJSON 协议。普通 HTTP 请求、命令传输、响应、帧数量、线路大小和原始输出都有硬上限。Abort 会先等待认证取消确认，不能确认时要求后端回收 Pod。
+- `kubernetes-sandbox-backend.ts` 先用 PVC 资源版本竞争固定槽位，再创建固定名称的 Pod，并校验标签、Pod UID、Ready 状态、配置指纹、经过 Kubernetes 默认化的容器安全规格和 Pod IP。它跟踪结果不明确的创建请求，并用 PVC 隔离标记和 Pod finalizer 等待节点确认容器终止后才释放固定 Local PVC 槽位。
 
-依赖什么：向内引用 `platform/config/env.ts`；向外访问 PostgreSQL 数据库、不可驱逐的 redis_queue 实例、S3 协议对象存储和 Logto 登录服务，`llm.ts` 引用 pi-ai 包的内置模型注册表。
+## 授权与生命周期
+
+每次文件或命令操作前，后端都会确认 Session 属于当前 owner、Session 仍为 active，并且指定 Turn 仍为 running。固定 PVC 的原子预留在同一个 Session 共享行锁内完成，因此终态清理不会漏掉刚开始的 Pod 分配。文件操作在完成前持续持有共享行锁，命令操作持续持锁到 sandboxd 返回启动帧；Turn 终态事务必须取得同一行的排他锁，因此认证完成后不会再有越过终态的新副作用。Pod 启动后还会执行认证的协议握手。能力令牌、私钥、Kubernetes 客户端和模型凭据都不会进入模型参数或命令环境。
+
+两个 Runtime 副本使用固定 PVC 上的 Session、分配编号和状态标记裁决槽位。PVC 更新带资源版本前提，只有一个副本能从空闲状态切换到预留状态。Pod 创建成功后，同一个分配编号和 Pod UID 会把 PVC 切换为占用状态。每个 Pod 记录正整数配置修订号。较新修订会在 Session 行锁和真实 running Turn 检查后按 UID 替换较旧 Pod；较旧副本不能删除较新 Pod。相同修订对应不同配置指纹时，双方都不会互相替换，调用会失败关闭并等待配置修正。
+
+Kubernetes 的 PVC 和 Pod 读取、创建、删除、修补和列表操作都使用真实 AbortSignal，并由后端硬超时限制。每次创建带随机分配编号；本地超时后仍保留原请求 Promise 和 PVC 预留状态，迟到创建会按分配编号回收。Pod 删除使用 UID 与资源版本前置条件。
+
+固定 Pod 带有 finalizer。后端在请求删除前先把对应 PVC 切换为隔离状态。删除请求被接受后，后端必须从同一个 Pod UID 看到主容器和初始化容器都进入终止状态，随后才移除 finalizer 并等待 UID 消失。只有这些步骤全部完成，后端才清除 PVC 上的分配标记。节点失联、对象提前消失或终止状态无法确认时，后端返回清理未确认错误，PVC 标记继续阻止其他副本复用该槽位。API 对象消失本身不再被当成进程和挂载已经结束的证明。
+
+本地命令取消成功只表示 sandboxd 已完成最终后代扫描。若取消、断流或协议失败，客户端会要求后端执行上述节点确认删除。删除仍无法确认时，Pi 工具会中止 Turn，当前 `running` 守卫不会释放。功能关闭的 Runtime 只知道自己的本地 Turn 没有远程工具，不能替其他副本证明沙箱已经清理。
+
+普通容量是四个槽位。第五槽只有在独立维护清单和显式验证开关同时启用时才可分配。Pod 空闲十五分钟后可以回收，`activeDeadlineSeconds` 与清扫器共同把绝对生命周期限制在三十分钟内。Session 归档提交后异步回收工作区，不延迟已经成功的 HTTP 响应。

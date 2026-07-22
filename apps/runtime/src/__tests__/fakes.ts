@@ -81,6 +81,7 @@ export interface ArtifactRowF {
 
 export class FakeSessionEventLog implements SessionEventLog {
   private readonly streams = new Map<string, StreamEventEntry[]>();
+  private readonly terminals = new Map<string, { encoded: string; id: string }>();
   private lastMilliseconds = -1;
   private sequence = 0;
 
@@ -99,6 +100,23 @@ export class FakeSessionEventLog implements SessionEventLog {
     if (stream.length > this.maxlen) stream.splice(0, stream.length - this.maxlen);
     this.streams.set(sessionId, stream);
     return entry.id;
+  }
+
+  async appendTerminal(
+    sessionId: string,
+    runId: string,
+    event: Record<string, unknown>,
+  ): Promise<string> {
+    const key = `${sessionId}:${runId}`;
+    const encoded = JSON.stringify(event);
+    const existing = this.terminals.get(key);
+    if (existing) {
+      if (existing.encoded !== encoded) throw new Error('TERMINAL_EVENT_CONFLICT');
+      return existing.id;
+    }
+    const id = await this.append(sessionId, event);
+    this.terminals.set(key, { encoded, id });
+    return id;
   }
 
   async rangeAfter(sessionId: string, afterId: string, count: number): Promise<StreamEventEntry[]> {
@@ -158,6 +176,9 @@ export class FakeDb implements Queryable, TxPool {
     if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') {
       this.txLog.push(s);
       return { rows: [], rowCount: null };
+    }
+    if (s.startsWith("SELECT set_config('lock_timeout'")) {
+      return { rows: [{}] as R[], rowCount: 1 };
     }
 
     // ---------- capabilities ----------
@@ -267,6 +288,12 @@ export class FakeDb implements Queryable, TxPool {
         .map((x) => ({ ...x }));
       return { rows: rows as R[], rowCount: rows.length };
     }
+    if (s === 'SELECT id FROM sessions WHERE id = $1 FOR UPDATE') {
+      const session = this.sessions.get(params[0] as string);
+      return session
+        ? { rows: [{ id: session.id }] as R[], rowCount: 1 }
+        : { rows: [], rowCount: 0 };
+    }
     if (s.includes('FROM sessions WHERE id = $1 AND owner_user_id = $2')) {
       const x = this.sessions.get(params[0] as string);
       if (!x || x.owner_user_id !== params[1] || x.status !== 'active') {
@@ -315,6 +342,16 @@ export class FakeDb implements Queryable, TxPool {
     // ---------- turns ----------
     if (s.startsWith('INSERT INTO turns')) {
       const [id, sessionId] = params as [string, string];
+      if (
+        [...this.turns.values()].some(
+          (turn) => turn.session_id === sessionId && turn.status === 'running',
+        )
+      ) {
+        throw Object.assign(new Error('duplicate running turn'), {
+          code: '23505',
+          constraint: 'uq_turns_session_running',
+        });
+      }
       const row: TurnRowF = {
         id,
         session_id: sessionId,
@@ -325,6 +362,16 @@ export class FakeDb implements Queryable, TxPool {
       };
       this.turns.set(id, row);
       return { rows: [{ ...row }] as R[], rowCount: 1 };
+    }
+    if (
+      s.startsWith('SELECT id FROM turns') &&
+      s.includes("id = $1 AND session_id = $2 AND status = 'running'")
+    ) {
+      const [id, sessionId] = params as [string, string];
+      const row = this.turns.get(id);
+      return row?.session_id === sessionId && row.status === 'running'
+        ? { rows: [{ id: row.id }] as R[], rowCount: 1 }
+        : { rows: [], rowCount: 0 };
     }
     if (s.startsWith('UPDATE turns SET status = $2')) {
       const [id, status, errorJson] = params as [string, TurnRowF['status'], string | null];
@@ -343,6 +390,15 @@ export class FakeDb implements Queryable, TxPool {
       row.finished_at = nowIso();
       row.last_error = JSON.parse(errorJson) as TurnRowF['last_error'];
       return { rows: [], rowCount: 1 };
+    }
+    if (
+      s.startsWith('SELECT id FROM turns') &&
+      s.includes("session_id = $1 AND status = 'running'")
+    ) {
+      const row = [...this.turns.values()].find(
+        (candidate) => candidate.session_id === params[0] && candidate.status === 'running',
+      );
+      return row ? { rows: [{ id: row.id }] as R[], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
     if (s.startsWith('SELECT EXISTS (SELECT 1 FROM turns')) {
       const exists = [...this.turns.values()].some(
@@ -492,8 +548,18 @@ export class FakeDb implements Queryable, TxPool {
       ];
       const existing = this.artifacts.get(id);
       const now = nowIso();
+      if (existing && existing.session_id !== sessionId) {
+        return { rows: [], rowCount: 0 };
+      }
       const row: ArtifactRowF = existing
-        ? { ...existing, kind, title, meta: JSON.parse(metaJson), updated_at: now }
+        ? {
+            ...existing,
+            kind,
+            title,
+            storage_key: storageKey,
+            meta: JSON.parse(metaJson),
+            updated_at: now,
+          }
         : {
             id,
             session_id: sessionId,
@@ -572,7 +638,13 @@ export class FakeObjectStore implements RuntimeObjectStore {
   private k(bucket: string, key: string): string {
     return `${bucket}/${key}`;
   }
-  async putObject(bucket: Bucket, key: string, body: Uint8Array): Promise<{ key: string }> {
+  async putObject(
+    bucket: Bucket,
+    key: string,
+    body: Uint8Array,
+    opts?: { abortSignal?: AbortSignal },
+  ): Promise<{ key: string }> {
+    if (opts?.abortSignal?.aborted) throw new DOMException('aborted', 'AbortError');
     this.objects.set(this.k(bucket, key), body);
     return { key };
   }
@@ -601,12 +673,16 @@ export interface FakeAgentScript {
   finalMessages?: unknown[];
   /** prompt 期间调一次产物工具（覆盖 run-turn 的 onArtifact 接线）。 */
   invokeTool?: { title: string; content: string; artifactId?: string };
+  /** 按名称执行已经接入 Pi 的工具，覆盖 TurnRunner 到远程工具的生产接线。 */
+  invokeNamedTools?: Array<{ name: string; params: Record<string, unknown> }>;
   /** prompt 直接 reject。 */
   promptError?: Error;
   /** pi 把失败编码进消息的形态。 */
   runtimeError?: string;
   /** prompt 挂起直到 abort（打断路径）。 */
   hangUntilAbort?: boolean;
+  /** 模拟模型 SDK 在 abort 后延迟多久才结束请求。 */
+  abortDelayMs?: number;
 }
 
 export interface FakeAgentFactoryHandle {
@@ -641,10 +717,24 @@ export function makeFakeAgentFactory(script: FakeAgentScript = {}): FakeAgentFac
             ...(script.invokeTool.artifactId ? { artifactId: script.invokeTool.artifactId } : {}),
           });
         }
+        for (const [index, invocation] of (script.invokeNamedTools ?? []).entries()) {
+          const tool = input.tools.find((candidate) => candidate.name === invocation.name);
+          if (!tool) throw new Error(`FakeAgent: missing tool ${invocation.name}`);
+          const executable = tool as unknown as {
+            execute(toolCallId: string, params: Record<string, unknown>): Promise<unknown>;
+          };
+          await executable.execute(`named-tool-${index}`, invocation.params);
+        }
         if (script.hangUntilAbort) {
           await new Promise<void>((_resolve, reject) => {
-            abortHook = () => reject(new Error('aborted'));
-            if (aborted) reject(new Error('aborted'));
+            abortHook = () => {
+              if (script.abortDelayMs) {
+                setTimeout(() => reject(new Error('aborted')), script.abortDelayMs);
+              } else {
+                reject(new Error('aborted'));
+              }
+            };
+            if (aborted) abortHook();
           });
         }
         if (script.promptError) throw script.promptError;

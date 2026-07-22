@@ -25,6 +25,17 @@ describe('Redis Stream 事件日志', () => {
     expect(log.entries('a').map((entry) => entry.event.n)).toEqual([3, 4, 5]);
   });
 
+  it('同一 runId 的相同终态幂等，不同终态不能追加第二条', async () => {
+    const log = new FakeSessionEventLog(() => 10);
+    const finished = { type: 'RUN_FINISHED', runId: 'run-1' };
+    const first = await log.appendTerminal('a', 'run-1', finished);
+    expect(await log.appendTerminal('a', 'run-1', finished)).toBe(first);
+    await expect(
+      log.appendTerminal('a', 'run-1', { type: 'RUN_ERROR', runId: 'run-1' }),
+    ).rejects.toThrow('TERMINAL_EVENT_CONFLICT');
+    expect(log.entries('a')).toHaveLength(1);
+  });
+
   it('rangeAfter 使用开区间并支持分批', async () => {
     const log = new FakeSessionEventLog(() => 10);
     for (let n = 1; n <= 4; n += 1) await log.append('a', { n });

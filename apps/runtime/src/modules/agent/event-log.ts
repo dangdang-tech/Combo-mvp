@@ -8,6 +8,11 @@ export interface StreamEventEntry {
 
 export interface SessionEventLog {
   append(sessionId: string, event: Record<string, unknown>): Promise<string>;
+  /**
+   * 每个 runId 只允许一个终态事件。相同事件重试返回原 id，不同终态重试必须失败，
+   * 从而让超时后仍在 Redis 侧执行的 XADD 不会再被另一个 RUN_ERROR 覆盖。
+   */
+  appendTerminal(sessionId: string, runId: string, event: Record<string, unknown>): Promise<string>;
   rangeAfter(sessionId: string, afterId: string, count: number): Promise<StreamEventEntry[]>;
 }
 

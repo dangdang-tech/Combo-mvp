@@ -1,9 +1,11 @@
 # CI（O-07）。creator-builder monorepo 已提升为仓库根，故 .github/workflows/ 落在仓库根、被 GitHub Actions 正常识别，
 # 所有步骤直接以仓库根（= monorepo 根）为工作目录，无需再 working-directory 限定。
 #
-# 两个 job：
-#   gate    —— install / lint(含分层依赖规则) / typecheck / build / test / compose 配置自查。无外部依赖、必过才允许合并。
-#   integration —— 起 PG/Redis 双实例/MinIO 临时 service 容器，跑 db 迁移集成 + redis 双实例分工断言（O-05/O-07）。
+# 四个 job：
+#   gate —— install / lint / typecheck / build / test / compose 配置自查。
+#   integration —— 起 PG/Redis 双实例，跑数据库迁移与 Redis 分工断言。
+#   sandbox-integration —— 在 Docker internal network 内跑真实 Pi 工具与 sandboxd 竖切。
+#   image —— 构建三个现有生产镜像；不发布可选 sandboxd。
 name: CI
 
 on:
@@ -32,13 +34,23 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/sandboxd/go.mod
+          cache-dependency-path: apps/sandboxd/go.sum
+
+      # 只安装客户端供 opt-in overlay 做本地 kustomize 静态断言，不连接或修改集群。
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Build shared first (apps depend on its dist + .d.ts)
         run: pnpm -F @cb/shared build
 
-      # eslint 含分层依赖规则（eslint.config.js）：worker/consumer/sweeper 后台进程不得 import api 的 HTTP app/路由（违反即失败、不许合并）。
+      # eslint 含分层依赖规则：authoring worker 不得导入 HTTP app，Runtime 模型工具不得导入宿主文件或进程 API。
       - name: Lint (incl. layering rules)
         run: pnpm lint
 
@@ -85,7 +97,7 @@ jobs:
       - name: ShellCheck scripts
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck scripts/*.sh scripts/integration/*.sh infra/entrypoint.sh infra/postgres/init-logto-db.sh infra/minio/init-buckets.sh
+          shellcheck scripts/*.sh scripts/integration/*.sh infra/entrypoint.sh infra/postgres/init-logto-db.sh infra/minio/init-buckets.sh infra/k8s/overlays/sandbox-tools/maintenance/*.sh
 
   integration:
     name: integration (db migrate + redis dual)
@@ -149,6 +161,36 @@ jobs:
           REDIS_HOT_HOST: localhost
           REDIS_HOT_PORT: '6380'
         run: bash scripts/integration/redis-dual.sh
+
+  sandbox-integration:
+    name: sandbox protocol/process/path (Docker)
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.31.0
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # 只启动 Docker internal network 内的临时 sandboxd 与协议驱动；不连接或修改集群。
+      - name: Sandbox authenticated vertical slice
+        env:
+          SANDBOX_E2E_REQUIRE_LOOPBACK: '1'
+        run: bash scripts/integration/sandbox-tools-local.sh
 
   # 三镜像构建（api/runtime/web）。PR 上只构建作守门；push main 时额外推送 GHCR：
   #   tag 打两枚——完整 commit SHA（CD 按 SHA 部署与回滚）+ latest（人查看最新用，部署不依赖它）。

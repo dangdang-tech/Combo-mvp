@@ -1,4 +1,4 @@
-// artifacts 表 SQL。无版本：同一产物再次 upsert 原地覆盖（storage_key 稳定，MinIO 内容直接覆写）。
+// artifacts 表 SQL。模型工具使用不可变正文对象，并在 running Turn 守卫下更新可见索引。
 import { randomUUID } from 'node:crypto';
 import type { ArtifactView } from '@cb/shared';
 import { withTransaction, type Queryable, type RuntimeDb } from '../../platform/infra/db.js';
@@ -9,9 +9,17 @@ import { validateStudioHtml } from './studio-contract.js';
 /** 产物内容所在桶。 */
 export const ARTIFACT_BUCKET = 'combo-artifacts' as const;
 
-/** 产物内容对象键：按 (session, artifact) 稳定——同产物反复更新覆写同一对象。 */
+/** 历史稳定键仍可读取；新工具写入使用不可变版本键，未提交对象不会覆盖可见正文。 */
 export function artifactStorageKey(sessionId: string, artifactId: string): string {
   return `artifacts/${sessionId}/${artifactId}`;
+}
+
+export function artifactVersionStorageKey(
+  sessionId: string,
+  artifactId: string,
+  versionId: string,
+): string {
+  return `${artifactStorageKey(sessionId, artifactId)}/versions/${versionId}`;
 }
 
 /** kind → 回读时的 Content-Type（产物是文本类内容：网页/文档/代码/结构化 JSON）。 */
@@ -88,8 +96,10 @@ export async function upsertArtifact(
      ON CONFLICT (id)
      DO UPDATE SET kind = EXCLUDED.kind,
                    title = EXCLUDED.title,
+                   storage_key = EXCLUDED.storage_key,
                    meta = EXCLUDED.meta,
                    updated_at = now()
+       WHERE artifacts.session_id = EXCLUDED.session_id
      RETURNING id, session_id, kind, title, storage_key, updated_at`,
     [
       input.id,
@@ -103,6 +113,44 @@ export async function upsertArtifact(
   const row = res.rows[0];
   if (!row) throw new Error('upsertArtifact: upsert returned no row');
   return toView(row);
+}
+
+/**
+ * 只有绑定 Turn 仍为 running 时才把已经上传的不可变对象键变成可见 Artifact。
+ * Session 与 Turn 锁序和终态路径一致，终态一旦获胜，迟到工具只能返回 null。
+ */
+export async function upsertArtifactForRunningTurn(
+  db: RuntimeDb,
+  input: {
+    id: string;
+    sessionId: string;
+    turnId: string;
+    kind: string;
+    title: string;
+    storageKey: string;
+    meta: Record<string, unknown>;
+  },
+  signal?: AbortSignal,
+): Promise<ArtifactView | null> {
+  return withTransaction(
+    db,
+    async (transaction) => {
+      const session = await transaction.query<{ id: string }>(
+        `SELECT id FROM sessions WHERE id = $1 FOR UPDATE`,
+        [input.sessionId],
+      );
+      if (!session.rows[0]) return null;
+      const turn = await transaction.query<{ id: string }>(
+        `SELECT id FROM turns
+          WHERE id = $1 AND session_id = $2 AND status = 'running'
+          FOR UPDATE`,
+        [input.turnId, input.sessionId],
+      );
+      if (!turn.rows[0] || signal?.aborted) return null;
+      return upsertArtifact(transaction, input);
+    },
+    { signal },
+  );
 }
 
 /** 会话内查单个产物（tool 判定「更新还是新建」用）。 */

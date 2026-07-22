@@ -243,6 +243,13 @@ export function archiveSessionHandler(): RouteHandlerMethod {
     try {
       const archived = await archiveSession(req.server.infra.db, session.id, session.ownerUserId);
       if (!archived) return sendError(req, reply, ErrorCode.NOT_FOUND);
+      if (req.server.infra.sandbox?.enabled) {
+        // Archival is already committed. Pod cleanup is best effort and must not
+        // delay or suppress the successful HTTP response if the control plane stalls.
+        void req.server.infra.sandbox.releaseSession(session.id).catch((err) => {
+          req.log.warn({ err, traceId: req.id }, 'release archived session sandbox failed');
+        });
+      }
       const body: Envelope<SessionView> = {
         data: toSessionView(archived),
         meta: { traceId: req.id },
@@ -354,6 +361,11 @@ export function sendMessageHandler(): RouteHandlerMethod {
       if (err instanceof SessionInactiveError) {
         return sendError(req, reply, ErrorCode.STATE_CONFLICT, {
           userMessage: '这条会话已经归档，请新建会话后再发送。',
+        });
+      }
+      if (err instanceof SessionBusyError) {
+        return sendError(req, reply, ErrorCode.SESSION_BUSY, {
+          userMessage: '这条会话仍在生成，请停止或等待完成后再发送。',
         });
       }
       req.log.error({ err, traceId: req.id }, 'start turn failed');
