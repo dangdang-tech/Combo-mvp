@@ -27,6 +27,8 @@ export interface ChatThreadProps {
   artifactPresentation?: ArtifactPresentation;
   /** Studio 当前已经展示的页面；对应事件只做状态提示，不再提供无效果的“查看”。 */
   activeArtifact?: ActiveArtifactRef;
+  /** Studio 有自己的滚动容器，不应在用户阅读历史时强制抢回底部。 */
+  autoScroll?: boolean;
 }
 
 export function ChatThread({
@@ -36,11 +38,13 @@ export function ChatThread({
   assistantLabel = '能力',
   artifactPresentation = 'default',
   activeArtifact,
+  autoScroll = true,
 }: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (!autoScroll) return;
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, streamingText]);
+  }, [autoScroll, messages, streamingText]);
 
   return (
     <div className="rt-thread">
@@ -56,7 +60,9 @@ export function ChatThread({
       ))}
       {streamingText !== null && (
         <div className="rt-msg rt-msg--assistant">
-          <div className="rt-msg__role">{assistantLabel}</div>
+          <div className={artifactPresentation === 'event' ? 'rt-sr-only' : 'rt-msg__role'}>
+            {assistantLabel}
+          </div>
           <AssistantBody text={streamingText} streaming />
         </div>
       )}
@@ -79,8 +85,8 @@ function MessageBubble({
   activeArtifact?: ActiveArtifactRef;
 }) {
   const useArtifactEvents = artifactPresentation === 'event' && message.artifacts.length > 0;
-  const collapseDescription = useArtifactEvents && isLongArtifactDescription(message.text);
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const studioResponse = useArtifactEvents ? splitStudioArtifactMessage(message.text) : null;
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   if (message.role === 'user') {
     return (
@@ -92,7 +98,30 @@ function MessageBubble({
 
   return (
     <div className="rt-msg rt-msg--assistant">
-      <div className="rt-msg__role">{assistantLabel}</div>
+      <div className={artifactPresentation === 'event' ? 'rt-sr-only' : 'rt-msg__role'}>
+        {assistantLabel}
+      </div>
+      {studioResponse ? (
+        <>
+          <AssistantBody text={studioResponse.summary} />
+          {studioResponse.details && (
+            <div className="rt-msg__artifact-detail">
+              <button
+                type="button"
+                className="rt-msg__artifact-detail-toggle"
+                aria-expanded={detailsExpanded}
+                onClick={() => setDetailsExpanded((current) => !current)}
+              >
+                <span aria-hidden="true">{detailsExpanded ? '⌄' : '›'}</span>
+                {detailsExpanded ? '收起修改细节' : '展开修改细节'}
+              </button>
+              {detailsExpanded && <AssistantBody text={studioResponse.details} />}
+            </div>
+          )}
+        </>
+      ) : (
+        <AssistantBody text={message.text} />
+      )}
       {useArtifactEvents && (
         <ArtifactReferences
           artifacts={message.artifacts}
@@ -100,21 +129,6 @@ function MessageBubble({
           onOpenArtifact={onOpenArtifact}
           activeArtifact={activeArtifact}
         />
-      )}
-      {collapseDescription ? (
-        <div className="rt-msg__artifact-detail">
-          <button
-            type="button"
-            className="rt-msg__artifact-detail-toggle"
-            aria-expanded={descriptionExpanded}
-            onClick={() => setDescriptionExpanded((current) => !current)}
-          >
-            {descriptionExpanded ? '收起修改说明' : '查看修改说明'}
-          </button>
-          {descriptionExpanded && <AssistantBody text={message.text} />}
-        </div>
-      ) : (
-        <AssistantBody text={message.text} />
       )}
       {message.artifacts.length > 0 && !useArtifactEvents && (
         <ArtifactReferences
@@ -158,8 +172,8 @@ function ArtifactReferences({
             <span className="rt-artifact-chip__ver">
               {presentation === 'event'
                 ? isActiveEvent
-                  ? '当前页面'
-                  : '查看'
+                  ? '当前'
+                  : '打开'
                 : `v${artifact.version}`}
             </span>
           </>
@@ -191,11 +205,29 @@ function ArtifactReferences({
   );
 }
 
-function isLongArtifactDescription(text: string): boolean {
+function splitStudioArtifactMessage(text: string): { summary: string; details: string | null } {
   const normalized = text.trim();
-  if (!normalized) return false;
-  const meaningfulLineCount = normalized.split(/\r?\n/).filter((line) => line.trim()).length;
-  return normalized.length > ARTIFACT_DETAIL_COLLAPSE_LENGTH || meaningfulLineCount > 3;
+  if (!normalized) return { summary: '', details: null };
+
+  const paragraphs = normalized.split(/\r?\n\s*\r?\n+/).filter((part) => part.trim());
+  if (paragraphs.length > 1) {
+    return {
+      summary: paragraphs[0]!,
+      details: paragraphs.slice(1).join('\n\n'),
+    };
+  }
+
+  if (normalized.length <= ARTIFACT_DETAIL_COLLAPSE_LENGTH) {
+    return { summary: normalized, details: null };
+  }
+
+  const sentence = normalized.match(/^([\s\S]{80,220}?[。！？.!?])\s*([\s\S]+)$/);
+  if (sentence?.[1] && sentence[2]) {
+    return { summary: sentence[1], details: sentence[2] };
+  }
+
+  const summary = `${normalized.slice(0, 180).trimEnd()}…`;
+  return { summary, details: normalized };
 }
 
 function AssistantBody({ text, streaming }: { text: string; streaming?: boolean }) {

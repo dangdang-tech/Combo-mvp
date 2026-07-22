@@ -960,12 +960,11 @@ export function ChatPage() {
   const hasStarted = agui.messages.length > 0;
   const hasPriorMessages = (detail?.messages.length ?? 0) > 0;
   const publishReturnTo = safeReturnTo(searchParams.get('returnTo'));
+  const studioIsBusy = Boolean(isDraftTrial && (agui.isRunning || studioState?.activeDesignRunId));
   const canConfirmDraftTrial = Boolean(
-    isDraftTrial && currentRevision?.verified && !agui.isRunning && !currentTestIsRunning,
+    isDraftTrial && currentRevision?.verified && !studioIsBusy && !currentTestIsRunning,
   );
-  const isBootstrapping = Boolean(
-    isDraftTrial && !currentRevision && (agui.isRunning || studioState?.activeDesignRunId),
-  );
+  const isBootstrapping = Boolean(isDraftTrial && !currentRevision && studioIsBusy);
   const studioPanelError =
     agui.error ?? (studioStateQ.isError ? '无法读取 Studio 状态，请刷新页面后重试。' : null);
 
@@ -1138,7 +1137,7 @@ export function ChatPage() {
     selectedStudioRevision.revisionNo !== currentRevision.revisionNo,
   );
   const canStartCurrentTest = Boolean(
-    currentRevision && !isViewingHistory && !agui.isRunning && !currentTestIsRunning,
+    currentRevision && !isViewingHistory && !studioIsBusy && !currentTestIsRunning,
   );
   const canRunPreview = Boolean(
     canStartCurrentTest &&
@@ -1170,7 +1169,7 @@ export function ChatPage() {
           ? { state: 'error', label: '运行失败' }
           : isBootstrapping
             ? { state: 'saving', label: '正在生成' }
-            : agui.isRunning
+            : studioIsBusy
               ? { state: 'saving', label: '正在更新' }
               : currentRevision?.verified
                 ? { state: 'verified', label: '已试用' }
@@ -1178,7 +1177,7 @@ export function ChatPage() {
                   ? { state: 'saved', label: '已保存' }
                   : { state: 'preparing', label: '正在准备' };
   const canOpenRunDrawer = Boolean(
-    hasCurrentTestRecord && !isViewingHistory && !studioPanelError && !agui.isRunning,
+    hasCurrentTestRecord && !isViewingHistory && !studioPanelError && !studioIsBusy,
   );
   const studioRevisionOptions = [...revisions].sort(
     (left, right) => right.revisionNo - left.revisionNo,
@@ -1283,7 +1282,7 @@ export function ChatPage() {
           messages={studioMessages}
           revisions={revisions}
           selectedRevisionNo={selectedStudioRevision?.revisionNo}
-          isRunning={agui.isRunning}
+          isRunning={studioIsBusy && !isBootstrapping}
           isBootstrapping={isBootstrapping}
           readOnlyHistory={isViewingHistory}
           annotationAvailable={annotationAvailable}

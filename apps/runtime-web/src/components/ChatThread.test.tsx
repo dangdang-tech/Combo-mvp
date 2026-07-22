@@ -91,15 +91,14 @@ describe('ChatThread', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: /已更新页面.*Agent-VM 任务助手.*查看/ }),
+      screen.getByRole('button', { name: /已更新页面.*Agent-VM 任务助手.*打开/ }),
     ).toBeInTheDocument();
   });
 
-  it('collapses a long artifact explanation until the user asks to read it', () => {
-    const longExplanation =
-      '我已经根据你的要求完成了页面更新，统一了页面层级、色彩、间距和圆角，并保留了原有输入、执行和结果能力。接下来还可以继续描述你想调整的地方，新的修改会继续应用到这个页面。'.repeat(
-        2,
-      );
+  it('keeps the result summary visible and collapses only the extra modification detail', () => {
+    const explanationPart =
+      '我已经根据你的要求完成了页面更新，统一了页面层级、色彩、间距和圆角，并保留了原有输入、执行和结果能力。接下来还可以继续描述你想调整的地方，新的修改会继续应用到这个页面。';
+    const longExplanation = explanationPart.repeat(2);
     render(
       <ChatThread
         messages={[assistantMessage({ text: longExplanation })]}
@@ -110,14 +109,37 @@ describe('ChatThread', () => {
     );
 
     expect(screen.queryByText(longExplanation)).not.toBeInTheDocument();
-    const toggle = screen.getByRole('button', { name: '查看修改说明' });
+    expect(screen.getAllByText(explanationPart)).toHaveLength(1);
+    const toggle = screen.getByRole('button', { name: '展开修改细节' });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(toggle);
-    expect(screen.getByText(longExplanation)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '收起修改说明' })).toHaveAttribute(
+    expect(screen.getAllByText(explanationPart)).toHaveLength(2);
+    expect(screen.getByRole('button', { name: '收起修改细节' })).toHaveAttribute(
       'aria-expanded',
       'true',
+    );
+  });
+
+  it('shows the assistant conclusion before the page revision event', () => {
+    render(
+      <ChatThread
+        messages={[
+          assistantMessage({
+            text: '页面结构已经整理好。\n\n补充说明会默认收起，不打断下一步修改。',
+          }),
+        ]}
+        streamingText={null}
+        artifactPresentation="event"
+        activeArtifact={{ artifactKey: 'main', version: 1 }}
+        onOpenArtifact={vi.fn()}
+      />,
+    );
+
+    const conclusion = screen.getByText('页面结构已经整理好。');
+    const event = screen.getByLabelText(/已创建页面.*当前页面/);
+    expect(conclusion.compareDocumentPosition(event) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
 
@@ -133,6 +155,6 @@ describe('ChatThread', () => {
     );
 
     expect(screen.getByText(longRuntimeAnswer)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '查看修改说明' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '展开修改细节' })).not.toBeInTheDocument();
   });
 });

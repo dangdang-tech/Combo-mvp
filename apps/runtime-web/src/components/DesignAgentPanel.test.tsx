@@ -44,7 +44,7 @@ function props(overrides: Partial<DesignAgentPanelProps> = {}): DesignAgentPanel
 }
 
 describe('DesignAgentPanel', () => {
-  it('keeps earlier conversation available without letting it dominate the editor', () => {
+  it('keeps the complete conversation available as one continuous history', () => {
     const messages = Array.from({ length: 6 }, (_, index) => ({
       id: `message-${index}`,
       runId: null,
@@ -56,12 +56,9 @@ describe('DesignAgentPanel', () => {
     }));
     render(<DesignAgentPanel {...props({ messages })} />);
 
-    expect(screen.queryByText('第 1 条对话')).not.toBeInTheDocument();
-    expect(screen.getByText('第 3 条对话')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '查看更早的 2 条对话' }));
     expect(screen.getByText('第 1 条对话')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '收起较早对话' }));
-    expect(screen.queryByText('第 1 条对话')).not.toBeInTheDocument();
+    expect(screen.getByText('第 6 条对话')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /更早/ })).not.toBeInTheDocument();
   });
 
   it('sends a typed edit with Enter', () => {
@@ -95,8 +92,10 @@ describe('DesignAgentPanel', () => {
       />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent('正在生成页面可以继续输入下一条修改。');
-    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '正在生成页面你可以继续输入，下一条修改会按顺序执行。',
+    );
+    expect(screen.getByRole('button', { name: '停止当前修改' })).toBeEnabled();
     expect(screen.getByRole('textbox', { name: '描述页面修改' })).toBeEnabled();
   });
 
@@ -117,6 +116,7 @@ describe('DesignAgentPanel', () => {
     fireEvent.change(composer, { target: { value: '把结果区改成卡片' } });
     fireEvent.keyDown(composer, { key: 'Enter' });
     expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByText('1 条修改待执行')).toBeInTheDocument();
 
     rerender(
       <DesignAgentPanel {...props({ revisions: [], selectedRevisionNo: undefined, onSend })} />,
@@ -128,8 +128,25 @@ describe('DesignAgentPanel', () => {
     const onInterrupt = vi.fn();
     render(<DesignAgentPanel {...props({ isRunning: true, onInterrupt })} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '停止' }));
+    fireEvent.click(screen.getByRole('button', { name: '停止当前修改' }));
     expect(onInterrupt).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses one Codex-style action for stop when empty and queue when the user types', () => {
+    const onInterrupt = vi.fn();
+    const onSend = vi.fn(() => true);
+    render(<DesignAgentPanel {...props({ isRunning: true, onInterrupt, onSend })} />);
+
+    const composer = screen.getByRole('textbox', { name: '描述页面修改' });
+    expect(screen.getByRole('button', { name: '停止当前修改' })).toBeEnabled();
+
+    fireEvent.change(composer, { target: { value: '再把结果区放大一些' } });
+    expect(screen.queryByRole('button', { name: '停止当前修改' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '加入修改队列' }));
+
+    expect(onInterrupt).not.toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
+    expect(screen.getByText('1 条修改待执行')).toBeInTheDocument();
   });
 
   it('keeps one continuous conversation and marks the open artifact without a no-op action', () => {
@@ -206,7 +223,7 @@ describe('DesignAgentPanel', () => {
       />,
     );
 
-    const event = screen.getByRole('button', { name: /已创建页面.*每日待办管家.*查看/ });
+    const event = screen.getByRole('button', { name: /已创建页面.*每日待办管家.*打开/ });
     fireEvent.click(event);
     expect(onOpenArtifact).toHaveBeenCalledWith(
       expect.objectContaining({ artifactKey: 'main', version: 1 }),
@@ -226,7 +243,7 @@ describe('DesignAgentPanel', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    fireEvent.click(screen.getByRole('button', { name: '重新生成' }));
     expect(onSend).toHaveBeenCalledWith(expect.stringContaining('重新生成首版页面'));
   });
 
