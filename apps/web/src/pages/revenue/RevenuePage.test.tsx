@@ -20,7 +20,7 @@ function row(over: Partial<DashboardCapabilityRow> = {}): DashboardCapabilityRow
     monthlyInvocations: null,
     spendSparkline: null,
     revenueMicros: null,
-    actions: { trial: { enabled: false, hint: '本期未开放' }, edit: true, more: true },
+    publicPageAvailable: true,
     publishedAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z',
     ...over,

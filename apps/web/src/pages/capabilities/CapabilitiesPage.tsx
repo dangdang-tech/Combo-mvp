@@ -1,7 +1,7 @@
 // 我的 Agent（F-07，接 GET /api/v1/dashboard/capabilities，60 域 §1.4）。
 //
 // 已发布 / 草稿等 Agent 列表管理（按状态筛选 + cursor 分页）。合规要点：
-//   - 复用工作台已建的 CapabilityTable / MoreMenu（行渲染、状态徽章、更多菜单）——不另造行。
+//   - 复用工作台已建的 CapabilityTable（行渲染、状态徽章、真实可执行动作）——不另造行。
 //   - 状态后端单源：reviewStatus / statusLabel / retryEditable / actions 全从后端派生，不前端自造。
 //   - usage 列（本月调用 / 消耗 sparkline / 收益）统一占位（CapabilityTable 内部 UsagePlaceholder / MiniSparkline）。
 //   - 管理页不展示尚未兑现的「试用」入口；真实试用从创作流程进入。
@@ -17,7 +17,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import type { DashboardCapabilityRow, Meta, PageMeta, Range } from '@cb/shared';
 import { apiGetEnvelope } from '../../api/index.js';
 import { ErrorState, LoadingState } from '../../components/index.js';
-import { CapabilityTable, MoreMenu, useMoreMenu } from '../dashboard/CapabilityTable.js';
+import { CapabilityTable } from '../dashboard/CapabilityTable.js';
 import { dedupeByCapabilityId } from '../dashboard/dedupe.js';
 
 /** 状态筛选档（与后端 DashboardCapabilitiesQuery.status 一致）。 */
@@ -69,7 +69,6 @@ async function fetchCapabilitiesPage(params: {
 
 export function CapabilitiesPage(): ReactElement {
   const navigate = useNavigate();
-  const more = useMoreMenu();
   const [status, setStatus] = useState<CapabilityStatusFilter>('all');
   const range: Range = '30d';
 
@@ -95,7 +94,6 @@ export function CapabilitiesPage(): ReactElement {
 
   function changeFilter(next: CapabilityStatusFilter): void {
     setStatus(next); // queryKey 变化即重取第一页，旧累积弃用（换筛选回第一页，60 §1.6）。
-    more.closeMore(); // 换筛选关掉可能开着的更多菜单（避免指向已不在列表的能力）。
   }
 
   const hasFilter = status !== 'all';
@@ -108,7 +106,9 @@ export function CapabilitiesPage(): ReactElement {
           <h2 className="cb-page__title" id="cb-capabilities-title">
             我的 Agent
           </h2>
-          <p className="cb-page__lead">管理你创建的 Agent：查看状态、重新生成或打开公开页。</p>
+          <p className="cb-page__lead">
+            查看每个 Agent 的当前状态；公开版本可直接打开，新的创作从右上角开始。
+          </p>
         </div>
         <button
           type="button"
@@ -155,14 +155,7 @@ export function CapabilitiesPage(): ReactElement {
         </div>
       ) : hasLoaded ? (
         <>
-          <CapabilityTable
-            rows={rows}
-            meta={lastMeta}
-            /* 2 步模型不做逐项原地编辑；“重新生成”回创建入口，
-               带上 capability 供向导恢复上下文，不冒充就地编辑。 */
-            onEdit={(row) => navigate(`/create/import?capability=${row.capabilityId}`)}
-            onMore={more.openMore}
-          />
+          <CapabilityTable rows={rows} meta={lastMeta} />
 
           {/* 翻页：cursor 分页，hasMore 时给「加载更多」（追加，不替换；不做 total）。 */}
           <div className="cb-capabilities__pager">
@@ -181,17 +174,6 @@ export function CapabilitiesPage(): ReactElement {
           </div>
         </>
       ) : null}
-
-      {/* 更多菜单（下架/改价占位 + 查看公开页路由占位，外壳首页-35）。 */}
-      <MoreMenu
-        state={more.state}
-        onView={(row) => {
-          more.closeMore();
-          navigate(`/a/${row.slug}`);
-        }}
-        onPending={more.setPending}
-        onClose={more.closeMore}
-      />
     </section>
   );
 }

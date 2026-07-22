@@ -211,7 +211,7 @@ export function dashboardTokenTrendHandler(): RouteHandlerMethod {
 
 /**
  * 能力体列表（§1.4，cursor 分页）。本人名下能力，名称/简介/状态真实（状态经单一真源派生）；
- *   usage 三列（本月调用/消耗迷你图/收益）null + meta.placeholders；试用按钮在但 enabled:false（决策③）；
+ *   usage 三列（本月调用/消耗迷你图/收益）null + meta.placeholders；公开页动作与 Runtime 真源同口径；
  *   拒绝态出原因 + 可重试编辑（B-30 三处可见之一）。
  */
 export function dashboardCapabilitiesHandler(): RouteHandlerMethod {

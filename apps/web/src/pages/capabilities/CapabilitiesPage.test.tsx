@@ -21,7 +21,7 @@ function row(over: Partial<DashboardCapabilityRow> = {}): DashboardCapabilityRow
     monthlyInvocations: null,
     spendSparkline: null,
     revenueMicros: null,
-    actions: { trial: { enabled: false, hint: '本期未开放' }, edit: true, more: true },
+    publicPageAvailable: true,
     publishedAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z',
     ...over,
@@ -106,7 +106,7 @@ describe('我的 Agent 页', () => {
     expect(screen.queryByRole('button', { name: '试用' })).not.toBeInTheDocument();
   });
 
-  it('操作入口：被退回态显示重新生成 + 拒绝原因', async () => {
+  it('被退回态保留拒绝原因；回退后的公开版真实可达时仍可打开', async () => {
     mock = installFetchMock({
       status: 200,
       json: pageBody([
@@ -115,7 +115,7 @@ describe('我的 Agent 页', () => {
           statusLabel: '已退回',
           rejectReason: '内容含敏感词',
           retryEditable: true,
-          actions: { trial: { enabled: false, hint: '本期未开放' }, edit: true, more: true },
+          publicPageAvailable: true,
         }),
       ]),
     });
@@ -126,24 +126,38 @@ describe('我的 Agent 页', () => {
     // 状态徽章「已退回」在表内（与同名筛选 chip 区分）。
     expect(within(table).getByText('已退回')).toBeInTheDocument();
     expect(within(table).getByText('内容含敏感词')).toBeInTheDocument();
-    expect(within(table).getByRole('button', { name: '重新生成' })).toBeInTheDocument();
+    expect(within(table).getByRole('link', { name: /打开.*公开页/ })).toBeInTheDocument();
   });
 
-  it('更多菜单：点「更多」打开菜单（下架/改价/查看可达），下架点击落本期未开放占位反馈', async () => {
+  it('已上架直接显示公开页；不再渲染“更多”占位菜单', async () => {
     mock = installFetchMock({ status: 200, json: pageBody([row()]) });
     renderPage(<CapabilitiesPage />);
     await screen.findByText('保险话术助手');
 
-    // 行内「更多」打开菜单（此前是空函数，点击无反馈 → 现可打开）。
-    await userEvent.click(screen.getByRole('button', { name: '更多操作' }));
-    const menu = await screen.findByRole('dialog', { name: /更多操作/ });
-    expect(within(menu).getByRole('menuitem', { name: /下架/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /改价/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /查看公开页/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /打开.*公开页/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 
-    // 下架是本期未开放占位：点击有反馈（占位文案），不发任何命令。
-    await userEvent.click(within(menu).getByRole('menuitem', { name: /下架/ }));
-    expect(within(menu).getByRole('status')).toHaveTextContent(/下架.*本期未开放/);
+  it('草稿没有公开版：不显示公开页与任何占位操作', async () => {
+    mock = installFetchMock({
+      status: 200,
+      json: pageBody([
+        row({
+          reviewStatus: 'draft',
+          statusLabel: '草稿',
+          publishedAt: null,
+          publicPageAvailable: false,
+        }),
+      ]),
+    });
+    renderPage(<CapabilitiesPage />);
+    await screen.findByText('保险话术助手');
+
+    expect(screen.queryByRole('button', { name: '重新创建' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /公开页/ })).toBeNull();
+    expect(screen.getByLabelText('暂无可用操作')).toHaveTextContent('—');
+    expect(screen.queryByText(/下架|改价|本期未开放/)).toBeNull();
   });
 
   it('空态（无 Agent）→ 友好空态，不裸空表', async () => {

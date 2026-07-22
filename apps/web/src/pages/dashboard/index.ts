@@ -2,17 +2,7 @@
 export { DashboardPage } from './DashboardPage.js';
 export { SummaryHeader, renderSummarySentence, type SummaryHeaderProps } from './SummaryHeader.js';
 export { MetricCards, type MetricCardsProps } from './MetricCards.js';
-export {
-  CapabilityTable,
-  TrialNotice,
-  useTrialNotice,
-  MoreMenu,
-  useMoreMenu,
-  type CapabilityTableProps,
-  type MoreMenuProps,
-  type MoreMenuState,
-  type MoreMenuItemKey,
-} from './CapabilityTable.js';
+export { CapabilityTable, type CapabilityTableProps } from './CapabilityTable.js';
 export { DraftStrip, type DraftStripProps } from './DraftStrip.js';
 export { RangeSwitch, type RangeSwitchProps } from './RangeSwitch.js';
 export * from './hooks.js';

@@ -124,7 +124,8 @@ export interface ListCapabilitiesResult {
 /**
  * 能力体列表（§1.4，cursor 分页，外壳首页-11）。本人名下能力 LEFT JOIN publications（含未发布草稿）。
  *   名称/简介取 capability_versions.manifest 软字段（真实）；状态原始列（review_status/reject_reason）交 view 派生。
- *   has_published_version：本能力是否有任意 published 版（派生 unpublished：被拒下架=无上一 published 版，§1.4）。
+ *   has_published_version：本能力是否有任意 published 版（仅派生 unpublished 展示态）。
+ *   public_page_available：严格镜像 Runtime 公开读取条件（当前版、active、published、public、去重代表）。
  *   rejected_version_id：最近一条 review_rejected 版（retryEditable 判定，与 3E 单源同口径）。
  *   cursor 用 capability id（UUID v7 时间有序）作不透明锚；多取一条判 hasMore（脊柱 §2.3，不返 total）。
  *   owner 内联 WHERE c.creator_user_id（外壳首页-20，本人经营口径）。
@@ -189,6 +190,31 @@ export async function listCapabilities(
             p.reject_reason                            AS reject_reason,
             rej.id                                     AS rejected_version_id,
             (pubv.id IS NOT NULL)                      AS has_published_version,
+            (
+              c.status = 'active'
+              AND cv.id IS NOT NULL
+              AND cv.status = 'published'
+              AND COALESCE(cv.visibility, 'public') = 'public'
+              AND NOT EXISTS (
+                SELECT 1
+                  FROM capabilities c2
+                  JOIN capability_versions cv2 ON cv2.id = c2.current_version_id
+                  JOIN capability_candidates cc2 ON cc2.id = cv2.source_candidate_id
+                  LEFT JOIN marketplace_listings ml2
+                    ON ml2.capability_id = c2.id
+                   AND ml2.version_id = cv2.id
+                 WHERE c2.id <> c.id
+                   AND c2.creator_user_id = c.creator_user_id
+                   AND c2.status = 'active'
+                   AND cv2.status = 'published'
+                   AND COALESCE(cv2.visibility, 'public') = 'public'
+                   AND cc.snapshot_id IS NOT NULL
+                   AND cc.slug IS NOT NULL
+                   AND cc2.snapshot_id = cc.snapshot_id
+                   AND cc2.slug = cc.slug
+                   AND COALESCE(ml2.updated_at, cv2.updated_at) > COALESCE(ml.updated_at, cv.updated_at)
+              )
+            )                                           AS public_page_available,
             p.published_at::text                       AS published_at,
             c.updated_at::text                         AS updated_at
        FROM capabilities c
@@ -198,6 +224,11 @@ export async function listCapabilities(
                     WHERE v2.capability_id = c.id
                     ORDER BY v2.created_at DESC LIMIT 1))
        LEFT JOIN publications p ON p.capability_id = c.id
+       LEFT JOIN capability_versions cv ON cv.id = c.current_version_id
+       LEFT JOIN capability_candidates cc ON cc.id = cv.source_candidate_id
+       LEFT JOIN marketplace_listings ml
+              ON ml.capability_id = c.id
+             AND ml.version_id = cv.id
        LEFT JOIN LATERAL (
          SELECT r.id FROM capability_versions r
           WHERE r.capability_id = c.id AND r.status = 'review_rejected'

@@ -1025,37 +1025,6 @@ body {
   cursor: default;
 }
 
-/* 试用占位浮层 */
-.cb-trial-notice {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--cb-fg);
-  color: #fff;
-  border-radius: 10px;
-  padding: 12px 18px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
-}
-
-.cb-trial-notice__text {
-  margin: 0;
-  font-size: 14px;
-}
-
-.cb-trial-notice__close {
-  border: 1px solid rgb(255 255 255 / 40%);
-  background: none;
-  color: #fff;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
 @media (max-width: 900px) {
   .cb-metric-cards {
     grid-template-columns: repeat(2, 1fr);

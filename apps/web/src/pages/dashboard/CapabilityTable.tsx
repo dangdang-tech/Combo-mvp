@@ -2,20 +2,18 @@
 //
 // 列：名称 + 一句话简介 / 状态（后端单源 reviewStatus+statusLabel 派生，不前端自造）/
 //     本月调用（usage 占位）/ 消耗迷你图（MiniSparkline 占位）/ 收益（usage 占位）/
-//     操作（重新生成·更多）。
-// 未兑现的试用入口不展示；“重新生成”明确表达会回到创建流程，不冒充就地编辑。
-// 被拒态（review_rejected）继续显示拒绝原因，操作同样是“重新生成”。
-import { useState, type ReactElement } from 'react';
+//     操作（当前公开页真实可达时直接打开）。
+// 创建新 Agent 由页面级 CTA 承担，不伪装成与某一行有关的“重新创建”。
+// 不展示占位动作，也不使用“更多”收纳不存在的能力：动作必须与当前状态一致。
+// 被拒态（review_rejected）继续显示拒绝原因；无真实公开页时操作列明确为空。
+import type { ReactElement } from 'react';
+import { Link } from 'react-router-dom';
 import type { DashboardCapabilityRow, Meta } from '@cb/shared';
 import { MiniSparkline, UsagePlaceholder } from '../../components/index.js';
 
 export interface CapabilityTableProps {
   rows: DashboardCapabilityRow[];
   meta: Meta | undefined;
-  /** 「重新生成」→ 带 Agent 上下文回到创建流程。 */
-  onEdit: (row: DashboardCapabilityRow) => void;
-  /** 「更多」菜单（下架/改价/查看，外壳首页-35）；本期占位入口。 */
-  onMore: (row: DashboardCapabilityRow) => void;
 }
 
 /** 状态徽章：颜色档由后端 reviewStatus 单源派生（前端不另判业务态）。 */
@@ -42,13 +40,9 @@ function StatusBadge({ row }: { row: DashboardCapabilityRow }): ReactElement {
 function CapabilityRow({
   row,
   meta,
-  onEdit,
-  onMore,
 }: {
   row: DashboardCapabilityRow;
   meta: Meta | undefined;
-  onEdit: (row: DashboardCapabilityRow) => void;
-  onMore: (row: DashboardCapabilityRow) => void;
 }): ReactElement {
   return (
     <tr className="cb-cap-row" data-capability={row.capabilityId}>
@@ -82,24 +76,18 @@ function CapabilityRow({
         )}
       </td>
       <td className="cb-cap-row__actions">
-        {row.actions.edit && (
-          <button
-            type="button"
-            className="cb-cap-action cb-cap-action--edit"
-            onClick={() => onEdit(row)}
+        {row.publicPageAvailable ? (
+          <Link
+            className="cb-cap-action cb-cap-action--view"
+            to={`/a/${encodeURIComponent(row.slug)}`}
+            aria-label={`打开「${row.name}」公开页`}
           >
-            重新生成
-          </button>
-        )}
-        {row.actions.more && (
-          <button
-            type="button"
-            className="cb-cap-action cb-cap-action--more"
-            onClick={() => onMore(row)}
-            aria-label="更多操作"
-          >
-            更多
-          </button>
+            公开页
+          </Link>
+        ) : (
+          <span className="cb-cap-row__no-action" aria-label="暂无可用操作">
+            —
+          </span>
         )}
       </td>
     </tr>
@@ -117,12 +105,7 @@ function EmptyRow(): ReactElement {
   );
 }
 
-export function CapabilityTable({
-  rows,
-  meta,
-  onEdit,
-  onMore,
-}: CapabilityTableProps): ReactElement {
+export function CapabilityTable({ rows, meta }: CapabilityTableProps): ReactElement {
   return (
     <table className="cb-cap-table">
       <thead>
@@ -139,161 +122,9 @@ export function CapabilityTable({
         {rows.length === 0 ? (
           <EmptyRow />
         ) : (
-          rows.map((r) => (
-            <CapabilityRow
-              key={r.capabilityId}
-              row={r}
-              meta={meta}
-              onEdit={onEdit}
-              onMore={onMore}
-            />
-          ))
+          rows.map((r) => <CapabilityRow key={r.capabilityId} row={r} meta={meta} />)
         )}
       </tbody>
     </table>
   );
-}
-
-/**
- * 「更多」操作菜单（外壳首页-35）。本期仅入口可达：下架 / 改价 / 查看三项，
- * 其中下架·改价为本期未开放占位（点击落「本期未开放」反馈、不发任何命令），
- * 查看为公开页路由占位（点击触发 onView，由调用方导航到 /a/{slug} 公开页）。
- *
- * 设计取舍：菜单项动作由后端能力/路由决定，本组件只负责展示与点击反馈，
- * 不前端自造业务态、不裸触发未实现命令（铁律：永不裸转圈、对外只读不下钻）。
- */
-export type MoreMenuItemKey = 'unpublish' | 'reprice' | 'view';
-
-/** 单条菜单项：本期未开放（占位）或可路由（查看）。 */
-interface MoreMenuItemDef {
-  key: MoreMenuItemKey;
-  label: string;
-  /** true = 本期未开放占位（disabled 态 + hint）；false = 可点（如查看走路由）。 */
-  pending: boolean;
-}
-
-const MORE_MENU_ITEMS: ReadonlyArray<MoreMenuItemDef> = [
-  { key: 'unpublish', label: '下架', pending: true },
-  { key: 'reprice', label: '改价', pending: true },
-  { key: 'view', label: '查看公开页', pending: false },
-];
-
-const MORE_PENDING_HINT = '本期未开放';
-
-export interface MoreMenuState {
-  /** 当前打开菜单的能力（null = 未打开）。 */
-  row: DashboardCapabilityRow | null;
-  /** 选中某项后的本期占位反馈文案（null = 无反馈）。 */
-  pendingNotice: string | null;
-}
-
-export interface MoreMenuProps {
-  state: MoreMenuState;
-  /** 点「查看公开页」→ 由调用方导航到公开页（对外只读，不进管理）。 */
-  onView: (row: DashboardCapabilityRow) => void;
-  /** 选了本期未开放项 → 记录占位反馈文案。 */
-  onPending: (notice: string) => void;
-  /** 关闭菜单。 */
-  onClose: () => void;
-}
-
-/**
- * 更多菜单浮层（受控 open by state.row）。下架/改价为本期未开放占位项（aria-disabled + hint，
- * 点击给「本期未开放」反馈、不发命令）；查看为路由占位（点击触发 onView）。
- */
-export function MoreMenu({
-  state,
-  onView,
-  onPending,
-  onClose,
-}: MoreMenuProps): ReactElement | null {
-  const { row, pendingNotice } = state;
-  if (row === null) return null;
-  return (
-    <div className="cb-more-menu" role="dialog" aria-label={`「${row.name}」更多操作`}>
-      <ul className="cb-more-menu__list" role="menu">
-        {MORE_MENU_ITEMS.map((item) => (
-          <li key={item.key} role="none">
-            <button
-              type="button"
-              role="menuitem"
-              className={`cb-more-menu__item${item.pending ? ' cb-more-menu__item--pending' : ''}`}
-              data-action={item.key}
-              data-pending={item.pending}
-              {...(item.pending ? { 'aria-disabled': true, title: MORE_PENDING_HINT } : {})}
-              onClick={() => {
-                if (item.pending) {
-                  onPending(`「${item.label}」${MORE_PENDING_HINT}，敬请期待。`);
-                } else {
-                  onView(row);
-                }
-              }}
-            >
-              <span className="cb-more-menu__label">{item.label}</span>
-              {item.pending && <span className="cb-more-menu__hint">{MORE_PENDING_HINT}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {pendingNotice !== null && (
-        <p className="cb-more-menu__notice" role="status">
-          {pendingNotice}
-        </p>
-      )}
-      <button type="button" className="cb-more-menu__close" onClick={onClose}>
-        关闭
-      </button>
-    </div>
-  );
-}
-
-/**
- * 受控更多菜单 hook：记录点了哪个能力的「更多」、占位项反馈文案。
- * 打开新菜单时清空上一次占位反馈，避免串台。
- */
-export function useMoreMenu(): {
-  state: MoreMenuState;
-  openMore: (row: DashboardCapabilityRow) => void;
-  setPending: (notice: string) => void;
-  closeMore: () => void;
-} {
-  const [state, setState] = useState<MoreMenuState>({ row: null, pendingNotice: null });
-  return {
-    state,
-    openMore: (row) => setState({ row, pendingNotice: null }),
-    setPending: (notice) => setState((prev) => ({ ...prev, pendingNotice: notice })),
-    closeMore: () => setState({ row: null, pendingNotice: null }),
-  };
-}
-
-/** 「本期未开放」试用占位浮层（行内试用点击后弹出）。受控 open + 关闭。 */
-export interface TrialNoticeProps {
-  capabilityName: string | null;
-  onClose: () => void;
-}
-
-export function TrialNotice({ capabilityName, onClose }: TrialNoticeProps): ReactElement | null {
-  if (capabilityName === null) return null;
-  return (
-    <div className="cb-trial-notice" role="dialog" aria-label="试用提示">
-      <p className="cb-trial-notice__text">「{capabilityName}」的试用本期未开放，敬请期待。</p>
-      <button type="button" className="cb-trial-notice__close" onClick={onClose}>
-        知道了
-      </button>
-    </div>
-  );
-}
-
-/** 受控试用占位 hook：记录点了哪个能力的试用，弹占位。 */
-export function useTrialNotice(): {
-  noticeName: string | null;
-  openTrial: (row: DashboardCapabilityRow) => void;
-  closeTrial: () => void;
-} {
-  const [noticeName, setNoticeName] = useState<string | null>(null);
-  return {
-    noticeName,
-    openTrial: (row) => setNoticeName(row.name),
-    closeTrial: () => setNoticeName(null),
-  };
 }

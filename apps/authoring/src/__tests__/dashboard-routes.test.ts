@@ -399,23 +399,88 @@ describe('GET /dashboard/capabilities（能力表，§1.4）', () => {
     expect(body.meta?.placeholders?.revenueMicros).toBe(USAGE_PLACEHOLDER_TEXT);
   });
 
-  it('试用按钮在但本期未开放（actions.trial.enabled=false, hint）；edit/more 可达', async () => {
+  it('公开页动作与 Runtime 真实可达条件同源，不把历史发布版或不可见版变成死入口', async () => {
     const db = new DashboardFakeDb();
     const me = 'user-me';
-    seedCapability(db, me, { reviewStatus: 'published' });
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      versionStatus: 'published',
+      visibility: 'public',
+      name: 'public-current',
+    });
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      versionStatus: 'draft',
+      addPublishedVersion: true,
+      name: 'old-published-current-draft',
+    });
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      versionStatus: 'published',
+      visibility: 'unlisted',
+      name: 'unlisted',
+    });
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      versionStatus: 'published',
+      capabilityStatus: 'archived',
+      name: 'archived',
+    });
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      rejectReason: '新版本被退回，继续展示当前已发布版',
+      versionStatus: 'published',
+      addRejectedVersion: true,
+      name: 'rollback-public',
+    });
     const ctx = makeReqReply({ userId: me, db });
     await call(dashboardCapabilitiesHandler(), ctx);
-    const row = (
+    const rows = (
       ctx.sent.body as {
         data: Array<{
-          actions: { trial: { enabled: boolean; hint: string }; edit: boolean; more: boolean };
+          name: string;
+          publicPageAvailable: boolean;
         }>;
       }
-    ).data[0]!;
-    expect(row.actions.trial.enabled).toBe(false);
-    expect(row.actions.trial.hint).toBe('本期未开放');
-    expect(row.actions.edit).toBe(true);
-    expect(row.actions.more).toBe(true);
+    ).data;
+    const available = (name: string) => rows.find((row) => row.name === name)!.publicPageAvailable;
+    expect(available('public-current')).toBe(true);
+    expect(available('old-published-current-draft')).toBe(false);
+    expect(available('unlisted')).toBe(false);
+    expect(available('archived')).toBe(false);
+    expect(available('rollback-public')).toBe(true);
+  });
+
+  it('同源候选的旧重复能力不可公开直达，只给最新代表公开页入口', async () => {
+    const db = new DashboardFakeDb();
+    const me = 'user-me';
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      versionStatus: 'published',
+      visibility: 'public',
+      candidateSnapshotId: 'snap-1',
+      candidateSlug: 'same-topic',
+      listingUpdatedAt: '2026-06-15T00:00:00.000Z',
+      name: 'older-duplicate',
+    });
+    seedCapability(db, me, {
+      reviewStatus: 'published',
+      versionStatus: 'published',
+      visibility: 'public',
+      candidateSnapshotId: 'snap-1',
+      candidateSlug: 'same-topic',
+      listingUpdatedAt: '2026-06-16T00:00:00.000Z',
+      name: 'latest-representative',
+    });
+
+    const ctx = makeReqReply({ userId: me, db });
+    await call(dashboardCapabilitiesHandler(), ctx);
+    const rows = (ctx.sent.body as { data: Array<{ name: string; publicPageAvailable: boolean }> })
+      .data;
+    expect(rows.find((row) => row.name === 'older-duplicate')?.publicPageAvailable).toBe(false);
+    expect(rows.find((row) => row.name === 'latest-representative')?.publicPageAvailable).toBe(
+      true,
+    );
   });
 
   it('status=draft 过滤只回无 publication 行的能力', async () => {

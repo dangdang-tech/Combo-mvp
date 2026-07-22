@@ -75,11 +75,8 @@ export const DashboardCapabilityRowSchema = z.object({
   monthlyInvocations: z.number().int().nullable(),
   spendSparkline: z.array(TrendPointSchema).nullable(),
   revenueMicros: z.number().int().nullable(),
-  actions: z.object({
-    trial: z.object({ enabled: z.literal(false), hint: z.literal('本期未开放') }),
-    edit: z.boolean(),
-    more: z.boolean(),
-  }),
+  /** 只有当前版本确实可被 Runtime 公开读取时才展示公开页链接。 */
+  publicPageAvailable: z.boolean(),
   publishedAt: IsoDateTimeSchema.nullable(),
   updatedAt: IsoDateTimeSchema,
 });

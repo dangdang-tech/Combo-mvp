@@ -131,6 +131,8 @@ export interface DashboardCapabilityJoinRow {
   rejected_version_id: string | null;
   /** 该能力是否有任意 published 版（用于派生 unpublished：被拒下架=无上一 published 版）。 */
   has_published_version: boolean;
+  /** 当前公开页是否与 Runtime 同口径真实可达。 */
+  public_page_available: boolean;
   published_at: string | null;
   updated_at: string;
 }
@@ -180,7 +182,7 @@ export function deriveCapabilityReviewStatus(
  * 能力表行投影（§1.4，外壳首页-11/14/15/30-B30）。
  *   - 状态列：deriveCapabilityReviewStatus（单一真源派生，绝不自行拼装）。
  *   - usage 列：monthlyInvocations/spendSparkline/revenueMicros 本期 null（meta.placeholders 逐键标注）。
- *   - 试用：actions.trial 恒 {enabled:false, hint:'本期未开放'}（决策③，按钮在、点击落占位）。
+ *   - 行级动作只返回当前真实可执行项：公开页与 Runtime 读取口径一致；新建入口由页面级 CTA 承担。
  *   - 拒绝态：reviewStatus 含 review_rejected → rejectReason 人话原因 + retryEditable=true（有被拒版定位才可重发）。
  */
 export function toDashboardCapabilityRow(row: DashboardCapabilityJoinRow): DashboardCapabilityRow {
@@ -201,11 +203,7 @@ export function toDashboardCapabilityRow(row: DashboardCapabilityJoinRow): Dashb
     monthlyInvocations: null, // usage 占位
     spendSparkline: null, // usage 占位（消耗迷你图）
     revenueMicros: null, // usage 占位（收益）
-    actions: {
-      trial: { enabled: false, hint: '本期未开放' }, // 决策③，按钮在但本期未开放
-      edit: true, // 进草稿/编辑（外壳首页-15）
-      more: true, // 更多菜单：下架/改价/查看（外壳首页-35）
-    },
+    publicPageAvailable: row.public_page_available,
     publishedAt: row.published_at,
     updatedAt: row.updated_at,
   };

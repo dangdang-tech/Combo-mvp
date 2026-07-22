@@ -10,7 +10,7 @@
 // 加载用 4A 加载件（Skeleton / ChartSkeleton），错误用 ErrorState（只 userMessage + action，无 code）。
 import { useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Range, DashboardCapabilityRow, DraftView } from '@cb/shared';
+import type { Range, DraftView } from '@cb/shared';
 import {
   ErrorState,
   LoadingState,
@@ -23,7 +23,7 @@ import { goToLogin } from '../../shell/auth.js';
 import { RangeSwitch } from './RangeSwitch.js';
 import { SummaryHeader } from './SummaryHeader.js';
 import { MetricCards } from './MetricCards.js';
-import { CapabilityTable, MoreMenu, useMoreMenu } from './CapabilityTable.js';
+import { CapabilityTable } from './CapabilityTable.js';
 import { DraftStrip } from './DraftStrip.js';
 import { useSummary, useMetrics, useTokenTrend, useCapabilities, useDrafts } from './hooks.js';
 
@@ -33,7 +33,6 @@ export function DashboardPage(): ReactElement {
   const navigate = useNavigate();
   const [range, setRange] = useState<Range>('30d');
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('tokens');
-  const more = useMoreMenu();
 
   // 会话中途过期（mid-session）防御：读失败若 action=escalate，给可用「去登录」CTA（整页跳后端登录端点）。
   // 新鲜未登录由路由守卫拦截，这里补的是登录后会话过期的场景（守卫已放行进外壳后才 401）。
@@ -46,17 +45,8 @@ export function DashboardPage(): ReactElement {
   const caps = useCapabilities(range);
   const drafts = useDrafts();
 
-  // 「创建 Agent」/「重新生成」/草稿恢复 → Agent 创作流程。
+  // 「创建 Agent」/草稿恢复 → Agent 创作流程。
   const goCreate = (): void => navigate(CREATE_ENTRY);
-  // 当前流程不支持对已生成 Agent 原地编辑；此入口会带上 capability 回到创建流程，
-  // 因此用户可见动作明确写“重新生成”，不冒充就地编辑。
-  const goRegenerate = (row: DashboardCapabilityRow): void =>
-    navigate(`${CREATE_ENTRY}?capability=${row.capabilityId}`);
-  // 「查看公开页」→ 对外只读公开页路由占位（不进编辑/管理；公开页 /a/{slug} 由后续接，本期落 probe 路由）。
-  const goView = (row: DashboardCapabilityRow): void => {
-    more.closeMore();
-    navigate(`/a/${row.slug}`);
-  };
   // 草稿续传（F-15 / 贯穿-15）：带 ?draftId= + 该草稿已生成产物全引用（snapshotId/extractJobId/version/batchId）
   // 跳该草稿中断步，向导据此精确恢复 selection / 候选 / 版本 / 批次上下文，回到原断点（外壳首页-17/33），
   // 各步据引用续接已生成产物、不重建任务（STEP④ 不重建版、STEP⑤ 单发布不缺 version、批量恢复同一批次），已生成不丢。
@@ -178,23 +168,10 @@ export function DashboardPage(): ReactElement {
           />
         ) : (
           <>
-            <CapabilityTable
-              rows={caps.items}
-              meta={caps.meta}
-              onEdit={goRegenerate}
-              onMore={more.openMore}
-            />
+            <CapabilityTable rows={caps.items} meta={caps.meta} />
           </>
         )}
       </section>
-
-      {/* 更多菜单（下架/改价占位 + 查看公开页路由占位，外壳首页-35） */}
-      <MoreMenu
-        state={more.state}
-        onView={goView}
-        onPending={more.setPending}
-        onClose={more.closeMore}
-      />
     </section>
   );
 }

@@ -3,7 +3,8 @@
 //     - countPublished：本人 publications.review_status='published' 计数（owner 内联 JOIN capabilities）。
 //     - countPublishedPrevWindow：上一区间 published_at 落窗的 published 计数（range 决定窗口；all → null 由 repo 短路）。
 //     - listCapabilities：本人能力 LEFT JOIN publications（含未发布草稿）+ manifest 软字段 name/tagline +
-//         最近 review_rejected 版定位 + has_published_version；cursor 用 capability id；status 过滤（draft=无 pub 行）。
+//         最近 review_rejected 版定位 + has_published_version + Runtime 同口径 public_page_available；
+//         cursor 用 capability id；status 过滤（draft=无 pub 行）。
 //     - listDrafts：本人 status='active' 草稿，cursor 用 draft id，order desc/asc。
 //   反向破坏：非本人 owner 取不到行（owner 守门）；status 过滤命中正确子集；usage 不查任何 daily_* 表（夹具无这些表）。
 import type { Queryable, QueryResultLike } from '../platform/jobs/types.js';
@@ -71,6 +72,7 @@ export interface CapRow {
   id: string;
   creator_user_id: string;
   slug: string;
+  status: string;
   current_version_id: string | null;
   updated_at: string;
   created_at: string;
@@ -79,9 +81,22 @@ export interface VerRow {
   id: string;
   capability_id: string;
   status: string; // draft|published|superseded|review_rejected
+  visibility: string | null;
+  source_candidate_id: string | null;
   manifest: { name?: string; tagline?: string };
   rejected_at: string | null;
+  updated_at: string;
   created_at: string;
+}
+export interface CandidateRow {
+  id: string;
+  snapshot_id: string | null;
+  slug: string | null;
+}
+export interface ListingRow {
+  capability_id: string;
+  version_id: string;
+  updated_at: string;
 }
 export interface PubRow {
   capability_id: string;
@@ -109,6 +124,8 @@ export class DashboardFakeDb implements Queryable {
   readonly queries: Array<{ sql: string; params: unknown[] }> = [];
   capabilities = new Map<string, CapRow>();
   versions = new Map<string, VerRow>();
+  candidates = new Map<string, CandidateRow>();
+  listings = new Map<string, ListingRow>();
   publications = new Map<string, PubRow>(); // key = capability_id
   drafts = new Map<string, DraftRow>();
   /** 注入：下一次 query 抛错（验聚合失败 → 500）。 */
@@ -249,6 +266,56 @@ export class DashboardFakeDb implements Queryable {
         const hasPublishedVersion = [...this.versions.values()].some(
           (v) => v.capability_id === c.id && v.status === 'published',
         );
+        const currentVersion = c.current_version_id
+          ? this.versions.get(c.current_version_id)
+          : undefined;
+        const currentCandidate = currentVersion?.source_candidate_id
+          ? this.candidates.get(currentVersion.source_candidate_id)
+          : undefined;
+        const currentListing = currentVersion
+          ? this.listings.get(`${c.id}:${currentVersion.id}`)
+          : undefined;
+        const currentFreshness = currentListing?.updated_at ?? currentVersion?.updated_at ?? '';
+        const shadowedByNewerDuplicate =
+          currentCandidate?.snapshot_id !== null &&
+          currentCandidate?.snapshot_id !== undefined &&
+          currentCandidate.slug !== null &&
+          currentCandidate.slug !== undefined &&
+          [...this.capabilities.values()].some((other) => {
+            if (
+              other.id === c.id ||
+              other.creator_user_id !== c.creator_user_id ||
+              other.status !== 'active' ||
+              other.current_version_id === null
+            ) {
+              return false;
+            }
+            const otherVersion = this.versions.get(other.current_version_id);
+            if (
+              !otherVersion ||
+              otherVersion.status !== 'published' ||
+              (otherVersion.visibility ?? 'public') !== 'public' ||
+              otherVersion.source_candidate_id === null
+            ) {
+              return false;
+            }
+            const otherCandidate = this.candidates.get(otherVersion.source_candidate_id);
+            if (
+              otherCandidate?.snapshot_id !== currentCandidate.snapshot_id ||
+              otherCandidate?.slug !== currentCandidate.slug
+            ) {
+              return false;
+            }
+            const otherFreshness =
+              this.listings.get(`${other.id}:${otherVersion.id}`)?.updated_at ??
+              otherVersion.updated_at;
+            return otherFreshness > currentFreshness;
+          });
+        const publicPageAvailable =
+          c.status === 'active' &&
+          currentVersion?.status === 'published' &&
+          (currentVersion.visibility ?? 'public') === 'public' &&
+          !shadowedByNewerDuplicate;
         return {
           capability_id: c.id,
           version_id: c.current_version_id ?? ver?.id ?? null,
@@ -259,6 +326,7 @@ export class DashboardFakeDb implements Queryable {
           reject_reason: pub?.reject_reason ?? null,
           rejected_version_id: rej?.id ?? null,
           has_published_version: hasPublishedVersion,
+          public_page_available: publicPageAvailable,
           published_at: pub?.published_at ?? null,
           updated_at: c.updated_at,
         };
@@ -301,6 +369,16 @@ export function seedCapability(
     tagline?: string;
     /** 当前版本状态（默认 draft）。 */
     versionStatus?: string;
+    /** 当前能力状态（默认 active）。 */
+    capabilityStatus?: string;
+    /** 当前版本可见性（默认 public）。 */
+    visibility?: string | null;
+    /** 当前版本候选血缘；两项同时提供时可测试公开页去重口径。 */
+    candidateSnapshotId?: string;
+    candidateSlug?: string;
+    /** 当前版本/市集更新时间（用于公开页重复代表判定）。 */
+    versionUpdatedAt?: string;
+    listingUpdatedAt?: string;
     /** publications.review_status（不传 = 无 publication 行 = 草稿态）。 */
     reviewStatus?: 'alpha_pending' | 'published' | 'review_rejected' | null;
     rejectReason?: string | null;
@@ -318,26 +396,51 @@ export function seedCapability(
     id: capabilityId,
     creator_user_id: ownerUserId,
     slug: opts?.slug ?? `slug-${capabilityId}`,
+    status: opts?.capabilityStatus ?? 'active',
     current_version_id: versionId,
     updated_at: now,
     created_at: now,
   });
+  const candidateId =
+    opts?.candidateSnapshotId !== undefined || opts?.candidateSlug !== undefined
+      ? nextId('cand')
+      : null;
+  if (candidateId) {
+    db.candidates.set(candidateId, {
+      id: candidateId,
+      snapshot_id: opts?.candidateSnapshotId ?? null,
+      slug: opts?.candidateSlug ?? null,
+    });
+  }
   db.versions.set(versionId, {
     id: versionId,
     capability_id: capabilityId,
     status: opts?.versionStatus ?? 'draft',
+    visibility: opts?.visibility ?? 'public',
+    source_candidate_id: candidateId,
     manifest: { name: opts?.name ?? '需求炼金师', tagline: opts?.tagline ?? '把对话炼成能力' },
     rejected_at: null,
+    updated_at: opts?.versionUpdatedAt ?? now,
     created_at: now,
   });
+  if (opts?.listingUpdatedAt) {
+    db.listings.set(`${capabilityId}:${versionId}`, {
+      capability_id: capabilityId,
+      version_id: versionId,
+      updated_at: opts.listingUpdatedAt,
+    });
+  }
   if (opts?.addRejectedVersion) {
     const rejId = nextId('ver');
     db.versions.set(rejId, {
       id: rejId,
       capability_id: capabilityId,
       status: 'review_rejected',
+      visibility: 'public',
+      source_candidate_id: null,
       manifest: { name: opts?.name ?? '需求炼金师', tagline: '' },
       rejected_at: '2026-06-15T00:00:00.000Z',
+      updated_at: '2026-06-15T00:00:00.000Z',
       created_at: '2026-06-15T00:00:00.000Z',
     });
   }
@@ -347,8 +450,11 @@ export function seedCapability(
       id: pubId,
       capability_id: capabilityId,
       status: 'published',
+      visibility: 'public',
+      source_candidate_id: null,
       manifest: { name: opts?.name ?? '需求炼金师', tagline: '上一版' },
       rejected_at: null,
+      updated_at: '2026-06-14T00:00:00.000Z',
       created_at: '2026-06-14T00:00:00.000Z',
     });
   }

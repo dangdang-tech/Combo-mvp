@@ -3,7 +3,7 @@
 // 用按 URL 路由的 fetch mock（5 端点并发，顺序不定，不能用 queue）；react-query retry:false 防慢/flaky。
 // jsdom 无 canvas → mock echarts。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
@@ -92,7 +92,7 @@ const CAPABILITIES = {
       monthlyInvocations: null,
       spendSparkline: null,
       revenueMicros: null,
-      actions: { trial: { enabled: false, hint: '本期未开放' }, edit: true, more: true },
+      publicPageAvailable: true,
       publishedAt: '2026-06-01T00:00:00Z',
       updatedAt: '2026-06-10T00:00:00Z',
     },
@@ -158,7 +158,6 @@ function ok(): RouteMap {
 
 function LocationProbe(): ReactElement {
   const location = useLocation();
-  // 暴露落地路由的 search（供「编辑」入口断言 ?capability= 是否对齐向导消费键，Defect 3）。
   return (
     <div data-testid="probe" data-search={location.search}>
       probed
@@ -174,7 +173,7 @@ function renderPage(): { container: HTMLElement } {
         <Routes>
           <Route path="/creator" element={<DashboardPage />} />
           <Route path="/create/import" element={<LocationProbe />} />
-          {/* 草稿续传（已过导入的 currentStep）落能力页；编辑入口仍带 ?capability= 进结构化路由。 */}
+          {/* 草稿续传（已过导入的 currentStep）落能力页。 */}
           <Route path="/create/capabilities" element={<LocationProbe />} />
           <Route path="/create/structure" element={<LocationProbe />} />
           <Route path="/capabilities" element={<LocationProbe />} />
@@ -304,31 +303,23 @@ describe('DashboardPage 操作入口', () => {
     expect(screen.queryByRole('button', { name: '试用' })).not.toBeInTheDocument();
   });
 
-  it('行内「更多」→ 打开菜单（下架/改价占位 + 查看公开页），下架点击落本期未开放反馈、不导航', async () => {
+  it('操作列只展示真实动作，不出现“更多”占位菜单', async () => {
     restore = installRoutedFetch(ok());
     renderPage();
     await screen.findByText('保险方案速算');
 
-    await userEvent.click(screen.getByRole('button', { name: '更多操作' }));
-    const menu = await screen.findByRole('dialog', { name: /更多操作/ });
-    expect(within(menu).getByRole('menuitem', { name: /下架/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /改价/ })).toBeInTheDocument();
-    expect(within(menu).getByRole('menuitem', { name: /查看公开页/ })).toBeInTheDocument();
-
-    // 下架本期未开放：点击有占位反馈，且不导航（probe 不出现）。
-    await userEvent.click(within(menu).getByRole('menuitem', { name: /下架/ }));
-    expect(within(menu).getByRole('status')).toHaveTextContent(/下架.*本期未开放/);
-    expect(screen.queryByTestId('probe')).toBeNull();
+    expect(screen.getByRole('link', { name: /打开.*公开页/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重新创建' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('更多菜单「查看公开页」→ 对外只读公开页路由（/a/{slug}），不进管理', async () => {
+  it('行内「公开页」→ 对外只读公开页路由（/a/{slug}），不进管理', async () => {
     restore = installRoutedFetch(ok());
     renderPage();
     await screen.findByText('保险方案速算');
 
-    await userEvent.click(screen.getByRole('button', { name: '更多操作' }));
-    const menu = await screen.findByRole('dialog', { name: /更多操作/ });
-    await userEvent.click(within(menu).getByRole('menuitem', { name: /查看公开页/ }));
+    await userEvent.click(screen.getByRole('link', { name: /打开.*公开页/ }));
     // 导航到公开页路由占位（slug=my-cap → /a/my-cap）。
     expect(await screen.findByTestId('probe')).toBeInTheDocument();
   });
@@ -338,17 +329,6 @@ describe('DashboardPage 操作入口', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: '创建 Agent' }));
     expect(await screen.findByTestId('probe')).toBeInTheDocument();
-  });
-
-  it('Agent 行「重新生成」→ 进创建流程并带 ?capability=', async () => {
-    restore = installRoutedFetch(ok());
-    renderPage();
-    await screen.findByText('保险方案速算');
-    await userEvent.click(screen.getByRole('button', { name: '重新生成' }));
-    const probe = await screen.findByTestId('probe');
-    // 向导只读 ?capability=（WizardLayout/PublishStepPage/StructureStepPage）：编辑入口须发同名键，
-    // 否则参数被静默丢弃。断言带的是 capability= cap-1，且不是旧的 capabilityId=。
-    expect(probe.getAttribute('data-search')).toBe('?capability=cap-1');
   });
 
   it('进行中的创作「继续完善」→ 回到 currentStep 断点（已过导入 → 能力页 /create/capabilities）', async () => {
