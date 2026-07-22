@@ -169,11 +169,11 @@ export function DesignAgentPanel({
         {!readOnlyHistory && (isRunning || isBootstrapping) ? (
           <div className="rt-design-agent__running">
             <span aria-hidden="true" />
-            <div>
+            <div role="status" aria-live="polite">
               <strong>{isBootstrapping ? '正在生成页面' : '正在应用修改'}</strong>
               <small>可以继续输入下一条修改。</small>
             </div>
-            {isRunning && (
+            {(isRunning || isBootstrapping) && (
               <button type="button" onClick={onInterrupt}>
                 停止
               </button>

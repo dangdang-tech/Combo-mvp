@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
-import { forkLatestStudioRevision } from './repo.js';
+import { forkLatestStudioRevision, getStudioState } from './repo.js';
 
 const input = {
   ownerId: 'creator-1',
@@ -169,5 +169,67 @@ describe('forkLatestStudioRevision', () => {
       db.calls.some((call) => call.sql.includes('SELECT source_session.id AS source_session_id')),
     ).toBe(false);
     expect(db.release).toHaveBeenCalledOnce();
+  });
+});
+
+describe('getStudioState', () => {
+  const studioSessionId = '55555555-5555-4555-8555-555555555555';
+  const runId = '66666666-6666-4666-8666-666666666666';
+  const now = new Date('2026-07-22T12:00:00.000Z');
+
+  function statePool(lastActivityAt: Date, staleUpdateMatches = true) {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes('FROM rt_chat_runs run')) {
+        return { rows: [{ id: runId, last_activity_at: lastActivityAt }] };
+      }
+      if (sql.includes('UPDATE rt_chat_runs run')) {
+        return { rows: staleUpdateMatches ? [{ id: runId }] : [] };
+      }
+      return { rows: [] };
+    });
+    return { pool: { query } as unknown as Pool, calls };
+  }
+
+  it('keeps a recently active design run, including long runs with fresh events', async () => {
+    const db = statePool(new Date('2026-07-22T11:31:00.000Z'));
+
+    const state = await getStudioState(db.pool, studioSessionId, now);
+
+    expect(state.activeDesignRunId).toBe(runId);
+    const activeRunQuery = db.calls.find((call) => call.sql.includes('FROM rt_chat_runs run'));
+    expect(activeRunQuery?.sql).toContain('LEFT JOIN LATERAL');
+    expect(activeRunQuery?.sql).toContain('FROM rt_chat_run_events event');
+    expect(activeRunQuery?.sql).toContain('ORDER BY event.id DESC');
+    expect(activeRunQuery?.sql).toContain("run.status IN ('queued', 'running')");
+    expect(activeRunQuery?.sql).toContain("run.input ->> 'intent' = 'design'");
+    expect(activeRunQuery?.params).toEqual([studioSessionId]);
+    expect(db.calls.some((call) => call.sql.includes('UPDATE rt_chat_runs run'))).toBe(false);
+  });
+
+  it('interrupts a silent orphaned design run so it cannot block a new bootstrap forever', async () => {
+    const db = statePool(new Date('2026-07-22T11:29:59.999Z'));
+
+    const state = await getStudioState(db.pool, studioSessionId, now);
+
+    expect(state.activeDesignRunId).toBeNull();
+    const staleUpdate = db.calls.find((call) => call.sql.includes('UPDATE rt_chat_runs run'));
+    expect(staleUpdate?.sql).toContain("SET status = 'interrupted'");
+    expect(staleUpdate?.sql).toContain("run.status IN ('queued', 'running')");
+    expect(staleUpdate?.sql).toContain('event.created_at >= $2::timestamptz');
+    expect(staleUpdate?.params).toEqual([
+      runId,
+      '2026-07-22T11:30:00.000Z',
+      '2026-07-22T12:00:00.000Z',
+    ]);
+  });
+
+  it('keeps the bootstrap lock when concurrent activity refreshes a stale candidate', async () => {
+    const db = statePool(new Date('2026-07-22T11:29:59.999Z'), false);
+
+    const state = await getStudioState(db.pool, studioSessionId, now);
+
+    expect(state.activeDesignRunId).toBe(runId);
   });
 });

@@ -38,7 +38,7 @@ export interface AguiSession {
   error: string | null;
   setActiveKey: (key: string | null) => void;
   send: (text: string, lockedElements?: LockedElement[], intent?: RunIntent) => boolean;
-  interrupt: () => void;
+  interrupt: (fallbackRunId?: string) => void;
 }
 
 function readArtifacts(state: ArtifactState): {
@@ -302,8 +302,8 @@ export function useAguiSession(
     return true;
   };
 
-  const interrupt = (): void => {
-    const runId = activeRunRef.current;
+  const interrupt = (fallbackRunId?: string): void => {
+    const runId = activeRunRef.current ?? fallbackRunId;
     if (!runId) return;
     void apiPost(`/runtime/runs/${runId}/interrupt`).catch(() => undefined);
   };

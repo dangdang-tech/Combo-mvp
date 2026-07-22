@@ -105,4 +105,18 @@ describe('useAguiSession', () => {
 
     expect(result.current.error).toBe('无法启动运行，请重试。');
   });
+
+  it('can interrupt a durable run restored after the page reloads', () => {
+    apiPostMock.mockResolvedValue(undefined);
+    const currentDetail = detail();
+    const { result } = renderHook(() => useAguiSession(currentDetail.session.id, currentDetail), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => result.current.interrupt('33333333-3333-4333-8333-333333333333'));
+
+    expect(apiPostMock).toHaveBeenCalledWith(
+      '/runtime/runs/33333333-3333-4333-8333-333333333333/interrupt',
+    );
+  });
 });

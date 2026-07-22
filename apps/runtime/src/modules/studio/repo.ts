@@ -30,6 +30,17 @@ interface TestDbRow {
   completed_at: Date | null;
 }
 
+interface ActiveDesignRunDbRow {
+  id: string;
+  last_activity_at: Date;
+}
+
+// Design generation normally emits run events while it is making progress.
+// A silent run beyond this window most likely belongs to a process that was
+// restarted or lost before it could persist a terminal status. Keeping the
+// window generous avoids treating normal provider latency as a crashed run.
+const STUDIO_DESIGN_RUN_STALE_AFTER_MS = 30 * 60 * 1000;
+
 interface StudioForkSourceRow {
   source_session_id: string;
   source_revision_id: string;
@@ -447,7 +458,11 @@ export async function getStudioRevision(
   return result.rows[0] ? toRevision(result.rows[0]) : null;
 }
 
-export async function getStudioState(pool: Pool, studioSessionId: string): Promise<StudioState> {
+export async function getStudioState(
+  pool: Pool,
+  studioSessionId: string,
+  now = new Date(),
+): Promise<StudioState> {
   const [revisionsResult, testResult, activeRunResult] = await Promise.all([
     pool.query<RevisionDbRow>(
       `SELECT r.*,
@@ -486,25 +501,67 @@ export async function getStudioState(pool: Pool, studioSessionId: string): Promi
         LIMIT 1`,
       [studioSessionId],
     ),
-    pool.query<{ id: string }>(
-      `SELECT id
-         FROM rt_chat_runs
-        WHERE session_id = $1
-          AND status IN ('queued', 'running')
-          AND input ->> 'intent' = 'design'
-        ORDER BY created_at DESC
+    pool.query<ActiveDesignRunDbRow>(
+      `SELECT run.id,
+              GREATEST(
+                run.created_at,
+                run.updated_at,
+                COALESCE(last_event.created_at, run.created_at)
+              ) AS last_activity_at
+         FROM rt_chat_runs run
+         LEFT JOIN LATERAL (
+           SELECT event.created_at
+             FROM rt_chat_run_events event
+            WHERE event.run_id = run.id
+            ORDER BY event.id DESC
+            LIMIT 1
+         ) last_event ON true
+        WHERE run.session_id = $1
+          AND run.status IN ('queued', 'running')
+          AND run.input ->> 'intent' = 'design'
+        ORDER BY last_activity_at DESC, run.created_at DESC
         LIMIT 1`,
       [studioSessionId],
     ),
   ]);
 
   const revisions = revisionsResult.rows.map(toRevision);
+  const activeRun = activeRunResult.rows[0];
+  let activeDesignRunId = activeRun?.id ?? null;
+  if (
+    activeRun &&
+    now.getTime() - activeRun.last_activity_at.getTime() > STUDIO_DESIGN_RUN_STALE_AFTER_MS
+  ) {
+    const cutoff = new Date(now.getTime() - STUDIO_DESIGN_RUN_STALE_AFTER_MS);
+    const interrupted = await pool.query<{ id: string }>(
+      `UPDATE rt_chat_runs run
+          SET status = 'interrupted',
+              error = COALESCE(run.error, 'design run expired after 30 minutes without activity'),
+              completed_at = COALESCE(run.completed_at, $3::timestamptz),
+              updated_at = $3::timestamptz
+        WHERE run.id = $1
+          AND run.status IN ('queued', 'running')
+          AND run.input ->> 'intent' = 'design'
+          AND GREATEST(run.created_at, run.updated_at) < $2::timestamptz
+          AND NOT EXISTS (
+            SELECT 1
+              FROM rt_chat_run_events event
+             WHERE event.run_id = run.id
+               AND event.created_at >= $2::timestamptz
+          )
+      RETURNING run.id`,
+      [activeRun.id, cutoff.toISOString(), now.toISOString()],
+    );
+    // If a fresh event raced with this recovery check, the guarded UPDATE does
+    // not match and the run remains the active bootstrap lock.
+    if (interrupted.rows[0]) activeDesignRunId = null;
+  }
   return {
     sessionId: studioSessionId,
     revisions,
     currentRevision: revisions.at(-1) ?? null,
     latestTest: testResult.rows[0] ? toTest(testResult.rows[0]) : null,
-    activeDesignRunId: activeRunResult.rows[0]?.id ?? null,
+    activeDesignRunId,
   };
 }
 

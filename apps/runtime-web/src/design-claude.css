@@ -366,7 +366,6 @@ body {
 .rt-market-empty__title,
 .rt-trial__title-group h1,
 .rt-intake__head h2,
-.rt-generating-card h2,
 .rt-md h1,
 .rt-md h2,
 .rt-md h3 {
@@ -897,67 +896,65 @@ body {
   border-radius: var(--cb-radius-control);
 }
 
-/* Generation is the actual dark product-chrome moment. */
-.rt-generating-card {
-  border-color: transparent;
-  border-radius: var(--cb-radius-card);
-  background: var(--cb-machine-bg);
-  color: var(--cb-machine-fg);
+/* Generation previews the shape of the page instead of inventing progress. */
+.rt-page-skeleton__status {
+  border-color: var(--cb-feedback-live-border);
+  background: color-mix(in srgb, var(--cb-feedback-live-bg) 64%, var(--cb-bg));
 }
 
-.rt-generating-card h2,
-.rt-generating-card__step[data-status='running'] {
-  color: var(--cb-machine-fg);
+.rt-page-skeleton__status button:hover {
+  border-color: var(--cb-border-control);
+  background: var(--cb-surface-soft);
 }
 
-.rt-generating-card p,
-.rt-generating-card__step {
-  color: var(--cb-machine-muted);
+.rt-page-skeleton__status button:focus-visible {
+  outline: 2px solid var(--cb-focus-ring);
+  outline-offset: 2px;
 }
 
-.rt-generating-card__steps,
-.rt-generating-card__skeletons,
-.rt-skeleton-card {
-  border-color: var(--cb-machine-bg-elevated);
-  background: var(--cb-machine-bg);
+.rt-page-skeleton__pulse {
+  animation: rt-page-skeleton-pulse 1.5s ease-in-out infinite;
 }
 
-.rt-skeleton-card {
-  border-radius: var(--cb-radius-control);
+.rt-page-skeleton__mark,
+.rt-page-skeleton__nav,
+.rt-page-skeleton__action,
+.rt-page-skeleton__eyebrow,
+.rt-page-skeleton__title,
+.rt-page-skeleton__subtitle,
+.rt-page-skeleton__label,
+.rt-page-skeleton__field,
+.rt-page-skeleton__button,
+.rt-page-skeleton__card-icon,
+.rt-page-skeleton__card-title,
+.rt-page-skeleton__card-copy {
+  background: linear-gradient(
+    100deg,
+    var(--cb-surface-card) 18%,
+    color-mix(in srgb, var(--cb-surface-card) 54%, var(--cb-content-island)) 36%,
+    var(--cb-surface-card) 54%
+  );
+  background-size: 220% 100%;
+  animation: rt-page-skeleton-shimmer 1.9s linear infinite;
 }
 
-.rt-skeleton-card span,
-.rt-skeleton-card i,
-.rt-skeleton-card b {
-  background: var(--cb-machine-bg-elevated);
+@keyframes rt-page-skeleton-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
 }
 
-.rt-generating-card__dot {
-  border-color: var(--cb-machine-muted);
-  background: var(--cb-machine-bg-elevated);
-}
-
-.rt-generating-card__step[data-status='completed'] {
-  color: var(--cb-machine-fg);
-}
-
-.rt-generating-card__step[data-status='completed'] .rt-generating-card__dot {
-  border-color: var(--cb-status-success);
-  background: var(--cb-status-success);
-}
-
-.rt-generating-card__step[data-status='running'] .rt-generating-card__dot {
-  border-color: var(--cb-status-running);
-  background: var(--cb-status-running);
-}
-
-.rt-generating-card__step[data-status='failed'] {
-  color: var(--cb-status-error-on-dark);
-}
-
-.rt-generating-card__step[data-status='failed'] .rt-generating-card__dot {
-  border-color: var(--cb-status-error);
-  background: var(--cb-status-error);
+@keyframes rt-page-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.48;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ArtifactRenderer live selectors: match the real parent specificity. */
@@ -1234,8 +1231,7 @@ body {
     font-size: 24px;
   }
 
-  .rt-intake,
-  .rt-generating-card {
+  .rt-intake {
     padding: 24px;
   }
 
@@ -1256,10 +1252,6 @@ body {
 
 :root[data-theme='dark'] :is(.rt-card, .rt-market-empty, .rt-intake) {
   border-color: var(--cb-border);
-}
-
-:root[data-theme='dark'] .rt-generating-card {
-  border-color: var(--cb-machine-bg-elevated);
 }
 
 @media (max-width: 767px) {
@@ -1297,8 +1289,7 @@ body {
     width: 100%;
   }
 
-  .rt-intake__head h2,
-  .rt-generating-card h2 {
+  .rt-intake__head h2 {
     font-size: 26px;
   }
 
@@ -1309,7 +1300,20 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .rt-typing span,
-  .rt-caret {
+  .rt-caret,
+  .rt-page-skeleton__pulse,
+  .rt-page-skeleton__mark,
+  .rt-page-skeleton__nav,
+  .rt-page-skeleton__action,
+  .rt-page-skeleton__eyebrow,
+  .rt-page-skeleton__title,
+  .rt-page-skeleton__subtitle,
+  .rt-page-skeleton__label,
+  .rt-page-skeleton__field,
+  .rt-page-skeleton__button,
+  .rt-page-skeleton__card-icon,
+  .rt-page-skeleton__card-title,
+  .rt-page-skeleton__card-copy {
     animation: none;
   }
 

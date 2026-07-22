@@ -20,7 +20,6 @@ import type {
   RuntimeSessionList,
   RuntimeSessionListItem,
   RuntimeSessionMeta,
-  TrialProcessState,
 } from '@cb/shared';
 import { createProductionSession, useSession } from '../api/runtime.js';
 import { useAguiSession } from '../api/useAguiSession.js';
@@ -28,6 +27,7 @@ import { useStudioState, useStudioTestRun } from '../api/useStudioSession.js';
 import { ArtifactRenderer, type ComboElementSelection } from '../components/ArtifactRenderer.js';
 import { ChatThread } from '../components/ChatThread.js';
 import { DesignAgentPanel } from '../components/DesignAgentPanel.js';
+import { GeneratingPageSkeleton } from '../components/GeneratingPageSkeleton.js';
 import { SessionSidebar } from '../components/SessionSidebar.js';
 import {
   buildContextualStudioPrompt,
@@ -306,48 +306,6 @@ function TrialIntakeForm({
             ? '运行真实任务 →'
             : '开始生成 →'}
       </button>
-    </section>
-  );
-}
-
-function TrialGeneratingCard({
-  capability,
-  process,
-}: {
-  capability: PublicCapabilityView;
-  process: TrialProcessState | null;
-}) {
-  const rows = process?.steps.slice(0, 4) ?? [
-    { key: 'read_experience', label: '读取能力上下文', status: 'completed' },
-    { key: 'draft_output', label: '生成第一版产物', status: 'running' },
-    { key: 'check_boundaries', label: '校验能力边界与输出格式', status: 'pending' },
-    { key: 'compose_artifact', label: '整理产物结构', status: 'pending' },
-  ];
-
-  return (
-    <section className="rt-generating-card" aria-label="正在生成">
-      <h2>正在生成 · {capability.name}...</h2>
-      <p>正在根据这项能力和本次输入生成第一版产物。</p>
-      <div className="rt-generating-card__steps">
-        {rows.map((row) => (
-          <div key={row.key} className="rt-generating-card__step" data-status={row.status}>
-            <span className="rt-generating-card__dot" />
-            <span>{row.label}</span>
-          </div>
-        ))}
-      </div>
-      <div className="rt-generating-card__skeletons" aria-hidden="true">
-        <div className="rt-skeleton-card">
-          <span />
-          <i />
-          <b />
-        </div>
-        <div className="rt-skeleton-card">
-          <span />
-          <i />
-          <b />
-        </div>
-      </div>
     </section>
   );
 }
@@ -1210,13 +1168,15 @@ export function ChatPage() {
         ? { state: 'running', label: '运行中' }
         : currentTestError
           ? { state: 'error', label: '运行失败' }
-          : agui.isRunning || isBootstrapping
-            ? { state: 'saving', label: '正在更新' }
-            : currentRevision?.verified
-              ? { state: 'verified', label: '已试用' }
-              : currentRevision
-                ? { state: 'saved', label: '已保存' }
-                : { state: 'preparing', label: '正在准备' };
+          : isBootstrapping
+            ? { state: 'saving', label: '正在生成' }
+            : agui.isRunning
+              ? { state: 'saving', label: '正在更新' }
+              : currentRevision?.verified
+                ? { state: 'verified', label: '已试用' }
+                : currentRevision
+                  ? { state: 'saved', label: '已保存' }
+                  : { state: 'preparing', label: '正在准备' };
   const canOpenRunDrawer = Boolean(
     hasCurrentTestRecord && !isViewingHistory && !studioPanelError && !agui.isRunning,
   );
@@ -1331,7 +1291,7 @@ export function ChatPage() {
           selectedElement={selectedStudioElement}
           error={studioPanelError}
           onSend={sendStudioMessage}
-          onInterrupt={agui.interrupt}
+          onInterrupt={() => agui.interrupt(studioState?.activeDesignRunId ?? undefined)}
           onSelectRevision={selectStudioRevision}
           onToggleAnnotation={toggleStudioAnnotation}
           onClearAnnotation={clearStudioAnnotation}
@@ -1503,8 +1463,8 @@ export function ChatPage() {
                         </div>
                       </div>
                     ) : showInitialGenerating ? (
-                      <div className="rt-genui__stage rt-genui__stage--center">
-                        <TrialGeneratingCard capability={capability} process={agui.trialProcess} />
+                      <div className="rt-genui__stage rt-genui__stage--generating">
+                        <GeneratingPageSkeleton showStatus={false} />
                       </div>
                     ) : (
                       <div className="rt-design-preview__empty">
@@ -1565,7 +1525,7 @@ export function ChatPage() {
                           </div>
                         )}
                         {currentTestIsRunning ? (
-                          <TrialGeneratingCard capability={capability} process={null} />
+                          <GeneratingPageSkeleton showStatus={false} compact />
                         ) : currentTestError ? (
                           <>
                             <div className="rt-studio-test__notice is-error">
@@ -1617,8 +1577,8 @@ export function ChatPage() {
                   </div>
                 )}
                 {showInitialGenerating && (
-                  <div className="rt-genui__stage rt-genui__stage--center">
-                    <TrialGeneratingCard capability={capability} process={agui.trialProcess} />
+                  <div className="rt-genui__stage rt-genui__stage--generating">
+                    <GeneratingPageSkeleton onStop={agui.interrupt} />
                   </div>
                 )}
               </>

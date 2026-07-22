@@ -95,7 +95,8 @@ describe('DesignAgentPanel', () => {
       />,
     );
 
-    expect(screen.getByText('正在生成页面')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('正在生成页面可以继续输入下一条修改。');
+    expect(screen.getByRole('button', { name: '停止' })).toBeEnabled();
     expect(screen.getByRole('textbox', { name: '描述页面修改' })).toBeEnabled();
   });
 
