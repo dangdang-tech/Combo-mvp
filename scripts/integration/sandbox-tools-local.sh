@@ -318,7 +318,7 @@ const hardLimits = await command("printf '%s:%s' \"$(ulimit -Hn)\" \"$(ulimit -H
 assert(hardLimits.output === '128:256', `raisable process limits: ${hardLimits.output}`);
 if (process.env.SANDBOX_E2E_WORKSPACE_MODE === 'one-GiB-loopback-ext4') {
   const quota = await command(
-    "set +e; dd if=/dev/zero of=quota-check.bin bs=1048576 count=1100 status=none 2>/dev/null; rc=$?; rm -f quota-check.bin; [ $rc -ne 0 ]",
+    "set +e; fallocate -l 1100M quota-check.bin >/dev/null 2>&1; rc=$?; rm -f quota-check.bin; [ $rc -ne 0 ]",
     120_000,
   );
   assert(quota.result.exitCode === 0, 'workspace accepted more than its physical 1 GiB slot');
