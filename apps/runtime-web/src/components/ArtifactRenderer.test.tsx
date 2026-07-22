@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { ArtifactVersion } from '@cb/shared';
+import { JSDOM } from 'jsdom';
 import { describe, expect, it, vi } from 'vitest';
 import { ArtifactRenderer } from './ArtifactRenderer.js';
 
@@ -10,7 +11,8 @@ function htmlArtifact(): ArtifactVersion {
     kind: 'html',
     title: '每日待办 Miniapp',
     language: null,
-    content: '<!doctype html><html><body><button>运行</button></body></html>',
+    content:
+      '<!doctype html><html><body><h1>Agent-VM 任务助手</h1><button data-combo-key="run-primary">运行</button></body></html>',
     createdAt: '2026-07-21T10:00:00.000Z',
   };
 }
@@ -65,7 +67,57 @@ describe('ArtifactRenderer Runtime bridge', () => {
     frame = screen.getByTitle('每日待办 Miniapp') as HTMLIFrameElement;
 
     expect(frame.srcdoc).toContain('combo:element-select');
-    expect(frame.srcdoc).toContain('<button>运行</button>');
+    expect(frame.srcdoc).toContain('data-combo-key="run-primary"');
+  });
+
+  it('selects a semantic page element even when the generated HTML omitted its stable key', async () => {
+    render(
+      <ArtifactRenderer
+        artifact={htmlArtifact()}
+        inspectionEnabled
+        onElementSelect={vi.fn()}
+        onElementManifest={vi.fn()}
+      />,
+    );
+    const frame = screen.getByTitle('每日待办 Miniapp') as HTMLIFrameElement;
+    const dom = new JSDOM(frame.srcdoc, {
+      pretendToBeVisual: true,
+      runScripts: 'dangerously',
+      url: 'https://preview.combo.test/',
+    });
+    await new Promise<void>((resolve) => dom.window.addEventListener('load', () => resolve()));
+    const postMessage = vi.spyOn(dom.window, 'postMessage');
+
+    dom.window.dispatchEvent(
+      new dom.window.MessageEvent('message', {
+        source: dom.window as unknown as MessageEventSource,
+        data: {
+          type: 'combo:inspection-state',
+          version: 1,
+          enabled: true,
+          selectedElementKey: null,
+        },
+      }),
+    );
+    const heading = dom.window.document.querySelector('h1');
+    expect(heading).not.toBeNull();
+    heading?.click();
+
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'combo:element-select',
+        version: 1,
+        element: expect.objectContaining({
+          label: 'Agent-VM 任务助手',
+          role: 'heading',
+          stableKey: false,
+          tagName: 'h1',
+        }),
+      },
+      '*',
+    );
+    expect(heading).toHaveAttribute('data-combo-inspection-key');
+    await new Promise<void>((resolve) => dom.window.requestAnimationFrame(() => resolve()));
   });
 
   it('accepts validated element selections and manifests only from the rendered iframe', () => {

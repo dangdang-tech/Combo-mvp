@@ -9,6 +9,16 @@ const element = {
   tagName: 'section',
 };
 
+const structuralElement = {
+  key: 'auto-3',
+  label: 'Agent-VM 任务助手',
+  role: 'heading',
+  text: 'Agent-VM 任务助手',
+  tagName: 'h1',
+  path: 'body > main:nth-of-type(1) > h1:nth-of-type(1)',
+  stableKey: false,
+};
+
 describe('studio annotation protocol', () => {
   it('keeps a stable locator and the rest-of-page constraint in model context', () => {
     const prompt = buildContextualStudioPrompt(element, '把这里改成更克制的卡片');
@@ -24,6 +34,18 @@ describe('studio annotation protocol', () => {
 
     expect(display).toBe('标注「今日安排结果」\n把这里改成更克制的卡片');
     expect(display).not.toContain('data-combo-key');
+  });
+
+  it('uses structural context for a selected element that has no authored key yet', () => {
+    const prompt = buildContextualStudioPrompt(structuralElement, '让这个标题更简洁');
+
+    expect(prompt).toContain('<h1>');
+    expect(prompt).toContain(structuralElement.path);
+    expect(prompt).toContain('补充语义化 data-combo-key');
+    expect(prompt).not.toContain('data-combo-key="auto-3"');
+    expect(formatStudioAnnotationMessage(prompt)).toBe(
+      '标注「Agent-VM 任务助手」\n让这个标题更简洁',
+    );
   });
 
   it('leaves normal conversation messages untouched', () => {

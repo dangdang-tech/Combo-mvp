@@ -12,6 +12,8 @@ export interface ComboElementSelection {
   role: string | null;
   text: string;
   tagName: string;
+  path?: string;
+  stableKey?: boolean;
 }
 
 export interface ArtifactRendererProps {
@@ -27,21 +29,25 @@ const MAX_COMBO_RUN_PROMPT_LENGTH = 12_000;
 const MAX_COMBO_ELEMENT_KEY_LENGTH = 120;
 const MAX_COMBO_ELEMENT_LABEL_LENGTH = 160;
 const MAX_COMBO_ELEMENT_TEXT_LENGTH = 240;
+const MAX_COMBO_ELEMENT_PATH_LENGTH = 240;
 const MAX_COMBO_ELEMENT_MANIFEST_LENGTH = 80;
 
 const STUDIO_INSPECTION_BRIDGE = `
 <style id="combo-studio-inspection-style">
-  [data-combo-key].combo-studio-hovered {
+  [data-combo-key].combo-studio-hovered,
+  [data-combo-inspection-key].combo-studio-hovered {
     outline: 2px dashed #b8563f !important;
     outline-offset: 3px !important;
   }
-  [data-combo-key].combo-studio-selected {
+  [data-combo-key].combo-studio-selected,
+  [data-combo-inspection-key].combo-studio-selected {
     outline: 2px solid #b8563f !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 0 5px rgba(184, 86, 63, 0.14) !important;
   }
   html.combo-studio-inspection-enabled,
-  html.combo-studio-inspection-enabled [data-combo-key] {
+  html.combo-studio-inspection-enabled [data-combo-key],
+  html.combo-studio-inspection-enabled [data-combo-inspection-key] {
     cursor: crosshair !important;
   }
 </style>
@@ -54,7 +60,38 @@ const STUDIO_INSPECTION_BRIDGE = `
   let selectedKey = null;
   let hoveredElement = null;
   let manifestFrame = null;
+  let generatedKeyCount = 0;
+  let suppressClickTarget = null;
   const MAX_ELEMENTS = 80;
+  const INSPECTION_TARGET_SELECTOR = '[data-combo-key], [data-combo-inspection-key]';
+  const FALLBACK_TARGET_SELECTOR = [
+    'main',
+    'header',
+    'footer',
+    'nav',
+    'section',
+    'article',
+    'aside',
+    'form',
+    'fieldset',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'p',
+    'button',
+    'a[href]',
+    'input',
+    'textarea',
+    'select',
+    'label',
+    '[role]',
+    '[id]',
+    '[class]',
+  ].join(',');
+  const IGNORED_TAGS = new Set(['html', 'body', 'head', 'script', 'style', 'link', 'meta', 'br']);
 
   const clean = (value, maxLength) =>
     String(value == null ? '' : value).replace(/\\s+/g, ' ').trim().slice(0, maxLength);
@@ -67,17 +104,81 @@ const STUDIO_INSPECTION_BRIDGE = `
     if (tagName === 'a') return 'link';
     if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') return 'input';
     if (/^h[1-6]$/.test(tagName)) return 'heading';
+    if (tagName === 'form') return 'form';
+    if (tagName === 'nav') return 'navigation';
+    if (['main', 'section', 'article', 'aside', 'header', 'footer'].includes(tagName)) {
+      return 'region';
+    }
     return null;
   };
 
+  const canInspect = (element) =>
+    element instanceof Element && !IGNORED_TAGS.has(element.tagName.toLowerCase());
+
+  const pathFor = (element) => {
+    const parts = [];
+    let current = element;
+    while (current && current !== document.body && parts.length < 7) {
+      const tagName = current.tagName.toLowerCase();
+      const siblings = current.parentElement
+        ? Array.from(current.parentElement.children).filter(
+            (sibling) => sibling.tagName === current.tagName,
+          )
+        : [];
+      const index = Math.max(0, siblings.indexOf(current)) + 1;
+      parts.unshift(tagName + ':nth-of-type(' + index + ')');
+      current = current.parentElement;
+    }
+    return clean(['body', ...parts].join(' > '), 240);
+  };
+
+  const ensureInspectionKey = (element) => {
+    const authoredKey = clean(element.getAttribute('data-combo-key'), 120);
+    if (authoredKey) return authoredKey;
+    const currentKey = clean(element.getAttribute('data-combo-inspection-key'), 120);
+    if (currentKey) return currentKey;
+    generatedKeyCount += 1;
+    const key = 'auto-' + generatedKeyCount.toString(36);
+    element.setAttribute('data-combo-inspection-key', key);
+    return key;
+  };
+
+  const prepareFallbackTargets = () => {
+    document.querySelectorAll(FALLBACK_TARGET_SELECTOR).forEach((element) => {
+      if (!canInspect(element)) return;
+      ensureInspectionKey(element);
+    });
+  };
+
+  const resolveCandidate = (target) => {
+    const authored = target.closest('[data-combo-key]');
+    if (authored && canInspect(authored)) return authored;
+    const prepared = target.closest('[data-combo-inspection-key]');
+    if (prepared && canInspect(prepared)) return prepared;
+    const fallback = target.closest(FALLBACK_TARGET_SELECTOR);
+    if (fallback && canInspect(fallback)) {
+      ensureInspectionKey(fallback);
+      return fallback;
+    }
+    if (!canInspect(target)) return null;
+    ensureInspectionKey(target);
+    return target;
+  };
+
   const describe = (element) => {
-    const key = clean(element.getAttribute('data-combo-key'), 120);
+    const authoredKey = clean(element.getAttribute('data-combo-key'), 120);
+    const key = authoredKey || ensureInspectionKey(element);
     if (!key) return null;
     const text = clean(element.innerText || element.textContent, 240);
+    const controlLabel = element.labels
+      ? clean(Array.from(element.labels).map((label) => label.textContent || '').join(' '), 160)
+      : '';
     const label = clean(
       element.getAttribute('data-combo-label') ||
         element.getAttribute('aria-label') ||
         element.getAttribute('title') ||
+        controlLabel ||
+        element.getAttribute('placeholder') ||
         text ||
         key,
       160,
@@ -88,13 +189,27 @@ const STUDIO_INSPECTION_BRIDGE = `
       role: roleFor(element),
       text,
       tagName: element.tagName.toLowerCase().slice(0, 32),
+      path: pathFor(element),
+      stableKey: Boolean(authoredKey),
     };
   };
 
   const post = (payload) => window.parent.postMessage(payload, '*');
 
   const publishManifest = () => {
-    const elements = Array.from(document.querySelectorAll('[data-combo-key]'))
+    prepareFallbackTargets();
+    const candidates = Array.from(document.querySelectorAll(INSPECTION_TARGET_SELECTOR));
+    const selected = selectedKey
+      ? candidates.find(
+          (element) =>
+            element.getAttribute('data-combo-key') === selectedKey ||
+            element.getAttribute('data-combo-inspection-key') === selectedKey,
+        )
+      : null;
+    const manifestCandidates = selected
+      ? [selected, ...candidates.filter((item) => item !== selected)]
+      : candidates;
+    const elements = manifestCandidates
       .slice(0, MAX_ELEMENTS)
       .map(describe)
       .filter(Boolean);
@@ -115,8 +230,10 @@ const STUDIO_INSPECTION_BRIDGE = `
       element.classList.remove('combo-studio-selected');
     });
     if (!selectedKey) return;
-    Array.from(document.querySelectorAll('[data-combo-key]')).find(
-      (element) => element.getAttribute('data-combo-key') === selectedKey,
+    Array.from(document.querySelectorAll(INSPECTION_TARGET_SELECTOR)).find(
+      (element) =>
+        element.getAttribute('data-combo-key') === selectedKey ||
+        element.getAttribute('data-combo-inspection-key') === selectedKey,
     )?.classList.add('combo-studio-selected');
   };
 
@@ -143,7 +260,7 @@ const STUDIO_INSPECTION_BRIDGE = `
     'pointerover',
     (event) => {
       if (!enabled || !(event.target instanceof Element)) return;
-      const candidate = event.target.closest('[data-combo-key]');
+      const candidate = resolveCandidate(event.target);
       if (!candidate || candidate === hoveredElement) return;
       clearHover();
       hoveredElement = candidate;
@@ -156,8 +273,36 @@ const STUDIO_INSPECTION_BRIDGE = `
     'pointerout',
     (event) => {
       if (!enabled || !(event.target instanceof Element)) return;
-      const candidate = event.target.closest('[data-combo-key]');
+      const candidate = resolveCandidate(event.target);
       if (candidate && candidate === hoveredElement) clearHover();
+    },
+    true,
+  );
+
+  const stopEvent = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
+  const selectCandidate = (candidate) => {
+    const element = describe(candidate);
+    if (!element) return false;
+    selectedKey = element.key;
+    syncSelectedElement();
+    post({ type: 'combo:element-select', version: 1, element });
+    return true;
+  };
+
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      suppressClickTarget = null;
+      if (!enabled || !(event.target instanceof Element)) return;
+      const candidate = resolveCandidate(event.target);
+      if (!candidate) return;
+      stopEvent(event);
+      if (selectCandidate(candidate)) suppressClickTarget = candidate;
     },
     true,
   );
@@ -165,17 +310,21 @@ const STUDIO_INSPECTION_BRIDGE = `
   document.addEventListener(
     'click',
     (event) => {
-      if (!enabled || !(event.target instanceof Element)) return;
-      const candidate = event.target.closest('[data-combo-key]');
+      if (!(event.target instanceof Element)) return;
+      if (
+        suppressClickTarget &&
+        (suppressClickTarget === event.target || suppressClickTarget.contains(event.target))
+      ) {
+        stopEvent(event);
+        suppressClickTarget = null;
+        return;
+      }
+      suppressClickTarget = null;
+      if (!enabled) return;
+      const candidate = resolveCandidate(event.target);
       if (!candidate) return;
-      const element = describe(candidate);
-      if (!element) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      selectedKey = element.key;
-      syncSelectedElement();
-      post({ type: 'combo:element-select', version: 1, element });
+      stopEvent(event);
+      selectCandidate(candidate);
     },
     true,
   );
@@ -332,7 +481,12 @@ function isComboElementSelection(value: unknown): value is ComboElementSelection
     candidate.text.length <= MAX_COMBO_ELEMENT_TEXT_LENGTH &&
     typeof candidate.tagName === 'string' &&
     candidate.tagName.length > 0 &&
-    candidate.tagName.length <= 32
+    candidate.tagName.length <= 32 &&
+    (candidate.path === undefined ||
+      (typeof candidate.path === 'string' &&
+        candidate.path.length > 0 &&
+        candidate.path.length <= MAX_COMBO_ELEMENT_PATH_LENGTH)) &&
+    (candidate.stableKey === undefined || typeof candidate.stableKey === 'boolean')
   );
 }
 
