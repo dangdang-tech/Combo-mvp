@@ -1,5 +1,5 @@
 // 任务详情：GET /tasks/:id + SSE GET /tasks/:id/events 实时进度。
-//   - 进行中 / 失败：任务头 + 上传进度卡 + 提取进度卡（SSE）+（有产出时）能力挑选区 + 失败重试卡；
+//   - 进行中 / 失败：任务头 + 输入边界卡 + 提取进度卡（SSE）+（有产出时）能力挑选区 + 失败恢复卡；
 //   - 提取完成（succeeded）：整页切换成成果形态——eyebrow + 衬线大标题 + 引导句 + 能力挑选区
 //     （统计工具条 / 勾选行卡 / 一键发布），上传与进度卡不再渲染。
 //   - state_snapshot 全量 progress（subtasks 逐条点亮）+ progress 增量帧；
@@ -97,7 +97,8 @@ export function TaskDetailPage(): ReactElement {
             你的能力，挑选后一键发布
           </h2>
           <p className="cb-capabilities__lead">
-            这次上传共提取出 {task.capabilityCount}{' '}
+            {task.executionMode === 'local' ? '这次本地处理' : '这次上传'}共提取出{' '}
+            {task.capabilityCount}{' '}
             个能力项。点任意一项可直接打开「试用」跑一遍，确认后勾选、一键发布到市集；历史全部能力项在{' '}
             <Link to="/capabilities">能力页</Link>。
           </p>
@@ -125,7 +126,7 @@ export function TaskDetailPage(): ReactElement {
         </p>
       </div>
 
-      <UploadCard task={task} />
+      {hasUpload(task) ? <UploadCard task={task} /> : <LocalExecutionCard task={task} />}
       {extracting && <ExtractCard sse={sse} />}
       {extracting && (
         <TaskCapabilitiesArea taskId={taskId} task={task} query={capsQuery} extracting />
@@ -142,8 +143,27 @@ export function TaskDetailPage(): ReactElement {
   );
 }
 
+type TaskWithUpload = TaskView & { upload: NonNullable<TaskView['upload']> };
+
+function hasUpload(task: TaskView): task is TaskWithUpload {
+  return task.upload !== undefined;
+}
+
+/** local Task 不上传原始资料，只显示本地执行边界。 */
+function LocalExecutionCard({ task }: { task: TaskView }): ReactElement {
+  return (
+    <div className="cb-card" aria-label="本地提取状态">
+      <h3 className="cb-card__title">本地提取</h3>
+      <p className="cb-card__line">
+        原始资料和中间数据保留在本机；云端只接收任务进度与最终能力定义。当前状态：
+        {taskStatusLabel(task)}。
+      </p>
+    </div>
+  );
+}
+
 /** 上传阶段卡：分片进度 + 配对提示。 */
-function UploadCard({ task }: { task: TaskView }): ReactElement {
+function UploadCard({ task }: { task: TaskWithUpload }): ReactElement {
   const waiting =
     task.currentStep === 'upload' && task.status === 'running' && task.upload.status === 'pending';
   const expired = task.upload.status === 'expired';
@@ -197,7 +217,7 @@ function UploadCard({ task }: { task: TaskView }): ReactElement {
   );
 }
 
-function uploadDetailLine(task: TaskView): string {
+function uploadDetailLine(task: TaskWithUpload): string {
   const { partsExpected, partsLanded, status } = task.upload;
   if (status === 'expired') {
     if (partsExpected != null) {
@@ -283,6 +303,7 @@ function FailedCard({
   retryPending: boolean;
   retryError: unknown;
 }): ReactElement {
+  const isLocal = task.executionMode === 'local';
   const uploadExpired = task.currentStep === 'upload';
   return (
     <div className="cb-card cb-card--failed">
@@ -293,7 +314,9 @@ function FailedCard({
         <p className="cb-card__line cb-task-error">任务失败了，可以重试一次。</p>
       )}
       {task.retryCount > 0 && <p className="cb-card__hint">已重试 {task.retryCount} 次。</p>}
-      {uploadExpired ? (
+      {isLocal ? (
+        <p className="cb-card__hint">请回到发起任务的 Combo Plugin，重新创建本地提取任务。</p>
+      ) : uploadExpired ? (
         <Link className="cb-primary-btn" to="/tasks">
           重新上传
         </Link>
@@ -302,7 +325,9 @@ function FailedCard({
           {retryPending ? '正在重试…' : '重试'}
         </button>
       )}
-      {!uploadExpired && retryError != null && <ErrorState error={retryError} onRetry={onRetry} />}
+      {!isLocal && !uploadExpired && retryError != null && (
+        <ErrorState error={retryError} onRetry={onRetry} />
+      )}
     </div>
   );
 }

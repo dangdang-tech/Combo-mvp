@@ -8,7 +8,7 @@
 - `envelope.ts` 定义统一成功响应包络（`data` 加可选 `meta`）和它的 schema 工厂函数，`meta` 里可携带 traceId、分页信息、占位说明和降级标记。
 - `pagination.ts` 定义游标分页的请求参数与响应 `meta.page` 形状，并提供不透明游标（cursor，前端不可解读的翻页锚点）的编码解码函数；解码失败抛 `InvalidCursorError`，由接口层映射成 400 响应。
 - `errors.ts` 定义对外错误信封（只含人话文案、退路动作、可否重试和 traceId，绝不含内部错误码）、内部错误码常量表 `ErrorCode`、每个码对应 HTTP 状态与缺省文案的分类表 `ERROR_CLASSIFICATION`，以及按码组装错误体的 `errorBodyFor`。
-- `progress.ts` 定义任务进度视图（总百分比、量化文案、子任务清单）和提取流水线的子任务标准顺序 `PIPELINE_SUBTASKS`。
+- `progress.ts` 定义任务进度视图（总百分比、量化文案、子任务清单）、提取流水线的子任务标准顺序 `PIPELINE_SUBTASKS`，以及 Cloud 与 Local Worker 共用的进度区间 `PIPELINE_PROGRESS_RANGES`。
 - `sse.ts` 定义 SSE（服务端事件推送）的帧协议：七种帧类型的枚举、各帧内容的 schema 和默认心跳间隔常量。
 - `health.ts` 定义 `/health` 与 `/ready` 两个探针的响应契约、六个依赖项的名称枚举和计入就绪判定的必查依赖清单。
 - `trace.ts` 提供 traceId 工具：UUID 与 W3C traceparent 请求头格式互转、从请求头或 URL 参数提取 traceId、生成新的 traceId 和 spanId。

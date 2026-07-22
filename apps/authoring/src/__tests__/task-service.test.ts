@@ -1,15 +1,21 @@
 // 任务状态机服务自检：transition 乐观锁收口、建任务幂等、失败重试。忠实假 PG，无真库。
 import { describe, it, expect } from 'vitest';
 import {
+  createLocalTask,
   createTask,
   purgeExpiredUploadParts,
+  reconcileExpiredLocalTasks,
   reconcileExpiredUploadTasks,
   retryTask,
   transition,
 } from '../modules/task/service.js';
 import { verifyPairingCode } from '../modules/task/pairing.js';
 import { RAW_BUCKET, partObjectKey } from '../modules/task/pairing.js';
-import { trackExpiredUploadOrphanKey } from '../modules/task/repo.js';
+import {
+  claimTask,
+  findStalledExtractTasks,
+  trackExpiredUploadOrphanKey,
+} from '../modules/task/repo.js';
 import { FakeDb, FakeObjectStore, FakeQueue } from './fakes.js';
 
 const OWNER = 'user-me';
@@ -65,6 +71,85 @@ describe('createTask（幂等）', () => {
     await seedTask(db);
     const out = await createTask(db, db, { ownerUserId: OTHER, idempotencyKey: 'idem-key-000001' });
     expect(out.kind).toBe('conflict');
+  });
+});
+
+describe('createLocalTask（复用 tasks，跳过 uploads）', () => {
+  it('创建 local Task 后直接进入 extract，幂等回放轮换 bind code', async () => {
+    const db = new FakeDb();
+    const first = await createLocalTask(db, db, {
+      ownerUserId: OWNER,
+      idempotencyKey: 'local-idem-0001',
+    });
+    expect(first.kind).toBe('ok');
+    if (first.kind !== 'ok') return;
+    expect(first.bindCode.length).toBeGreaterThan(40);
+    expect(db.tasks.get(first.taskId)).toMatchObject({
+      current_step: 'extract',
+      status: 'running',
+      execution_mode: 'local',
+      lease_expires_at: 'infinity',
+    });
+    expect(db.uploads.has(first.taskId)).toBe(false);
+
+    const replay = await createLocalTask(db, db, {
+      ownerUserId: OWNER,
+      idempotencyKey: 'local-idem-0001',
+    });
+    expect(replay.kind).toBe('ok');
+    if (replay.kind !== 'ok') return;
+    expect(replay.taskId).toBe(first.taskId);
+    expect(replay.bindCode).not.toBe(first.bindCode);
+  });
+
+  it('过期绑定与过期 Task Token 会被周期对账收口，活跃任务不受影响', async () => {
+    const db = new FakeDb();
+    const pending = await createLocalTask(db, db, {
+      ownerUserId: OWNER,
+      idempotencyKey: 'local-expired-pending',
+    });
+    const claimed = await createLocalTask(db, db, {
+      ownerUserId: OWNER,
+      idempotencyKey: 'local-expired-claimed',
+    });
+    const active = await createLocalTask(db, db, {
+      ownerUserId: OWNER,
+      idempotencyKey: 'local-still-active',
+    });
+    if (pending.kind !== 'ok' || claimed.kind !== 'ok' || active.kind !== 'ok') {
+      throw new Error('seed local tasks failed');
+    }
+    db.localExecutions.get(pending.taskId)!.bind_expires_at = new Date(
+      Date.now() - 1_000,
+    ).toISOString();
+    const claimedExecution = db.localExecutions.get(claimed.taskId)!;
+    claimedExecution.status = 'claimed';
+    claimedExecution.device_public_key = { kty: 'OKP', crv: 'Ed25519', x: 'test' };
+    claimedExecution.device_key_thumbprint = 'thumbprint';
+    claimedExecution.task_token_hash = 'token-hash';
+    claimedExecution.token_expires_at = new Date(Date.now() - 1_000).toISOString();
+
+    expect(await reconcileExpiredLocalTasks(db, { traceId: 'local-expiry-test' })).toBe(2);
+    expect(db.tasks.get(pending.taskId)).toMatchObject({
+      status: 'failed',
+      lease_expires_at: null,
+    });
+    expect(db.tasks.get(claimed.taskId)?.status).toBe('failed');
+    expect(db.localExecutions.get(claimed.taskId)?.status).toBe('expired');
+    expect(db.tasks.get(active.taskId)?.status).toBe('running');
+  });
+
+  it('local Task 不会被 Cloud Worker 认领或进入 stalled 对账', async () => {
+    const db = new FakeDb();
+    const out = await createLocalTask(db, db, {
+      ownerUserId: OWNER,
+      idempotencyKey: 'local-idem-0002',
+    });
+    if (out.kind !== 'ok') throw new Error('seed local failed');
+    db.tasks.get(out.taskId)!.updated_at = new Date(Date.now() - 10 * 60_000).toISOString();
+
+    expect(await claimTask(db, { taskId: out.taskId, leaseOwner: 'cloud-worker#1' })).toBeNull();
+    expect(await findStalledExtractTasks(db)).not.toContain(out.taskId);
   });
 });
 

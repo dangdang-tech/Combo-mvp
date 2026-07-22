@@ -127,7 +127,8 @@ export function CapabilityPicker({
           已选 <strong>{selected.length}</strong> / {unpublished.length} 项
           <span className="cb-capabilities__analyzed">
             {' '}
-            · 上传 {task.upload.partsLanded} 个分片 · 识别出 {items.length} 项
+            · {task.upload ? `上传 ${task.upload.partsLanded} 个分片` : '本地完成提取'} · 识别出{' '}
+            {items.length} 项
           </span>
           {extracting && <span className="cb-capabilities__analyzed"> · 还在提取中…</span>}
         </span>

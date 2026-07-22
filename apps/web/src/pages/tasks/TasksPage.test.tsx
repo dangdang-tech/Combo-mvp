@@ -50,6 +50,15 @@ const EXTRACTING = makeTask({
   },
 });
 
+const LOCAL = makeTask({
+  id: 'task-local',
+  description: '本地提取中的任务',
+  currentStep: 'extract',
+  status: 'running',
+  executionMode: 'local',
+  upload: undefined,
+});
+
 const FAILED = makeTask({
   id: 'task-fail',
   description: '失败的任务',
@@ -94,7 +103,7 @@ describe('TasksPage — 列表状态渲染', () => {
   it('每行显示步骤/状态、分片进度、能力项数、失败原因', async () => {
     fm = installFetchMock({
       status: 200,
-      json: paginatedBody([UPLOADING, EXTRACTING, FAILED, EXPIRED, SUCCEEDED]),
+      json: paginatedBody([UPLOADING, EXTRACTING, LOCAL, FAILED, EXPIRED, SUCCEEDED]),
     });
     renderPage(<TasksPage />);
 
@@ -105,6 +114,9 @@ describe('TasksPage — 列表状态渲染', () => {
     const rowEx = screen.getByText('提取中的任务').closest('tr')!;
     expect(within(rowEx).getByText('提取中')).toBeInTheDocument();
     expect(within(rowEx).getByText('上传完成')).toBeInTheDocument();
+
+    const rowLocal = screen.getByText('本地提取中的任务').closest('tr')!;
+    expect(within(rowLocal).getByText('本地提取中')).toBeInTheDocument();
 
     const rowFail = screen.getByText('失败的任务').closest('tr')!;
     expect(within(rowFail).getByText('失败')).toBeInTheDocument();

@@ -6,7 +6,6 @@
 //   - 进度真源是 tasks.meta.progress（SSE state_snapshot 从它读全量）；每步同时把帧推 redis_hot 流。
 //   - 失败：last_error 写人话错误体（errorBodyFor 组装）、status=failed、done 帧带 error。
 //   - 终态写回都走 service.transition（乐观锁，0 行 = 已被接管，安全退出不发终态帧）。
-import { randomUUID } from 'node:crypto';
 import {
   CapabilityDefinitionSchema,
   ErrorCode,
@@ -44,15 +43,14 @@ import {
   type SessionSource,
 } from './session-parse.js';
 import { SEGMENT_CONTENT_MAX_CHARS, extractCapabilities, type ExtractSegment } from './extract.js';
-import { insertCapability } from '../capability/index.js';
+import {
+  CAPABILITY_BUCKET,
+  capabilityDefinitionKey,
+  persistCapabilityDefinitions,
+} from '../capability/index.js';
 
-/** 能力项可运行定义所在桶（长期保留，与会被清除的原始件分桶）。 */
-export const CAPABILITY_BUCKET = 'combo-artifacts' as const;
-
-/** 能力项定义对象键。 */
-export function capabilityDefinitionKey(capabilityId: string): string {
-  return `capabilities/${capabilityId}/definition.json`;
-}
+// 保留旧导出，避免调用方和测试在抽出共享持久化服务时发生无意义迁移。
+export { CAPABILITY_BUCKET, capabilityDefinitionKey };
 
 /** 逐片循环里每处理这么多分片续一次租约（真实规模上百分片，处理时长会超过单次租期）。 */
 const LEASE_RENEW_EVERY_PARTS = 20;
@@ -372,12 +370,10 @@ async function execute(
   await renewLease(deps.db, { taskId, leaseOwner: deps.leaseOwner });
   markStep('extract');
 
-  // ⑥ persist：逐项校验 → 写 MinIO 定义 → 插 capabilities 行 → item-appended 帧（边生成边显示）。
+  // ⑥ persist：Cloud 与 Local 共用同一个定义校验、对象键和 capabilities 索引写入服务。
   await reporter.subtask('persist', 'running', 82, '正在生成能力项…');
-  let landed = 0;
-  for (const draft of extracted.items) {
-    const capabilityId = randomUUID();
-    const definition = CapabilityDefinitionSchema.parse({
+  const definitions = extracted.items.map((draft) => ({
+    definition: CapabilityDefinitionSchema.parse({
       version: 1,
       name: draft.name,
       summary: draft.summary,
@@ -386,32 +382,27 @@ async function execute(
       inputs: draft.inputs,
       starterPrompts: draft.starterPrompts,
       meta: draft.meta,
-    });
-    const storageKey = capabilityDefinitionKey(capabilityId);
-    await deps.objectStore.putObject(
-      CAPABILITY_BUCKET,
-      storageKey,
-      new TextEncoder().encode(JSON.stringify(definition)),
-      { contentType: 'application/json' },
-    );
-    const view = await insertCapability(deps.db, {
-      id: capabilityId,
+    }),
+    indexMeta: { ...draft.meta, ...(extracted.degraded ? { degraded: true } : {}) },
+  }));
+  const views = await persistCapabilityDefinitions(
+    { db: deps.db, objectStore: deps.objectStore },
+    {
       taskId,
       ownerUserId,
-      name: definition.name,
-      summary: definition.summary,
-      kind: definition.kind,
-      storageKey,
-      meta: { ...draft.meta, ...(extracted.degraded ? { degraded: true } : {}) },
-    });
-    landed += 1;
-    await deps.stream.publish(taskId, { event: 'item-appended', payload: { item: view } });
-    await reporter.progress(
-      82 + Math.round((landed / extracted.items.length) * 13),
-      `已生成 ${landed} / ${extracted.items.length} 个能力项`,
-      { done: landed, total: extracted.items.length, unit: '个' },
-    );
-  }
+      items: definitions,
+      onPersisted: async (view, index, total) => {
+        const landed = index + 1;
+        await deps.stream.publish(taskId, { event: 'item-appended', payload: { item: view } });
+        await reporter.progress(
+          82 + Math.round((landed / total) * 13),
+          `已生成 ${landed} / ${total} 个能力项`,
+          { done: landed, total, unit: '个' },
+        );
+      },
+    },
+  );
+  const landed = views.length;
 
   // ⑦ 清理分片（合规：处理完按期清除，raw_purged_at 只在真删成功时打戳）。
   //    历史行可能还有拼接时代写下的 storage_key，非空时一并删。

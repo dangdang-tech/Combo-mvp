@@ -1,7 +1,7 @@
 // worker 进程：BullMQ 消费 task-pipeline 队列 + 每 60s 一轮租约对账。
 //   - 消费：job 触发 → runPipeline（领租约防双跑 → 提取流水线 → 终态写回）。
-//   - 对账：把 running+extract 且租约过期（或从未被认领且长时间无更新）的任务重新入队；
-//     重复触发由 claimTask 的租约条件吸收，多投无害。
+//   - 对账：收口过期上传与本地执行权，再把 cloud running+extract 且租约过期
+//     （或从未被认领且长时间无更新）的任务重新入队；重复触发由状态条件吸收。
 //   tasks 表是状态真源，BullMQ 只触发执行。
 import { hostname } from 'node:os';
 import { Worker } from 'bullmq';
@@ -25,6 +25,7 @@ import { findStalledExtractTasks } from '../modules/task/repo.js';
 import {
   purgeExpiredUploadParts,
   purgeStaleUploadParts,
+  reconcileExpiredLocalTasks,
   reconcileExpiredUploadTasks,
 } from '../modules/task/service.js';
 
@@ -96,6 +97,12 @@ async function main(): Promise<void> {
       if (expiredUploads > 0) {
         log.warn({ count: expiredUploads }, 'reconcile: expired upload tasks marked failed');
       }
+      const expiredLocal = await reconcileExpiredLocalTasks(db, {
+        traceId: 'worker-local-reconcile',
+      });
+      if (expiredLocal > 0) {
+        log.warn({ count: expiredLocal }, 'reconcile: expired local tasks marked failed');
+      }
       const purge = await purgeExpiredUploadParts(db, deps.objectStore);
       if (purge.purged > 0) {
         log.info({ count: purge.purged }, 'reconcile: expired upload raw parts purged');
@@ -162,6 +169,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error('[worker] fatal', err);
+  const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  process.stderr.write(`[worker] fatal: ${detail}\n`);
   process.exit(1);
 });

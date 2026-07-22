@@ -1,7 +1,15 @@
-// tasks / uploads 两表 SQL + TaskView 组装。本模块所有落库语句收在这里；
-// 常规任务状态轴变更走 service.transition；过期上传是跨 tasks/uploads 的一致性例外，
-// 由本文件的加锁 CTE 原子落 upload=expired + task=failed，避免两表间 TOCTOU。
-import type { ErrorBody, TaskStatus, TaskStep, TaskView, UploadStatus } from '@cb/shared';
+// tasks / uploads / local_task_executions SQL + TaskView 组装。本模块所有落库语句收在这里；
+// 常规任务状态轴变更走 service.transition；过期输入或本地执行权是跨表一致性例外，
+// 由本文件的加锁 CTE 原子收口附表和 task，避免两表间 TOCTOU。
+import {
+  ProgressViewSchema,
+  type ErrorBody,
+  type ExecutionMode,
+  type TaskStatus,
+  type TaskStep,
+  type TaskView,
+  type UploadStatus,
+} from '@cb/shared';
 import { toIso, type Queryable } from '../../platform/infra/db.js';
 import type { Tx } from '../../platform/infra/db-tx.js';
 
@@ -31,7 +39,9 @@ export function partsState(parts: PartsManifest | null | undefined): {
     total,
     landed: indices.length,
     complete,
-    orderedKeys: indices.map((i) => landedMap[String(i)]!),
+    orderedKeys: indices
+      .map((i) => landedMap[String(i)])
+      .filter((key): key is string => typeof key === 'string'),
   };
 }
 
@@ -43,16 +53,29 @@ export interface InsertTaskInput {
   ownerUserId: string;
   description?: string;
   idempotencyKey: string;
+  executionMode?: ExecutionMode;
 }
 
 /** 插 tasks 行（幂等键冲突 → null，调用方回读已存在任务）。 */
 export async function insertTask(tx: Tx, input: InsertTaskInput): Promise<string | null> {
+  const executionMode = input.executionMode ?? 'cloud';
+  const currentStep = executionMode === 'local' ? 'extract' : 'upload';
+  const leaseFence = executionMode === 'local' ? 'infinity' : null;
   const res = await tx.query<{ id: string }>(
-    `INSERT INTO tasks (owner_user_id, description, idempotency_key)
-     VALUES ($1, $2, $3)
+    `INSERT INTO tasks (
+       owner_user_id, description, idempotency_key, execution_mode, current_step, lease_expires_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6::timestamptz)
      ON CONFLICT (idempotency_key) DO NOTHING
      RETURNING id`,
-    [input.ownerUserId, input.description ?? null, input.idempotencyKey],
+    [
+      input.ownerUserId,
+      input.description ?? null,
+      input.idempotencyKey,
+      executionMode,
+      currentStep,
+      leaseFence,
+    ],
   );
   return res.rows[0]?.id ?? null;
 }
@@ -73,13 +96,18 @@ export async function insertUpload(
 export async function findTaskByIdempotencyKey(
   db: Queryable,
   idempotencyKey: string,
-): Promise<{ id: string; ownerUserId: string } | null> {
-  const res = await db.query<{ id: string; owner_user_id: string }>(
-    `SELECT id, owner_user_id FROM tasks WHERE idempotency_key = $1`,
-    [idempotencyKey],
-  );
+): Promise<{ id: string; ownerUserId: string; executionMode: ExecutionMode } | null> {
+  const res = await db.query<{
+    id: string;
+    owner_user_id: string;
+    execution_mode: ExecutionMode;
+  }>(`SELECT id, owner_user_id, execution_mode FROM tasks WHERE idempotency_key = $1`, [
+    idempotencyKey,
+  ]);
   const row = res.rows[0];
-  return row ? { id: row.id, ownerUserId: row.owner_user_id } : null;
+  return row
+    ? { id: row.id, ownerUserId: row.owner_user_id, executionMode: row.execution_mode }
+    : null;
 }
 
 /**
@@ -107,41 +135,50 @@ interface TaskViewRow {
   id: string;
   current_step: string;
   status: string;
+  execution_mode: ExecutionMode;
   description: string | null;
   retry_count: number;
   last_error: unknown;
+  meta: Record<string, unknown> | null;
   created_at: string | Date;
   updated_at: string | Date;
-  upload_status: string;
+  upload_status: string | null;
   parts: PartsManifest | null;
-  pairing_expires_at: string | Date;
+  pairing_expires_at: string | Date | null;
   capability_count: number | string;
 }
 
 const TASK_VIEW_SELECT = `
-  SELECT t.id, t.current_step, t.status, t.description, t.retry_count, t.last_error,
-         t.created_at, t.updated_at,
+  SELECT t.id, t.current_step, t.status, t.execution_mode, t.description, t.retry_count,
+         t.last_error, t.meta, t.created_at, t.updated_at,
          u.status AS upload_status, u.parts, u.pairing_expires_at,
          (SELECT count(*) FROM capabilities c WHERE c.task_id = t.id) AS capability_count
     FROM tasks t
-    JOIN uploads u ON u.task_id = t.id`;
+    LEFT JOIN uploads u ON u.task_id = t.id`;
 
 function toTaskView(row: TaskViewRow): TaskView {
   const { total, landed } = partsState(row.parts);
   const lastError = row.last_error as ErrorBody | null;
+  const progress = ProgressViewSchema.safeParse(row.meta?.progress);
+  const upload =
+    row.upload_status && row.pairing_expires_at
+      ? {
+          status: row.upload_status as UploadStatus,
+          partsExpected: total,
+          partsLanded: landed,
+          pairingExpiresAt: toIso(row.pairing_expires_at),
+        }
+      : undefined;
   return {
     id: row.id,
     currentStep: row.current_step as TaskStep,
     status: row.status as TaskStatus,
+    executionMode: row.execution_mode,
     ...(row.description ? { description: row.description } : {}),
     retryCount: row.retry_count,
     ...(lastError ? { lastError } : {}),
-    upload: {
-      status: row.upload_status as UploadStatus,
-      partsExpected: total,
-      partsLanded: landed,
-      pairingExpiresAt: toIso(row.pairing_expires_at),
-    },
+    ...(upload ? { upload } : {}),
+    ...(progress.success ? { progress: progress.data } : {}),
     capabilityCount: Number(row.capability_count),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -409,6 +446,7 @@ export async function readTaskCore(
   currentStep: TaskStep;
   status: TaskStatus;
   lastError: ErrorBody | null;
+  executionMode: ExecutionMode;
   meta: Record<string, unknown>;
 } | null> {
   const res = await db.query<{
@@ -416,11 +454,14 @@ export async function readTaskCore(
     owner_user_id: string;
     current_step: string;
     status: string;
+    execution_mode: ExecutionMode;
     last_error: unknown;
     meta: Record<string, unknown> | null;
-  }>(`SELECT id, owner_user_id, current_step, status, last_error, meta FROM tasks WHERE id = $1`, [
-    taskId,
-  ]);
+  }>(
+    `SELECT id, owner_user_id, current_step, status, execution_mode, last_error, meta
+       FROM tasks WHERE id = $1`,
+    [taskId],
+  );
   const row = res.rows[0];
   if (!row) return null;
   return {
@@ -428,6 +469,7 @@ export async function readTaskCore(
     ownerUserId: row.owner_user_id,
     currentStep: row.current_step as TaskStep,
     status: row.status as TaskStatus,
+    executionMode: row.execution_mode,
     lastError: (row.last_error as ErrorBody | null) ?? null,
     meta: row.meta ?? {},
   };
@@ -770,7 +812,7 @@ export async function claimTask(
             lease_expires_at = now() + ($3 || ' milliseconds')::interval,
             updated_at = now()
       WHERE id = $1
-        AND status = 'running' AND current_step = 'extract'
+        AND status = 'running' AND current_step = 'extract' AND execution_mode = 'cloud'
         AND (lease_expires_at IS NULL OR lease_expires_at < now())
       RETURNING owner_user_id, retry_count, meta`,
     [input.taskId, input.leaseOwner, String(input.leaseMs ?? TASK_LEASE_MS)],
@@ -816,11 +858,293 @@ export async function findStalledExtractTasks(db: Queryable): Promise<string[]> 
   const res = await db.query<{ id: string }>(
     `SELECT id
        FROM tasks
-      WHERE status = 'running' AND current_step = 'extract'
+      WHERE status = 'running' AND current_step = 'extract' AND execution_mode = 'cloud'
         AND (
           (lease_expires_at IS NOT NULL AND lease_expires_at < now())
           OR (lease_expires_at IS NULL AND updated_at < now() - interval '2 minutes')
         )`,
   );
   return res.rows.map((r) => r.id);
+}
+
+// ---------------------------------------------------------------------------
+// local_task_executions：local Task 的执行权、进度序号和最终结果幂等状态
+// ---------------------------------------------------------------------------
+
+export interface LocalExecutionRow {
+  taskId: string;
+  ownerUserId: string;
+  taskStatus: TaskStatus;
+  taskStep: TaskStep;
+  executionMode: ExecutionMode;
+  taskProgress: unknown;
+  status: 'pending' | 'claimed' | 'revoked' | 'expired';
+  devicePublicKey: Record<string, unknown> | null;
+  deviceKeyThumbprint: string | null;
+  tokenExpiresAt: string | null;
+  lastProgressSeq: number;
+  lastProgressSha256: string | null;
+  resultStatus: 'pending' | 'committing' | 'committed';
+  resultSha256: string | null;
+  resultCapabilityIds: string[] | null;
+}
+
+interface LocalExecutionDbRow {
+  task_id: string;
+  owner_user_id: string;
+  task_status: string;
+  current_step: string;
+  execution_mode: ExecutionMode;
+  task_progress: unknown;
+  status: 'pending' | 'claimed' | 'revoked' | 'expired';
+  device_public_key: Record<string, unknown> | null;
+  device_key_thumbprint: string | null;
+  token_expires_at: string | Date | null;
+  last_progress_seq: number | string;
+  last_progress_sha256: string | null;
+  result_status: 'pending' | 'committing' | 'committed';
+  result_sha256: string | null;
+  result_capability_ids: string[] | null;
+}
+
+function toLocalExecution(row: LocalExecutionDbRow): LocalExecutionRow {
+  return {
+    taskId: row.task_id,
+    ownerUserId: row.owner_user_id,
+    taskStatus: row.task_status as TaskStatus,
+    taskStep: row.current_step as TaskStep,
+    executionMode: row.execution_mode,
+    taskProgress: row.task_progress,
+    status: row.status,
+    devicePublicKey: row.device_public_key,
+    deviceKeyThumbprint: row.device_key_thumbprint,
+    tokenExpiresAt: row.token_expires_at ? toIso(row.token_expires_at) : null,
+    lastProgressSeq: Number(row.last_progress_seq),
+    lastProgressSha256: row.last_progress_sha256,
+    resultStatus: row.result_status,
+    resultSha256: row.result_sha256,
+    resultCapabilityIds: row.result_capability_ids,
+  };
+}
+
+const LOCAL_EXECUTION_SELECT = `
+  SELECT le.task_id, le.owner_user_id, t.status AS task_status, t.current_step,
+         t.execution_mode, t.meta->'progress' AS task_progress,
+         le.status, le.device_public_key, le.device_key_thumbprint, le.token_expires_at,
+         le.last_progress_seq, le.last_progress_sha256, le.result_status,
+         le.result_sha256, le.result_capability_ids
+    FROM local_task_executions le
+    JOIN tasks t ON t.id = le.task_id`;
+
+export async function insertLocalExecution(
+  tx: Tx,
+  input: {
+    taskId: string;
+    ownerUserId: string;
+    bindCodeHash: string;
+    bindExpiresAt: string;
+  },
+): Promise<void> {
+  await tx.query(
+    `INSERT INTO local_task_executions
+       (task_id, owner_user_id, bind_code_hash, bind_expires_at)
+     VALUES ($1, $2, $3, $4)`,
+    [input.taskId, input.ownerUserId, input.bindCodeHash, input.bindExpiresAt],
+  );
+}
+
+export async function rotateLocalBindCode(
+  db: Queryable,
+  input: { taskId: string; bindCodeHash: string; bindExpiresAt: string },
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE local_task_executions
+        SET bind_code_hash = $2, bind_expires_at = $3, updated_at = now()
+      WHERE task_id = $1 AND status = 'pending'`,
+    [input.taskId, input.bindCodeHash, input.bindExpiresAt],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+/** 未绑定或 Task Token 已到期的 local Task 原子收口为失败，避免永久 running。 */
+export async function expireAbandonedLocalTasks(
+  db: Queryable,
+  input: { lastError: ErrorBody; limit?: number },
+): Promise<string[]> {
+  const res = await db.query<{ id: string }>(
+    `WITH candidates AS MATERIALIZED (
+       SELECT le.task_id
+         FROM local_task_executions le
+         JOIN tasks t ON t.id = le.task_id
+        WHERE t.execution_mode = 'local'
+          AND t.current_step = 'extract'
+          AND t.status = 'running'
+          AND (
+            (le.status = 'pending' AND le.bind_expires_at <= now())
+            OR (le.status = 'claimed' AND le.token_expires_at <= now())
+          )
+        ORDER BY COALESCE(le.token_expires_at, le.bind_expires_at)
+        LIMIT $1
+        FOR UPDATE OF le, t SKIP LOCKED
+     ), expired AS (
+       UPDATE local_task_executions le
+          SET status = 'expired', revoked_at = now(), updated_at = now()
+         FROM candidates c
+        WHERE le.task_id = c.task_id
+        RETURNING le.task_id
+     )
+     UPDATE tasks t
+        SET status = 'failed',
+            last_error = $2::jsonb,
+            lease_owner = NULL,
+            lease_expires_at = NULL,
+            updated_at = now()
+       FROM expired e
+      WHERE t.id = e.task_id
+        AND t.status = 'running'
+      RETURNING t.id`,
+    [input.limit ?? 100, JSON.stringify(input.lastError)],
+  );
+  return res.rows.map((row) => row.id);
+}
+
+export async function claimLocalExecution(
+  db: Queryable,
+  input: {
+    taskId: string;
+    bindCodeHash: string;
+    devicePublicKey: Record<string, unknown>;
+    deviceKeyThumbprint: string;
+    taskTokenHash: string;
+    tokenExpiresAt: string;
+    workerVersion: string;
+    algorithmVersion: string;
+  },
+): Promise<{ nextExpectedSeq: number } | null> {
+  const res = await db.query<{ last_progress_seq: number | string }>(
+    `UPDATE local_task_executions le
+        SET status = 'claimed',
+            device_public_key = $3::jsonb,
+            device_key_thumbprint = $4,
+            task_token_hash = $5,
+            token_expires_at = $6,
+            token_version = CASE
+              WHEN le.status = 'claimed' THEN le.token_version + 1
+              ELSE le.token_version
+            END,
+            worker_version = $7,
+            algorithm_version = $8,
+            claimed_at = COALESCE(le.claimed_at, now()),
+            updated_at = now()
+       FROM tasks t
+      WHERE le.task_id = $1
+        AND le.bind_code_hash = $2
+        AND le.bind_expires_at > now()
+        AND (
+          le.status = 'pending'
+          OR (le.status = 'claimed' AND le.device_key_thumbprint = $4)
+        )
+        AND t.id = le.task_id
+        AND t.execution_mode = 'local'
+        AND t.current_step = 'extract'
+        AND t.status = 'running'
+      RETURNING le.last_progress_seq`,
+    [
+      input.taskId,
+      input.bindCodeHash,
+      JSON.stringify(input.devicePublicKey),
+      input.deviceKeyThumbprint,
+      input.taskTokenHash,
+      input.tokenExpiresAt,
+      input.workerVersion,
+      input.algorithmVersion,
+    ],
+  );
+  const row = res.rows[0];
+  return row ? { nextExpectedSeq: Number(row.last_progress_seq) + 1 } : null;
+}
+
+export async function readLocalExecutionByToken(
+  db: Queryable,
+  input: { taskId: string; taskTokenHash: string },
+): Promise<LocalExecutionRow | null> {
+  const res = await db.query<LocalExecutionDbRow>(
+    `${LOCAL_EXECUTION_SELECT}
+   WHERE le.task_id = $1
+     AND le.task_token_hash = $2
+     AND le.status = 'claimed'
+     AND le.token_expires_at > now()`,
+    [input.taskId, input.taskTokenHash],
+  );
+  return res.rows[0] ? toLocalExecution(res.rows[0]) : null;
+}
+
+export async function lockLocalExecutionByToken(
+  tx: Tx,
+  input: { taskId: string; taskTokenHash: string },
+): Promise<LocalExecutionRow | null> {
+  const res = await tx.query<LocalExecutionDbRow>(
+    `${LOCAL_EXECUTION_SELECT}
+   WHERE le.task_id = $1
+     AND le.task_token_hash = $2
+     AND le.status = 'claimed'
+     AND le.token_expires_at > now()
+   FOR UPDATE OF le`,
+    [input.taskId, input.taskTokenHash],
+  );
+  return res.rows[0] ? toLocalExecution(res.rows[0]) : null;
+}
+
+export async function updateLocalProgressCursor(
+  tx: Tx,
+  input: { taskId: string; seq: number; sha256: string },
+): Promise<void> {
+  await tx.query(
+    `UPDATE local_task_executions
+        SET last_progress_seq = $2, last_progress_sha256 = $3, updated_at = now()
+      WHERE task_id = $1`,
+    [input.taskId, input.seq, input.sha256],
+  );
+}
+
+export async function setLocalResultCommitting(
+  tx: Tx,
+  input: {
+    taskId: string;
+    resultSha256: string;
+    capabilityIds: string[];
+    workerVersion: string;
+    algorithmVersion: string;
+  },
+): Promise<void> {
+  await tx.query(
+    `UPDATE local_task_executions
+        SET result_status = 'committing',
+            result_sha256 = $2,
+            result_capability_ids = $3::uuid[],
+            worker_version = $4,
+            algorithm_version = $5,
+            updated_at = now()
+      WHERE task_id = $1 AND result_status = 'pending'`,
+    [
+      input.taskId,
+      input.resultSha256,
+      input.capabilityIds,
+      input.workerVersion,
+      input.algorithmVersion,
+    ],
+  );
+}
+
+export async function markLocalResultCommitted(
+  tx: Tx,
+  input: { taskId: string; resultSha256: string },
+): Promise<boolean> {
+  const res = await tx.query(
+    `UPDATE local_task_executions
+        SET result_status = 'committed', committed_at = now(), updated_at = now()
+      WHERE task_id = $1 AND result_status = 'committing' AND result_sha256 = $2`,
+    [input.taskId, input.resultSha256],
+  );
+  return (res.rowCount ?? 0) > 0;
 }

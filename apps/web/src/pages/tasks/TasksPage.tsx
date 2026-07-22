@@ -56,7 +56,7 @@ export function TasksPage(): ReactElement {
   const watchedTask = watchedTaskQuery.data ?? created?.task;
   useEffect(() => {
     if (!created || !watchedTask) return;
-    const uploadStarted = watchedTask.upload.partsLanded > 0;
+    const uploadStarted = (watchedTask.upload?.partsLanded ?? 0) > 0;
     const leftWaitingState =
       watchedTask.currentStep !== 'upload' || watchedTask.status !== 'running';
     if (uploadStarted || leftWaitingState) {
@@ -107,7 +107,7 @@ export function TasksPage(): ReactElement {
             <tr>
               <th scope="col">任务</th>
               <th scope="col">状态</th>
-              <th scope="col">上传进度</th>
+              <th scope="col">处理进度</th>
               <th scope="col">能力项</th>
               <th scope="col">下一步</th>
             </tr>
@@ -182,7 +182,7 @@ export function TasksPage(): ReactElement {
             <p className="cb-section-kicker">任务列表</p>
             <h3 className="cb-tasks-panel__title">上传与提取队列</h3>
             <p className="cb-tasks-panel__hint">
-              每个任务都会保留上传进度、提取状态和生成的能力数量。
+              每个任务都会保留处理进度、提取状态和生成的能力数量。
             </p>
           </div>
           <dl className="cb-tasks-stats" aria-label="任务概览">
@@ -216,9 +216,10 @@ function TaskRow({
   onCreateUpload: () => void;
 }): ReactElement {
   const uploadExpired =
-    task.currentStep === 'upload' ||
-    task.upload.status === 'expired' ||
-    task.lastError?.action === 'change_input';
+    task.executionMode === 'cloud' &&
+    (task.currentStep === 'upload' ||
+      task.upload?.status === 'expired' ||
+      task.lastError?.action === 'change_input');
 
   return (
     <tr className="cb-task-row">
@@ -248,9 +249,9 @@ function TaskRow({
           {taskStatusLabel(task)}
         </span>
       </td>
-      <td className="cb-task-cell cb-task-cell--progress" data-label="上传进度">
+      <td className="cb-task-cell cb-task-cell--progress" data-label="处理进度">
         <span className="cb-task-cell__label" aria-hidden="true">
-          上传进度
+          处理进度
         </span>
         {uploadProgressLabel(task)}
       </td>
