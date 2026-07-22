@@ -353,11 +353,11 @@ describe('DashboardPage 操作入口', () => {
     expect(probe.getAttribute('data-search')).toBe('?capability=cap-1');
   });
 
-  it('草稿条「去上传流程」→ 回到 currentStep 断点（已过导入 → 能力页 /create/capabilities）', async () => {
+  it('进行中的创作「继续完善」→ 回到 currentStep 断点（已过导入 → 能力页 /create/capabilities）', async () => {
     restore = installRoutedFetch(ok());
     renderPage();
     await screen.findByText(/结构化中 60%/);
-    await userEvent.click(screen.getByRole('button', { name: /去上传流程/ }));
+    await userEvent.click(screen.getByRole('button', { name: '继续完善 →' }));
     expect(await screen.findByTestId('probe')).toBeInTheDocument();
   });
 });

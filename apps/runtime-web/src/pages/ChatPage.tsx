@@ -1306,12 +1306,15 @@ export function ChatPage() {
             <button
               type="button"
               className="rt-studio-header__back"
-              aria-label="返回能力结果"
+              aria-label="返回创作项目"
               onClick={() => window.location.assign(publishReturnTo)}
             >
               <span aria-hidden="true">←</span>
             </button>
-            <h1>{capability.name}</h1>
+            <div className="rt-studio-header__project">
+              <span>Agent 创作项目 · 页面修改</span>
+              <h1>{capability.name}</h1>
+            </div>
           </div>
         </header>
       )}

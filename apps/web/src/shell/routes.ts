@@ -40,7 +40,7 @@ export const NAV_GROUPS: { key: NavGroupKey; label: string }[] = [
 
 /** 创作者侧栏主导航（恒定结构，开工总纲 §2.1）。顺序即展示顺序。 */
 export const CREATOR_NAV: NavItem[] = [
-  { path: '/creator', label: '工作台', group: 'create', icon: IconWorkbench, disabled: true },
+  { path: '/creator', label: '工作台', group: 'create', icon: IconWorkbench },
   { path: '/capabilities', label: '我的能力', group: 'create', icon: IconCapabilities },
   { path: '/create', label: '上传能力', group: 'create', icon: IconUpload },
   { path: '/analytics', label: '数据分析', group: 'create', icon: IconAnalytics, disabled: true },

@@ -18,6 +18,7 @@ function Capture() {
       <span data-testid="sel">{captured.selection ? captured.selection.mode : 'none'}</span>
       <span data-testid="draftId">{captured.draftId ?? 'none'}</span>
       <span data-testid="capabilityId">{captured.capabilityId ?? 'none'}</span>
+      <span data-testid="agentReady">{captured.agentReady ? 'ready' : 'pending'}</span>
       <span data-testid="errors">{Object.keys(captured.stepErrors).join(',') || 'none'}</span>
       <span data-testid="summaryPrefix">{captured.summaryPrefix ?? 'none'}</span>
     </div>
@@ -75,6 +76,14 @@ describe('WizardContext', () => {
     // 真实 capabilityId 续传带出（drafts.id ≠ capabilities.id，供 STEP⑤ 读 publication，P1-5）。
     expect(screen.getByTestId('capabilityId')).toHaveTextContent('cap9');
     expect(screen.getByTestId('sel')).toHaveTextContent('single');
+    expect(screen.getByTestId('agentReady')).toHaveTextContent('ready');
+  });
+
+  it('setAgentReady 只在真实候选准备好后推进共享旅程状态', () => {
+    setup();
+    expect(screen.getByTestId('agentReady')).toHaveTextContent('pending');
+    act(() => captured.setAgentReady(true));
+    expect(screen.getByTestId('agentReady')).toHaveTextContent('ready');
   });
 
   it('setCapabilityId 写真实能力体 id（STEP④ 建版回填，P1-5）', () => {

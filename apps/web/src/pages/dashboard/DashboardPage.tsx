@@ -53,7 +53,7 @@ export function DashboardPage(): ReactElement {
   const caps = useCapabilities(range);
   const drafts = useDrafts();
 
-  // 「+ 上传新能力」/「编辑」/草稿恢复 → 五步上传流程（4C 接；本期路由占位）。
+  // 「+ 上传新能力」/「编辑」/草稿恢复 → Agent 创作流程。
   const goCreate = (): void => navigate(CREATE_ENTRY);
   // 向导消费方读 ?capability=（WizardLayout / PublishStepPage / StructureStepPage），故编辑入口须发同名
   // 参数（旧 ?capabilityId= 会被向导静默丢弃）。本期是「编辑既有能力」占位，对齐消费键即可、不另立契约。
@@ -72,6 +72,7 @@ export function DashboardPage(): ReactElement {
     if (draft.snapshotId) params.set('snapshotId', draft.snapshotId);
     if (draft.extractJobId) params.set('extractJobId', draft.extractJobId);
     if (draft.versionId) params.set('version', draft.versionId);
+    if (draft.capabilityId) params.set('capability', draft.capabilityId);
     if (draft.batchId) params.set('batchId', draft.batchId);
     navigate(`${path}?${params.toString()}`);
   };
@@ -177,8 +178,8 @@ export function DashboardPage(): ReactElement {
         )}
       </section>
 
-      {/* ⑤ 草稿与上传中条 */}
-      <section className="cb-dashboard__drafts" aria-label="草稿与上传中">
+      {/* ⑤ 可恢复的 Agent 创作 */}
+      <section className="cb-dashboard__drafts" aria-label="创作恢复区">
         {drafts.isLoading ? (
           <LoadingState skeletonRows={1} label="草稿加载中" />
         ) : drafts.isError ? (

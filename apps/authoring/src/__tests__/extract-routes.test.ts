@@ -194,6 +194,7 @@ describe('triggerExtractHandler · draft 落点同事务回填 + 续传恢复（
     expect(view).not.toBeNull();
     expect(view!.extractJobId).toBe(jobId);
     expect(view!.currentStep).toBe('extract');
+    expect(view!.stepProgress).toEqual({ percent: 0, phrase: '正在识别 Agent' });
   });
 
   it('current_step 永不倒退：草稿已到 select → 回填只焊 extract_job_id、不把 current_step 打回 extract', async () => {

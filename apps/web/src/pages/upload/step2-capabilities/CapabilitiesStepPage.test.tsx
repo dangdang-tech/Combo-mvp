@@ -35,13 +35,15 @@ function renderPage(
 
   function LocationProbe() {
     const location = useLocation();
-    const { selection } = useWizard();
+    const { selection, agentReady, publishCompleted } = useWizard();
     return (
       <>
         <span data-testid="path">{`${location.pathname}${location.search}`}</span>
         <span data-testid="selection">
           {selection?.mode === 'single' ? selection.candidateId : 'none'}
         </span>
+        <span data-testid="agent-ready">{agentReady ? 'ready' : 'pending'}</span>
+        <span data-testid="publish-completed">{publishCompleted ? 'done' : 'pending'}</span>
       </>
     );
   }
@@ -282,6 +284,8 @@ describe('CapabilitiesStepPage — real creation checkpoint', () => {
     renderPage();
     await finishExtract();
 
+    expect(screen.getByTestId('agent-ready')).toHaveTextContent('ready');
+
     expect(screen.getByRole('heading', { level: 2, name: '主结果' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByText(/全选/)).toBeNull();
@@ -299,7 +303,7 @@ describe('CapabilitiesStepPage — real creation checkpoint', () => {
     expect(names[3]).toContain('失败项');
   });
 
-  it('流程条用中性完成态，并把当前步骤暴露给辅助技术', async () => {
+  it('结果页不再重复渲染创作流程条，由 WizardShell 单一承载', async () => {
     mock = installFetchMock([
       extractAccepted,
       candidateResponse([candidateJson()]),
@@ -308,22 +312,8 @@ describe('CapabilitiesStepPage — real creation checkpoint', () => {
     renderPage();
     await finishExtract();
 
-    const flow = screen.getByRole('list', { name: '创作进度' });
-    expect(within(flow).getByRole('listitem', { name: '已完成：导入会话' })).toHaveAttribute(
-      'data-state',
-      'done',
-    );
-    expect(within(flow).getByRole('listitem', { name: '已完成：提取能力' })).toHaveAttribute(
-      'data-state',
-      'done',
-    );
-    expect(within(flow).getByRole('listitem', { name: '当前步骤：真实试用' })).toHaveAttribute(
-      'aria-current',
-      'step',
-    );
-    expect(within(flow).getByRole('listitem', { name: '待进行：发布 Agent' })).not.toHaveAttribute(
-      'aria-current',
-    );
+    expect(screen.queryByRole('list', { name: '创作进度' })).toBeNull();
+    expect(screen.getByRole('heading', { name: '第一个 Agent 已经准备好了' })).toBeInTheDocument();
   });
 
   it('从草稿恢复时优先使用已持久化的单选 candidate，并查询该版本的历史试用', async () => {
@@ -833,6 +823,7 @@ describe('CapabilitiesStepPage — real creation checkpoint', () => {
     act(() => extract.emit('done', extractDone, { id: '1-0' }));
 
     expect(await screen.findByRole('link', { name: '打开已发布的 Agent →' })).toBeInTheDocument();
+    expect(screen.getByTestId('publish-completed')).toHaveTextContent('done');
     expect(screen.getByRole('button', { name: '继续试用' })).toBeEnabled();
     expect(screen.getByText('已发布')).toBeInTheDocument();
     expect(mock.calls.some((call) => call.url.includes('/publish-batches/b1'))).toBe(true);

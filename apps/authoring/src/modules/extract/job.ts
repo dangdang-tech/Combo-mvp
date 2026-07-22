@@ -249,6 +249,41 @@ async function completeJobInTx(
   return (res.rowCount ?? 0) > 0;
 }
 
+function completedDraftPhrase(candidateCount: number, readyCount: number): string {
+  if (candidateCount === 0 || readyCount === 0) return '没有识别到可复用的 Agent';
+  if (readyCount < candidateCount) return `已准备好 ${readyCount} / ${candidateCount} 个 Agent`;
+  return `已准备好 ${readyCount} 个 Agent`;
+}
+
+/**
+ * 全量提取完成后同步草稿条的异步状态。
+ *
+ * 该 UPDATE 与 complete job / outbox 共用一个事务：用户无需再打开创作页触发显式保存，
+ * 首页和「我的能力」轮询 drafts 时即可看到最终结果。这里只更新进度，不改 current_step，
+ * 避免把已经进入 select/structure/publish 的草稿打回或擅自向前推进。
+ */
+async function completeMatchingDraftsInTx(
+  tx: Tx,
+  args: {
+    jobId: string;
+    ownerUserId: string;
+    candidateCount: number;
+    readyCount: number;
+  },
+): Promise<void> {
+  const phrase = completedDraftPhrase(args.candidateCount, args.readyCount);
+  await tx.query(
+    `UPDATE drafts
+        SET step_progress = jsonb_build_object('percent', 100, 'phrase', $3::text),
+            updated_at = now()
+      WHERE extract_job_id = $1
+        AND owner_user_id = $2
+        AND status = 'active'
+        AND current_step IN ('import', 'extract')`,
+    [args.jobId, args.ownerUserId, phrase],
+  );
+}
+
 /**
  * 同事务收尾（全量萃取 & 单候选重试共用，Codex P0-3 + Codex#5）：
  *   在【同一 PG 事务】里把「complete job + notify.extract_completed outbox」原子提交，与全量口径一致。
@@ -264,12 +299,22 @@ async function finalizeExtractJob(args: {
   result: unknown;
   finalProgress: ProgressView;
   candidateCount: number;
+  /** 仅全量提取回写草稿；single-candidate retry 不改变项目级进度。 */
+  readyCount?: number;
 }): Promise<boolean> {
-  const { txPool, job, ctx, result, finalProgress, candidateCount } = args;
+  const { txPool, job, ctx, result, finalProgress, candidateCount, readyCount } = args;
   try {
     await withTransaction(txPool, async (tx) => {
       const completed = await completeJobInTx(tx, job.id, job.fenceToken, result, finalProgress);
       if (!completed) throw new FinalizeFencedOut(); // fence out → ROLLBACK，不发通知。
+      if (readyCount !== undefined) {
+        await completeMatchingDraftsInTx(tx, {
+          jobId: job.id,
+          ownerUserId: job.ownerUserId,
+          candidateCount,
+          readyCount,
+        });
+      }
       const payload: NotifyExtractCompletedPayload = {
         recipientId: job.ownerUserId,
         link: SSE_ROUTES.jobEvents(job.id),
@@ -493,6 +538,7 @@ async function runExtract(
     result,
     finalProgress,
     candidateCount,
+    readyCount: merged.readyCount,
   });
 
   if (!finalized) {

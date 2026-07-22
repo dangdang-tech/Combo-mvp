@@ -53,11 +53,20 @@ export interface BatchItemRowFake {
   subject: unknown;
   created_at: number;
 }
+export interface PublishDraftRowFake {
+  id: string;
+  owner_user_id: string;
+  status: string;
+  current_step: string;
+  step_progress: { percent: number; phrase: string };
+  batch_id: string | null;
+}
 
 interface BatchSnapshot {
   jobs: Map<string, JobRowFake>;
   batches: Map<string, BatchRowFake>;
   items: Map<string, BatchItemRowFake>;
+  drafts: Map<string, PublishDraftRowFake>;
 }
 
 /** processed_count generated 列（=published+failed）。 */
@@ -73,6 +82,7 @@ export class PublishBatchFakeDb extends PublishFakeDb {
   jobs = new Map<string, JobRowFake>();
   batches = new Map<string, BatchRowFake>();
   items = new Map<string, BatchItemRowFake>();
+  drafts = new Map<string, PublishDraftRowFake>();
   private itemSeq = 0;
   private batchSnapshot: BatchSnapshot | null = null;
 
@@ -81,6 +91,7 @@ export class PublishBatchFakeDb extends PublishFakeDb {
       jobs: new Map([...this.jobs].map(([k, v]) => [k, { ...v }])),
       batches: new Map([...this.batches].map(([k, v]) => [k, { ...v }])),
       items: new Map([...this.items].map(([k, v]) => [k, { ...v }])),
+      drafts: new Map([...this.drafts].map(([k, v]) => [k, { ...v }])),
     };
   }
   private restoreBatchSnapshot(): void {
@@ -88,6 +99,7 @@ export class PublishBatchFakeDb extends PublishFakeDb {
     this.jobs = this.batchSnapshot.jobs;
     this.batches = this.batchSnapshot.batches;
     this.items = this.batchSnapshot.items;
+    this.drafts = this.batchSnapshot.drafts;
     this.batchSnapshot = null;
   }
 
@@ -303,6 +315,17 @@ export class PublishBatchFakeDb extends PublishFakeDb {
         if (processed(b) >= b.total) {
           b.status = 'completed';
           batchCompleted = true;
+          if (b.failed_count === 0) {
+            for (const draft of this.drafts.values()) {
+              if (
+                draft.batch_id === b.id &&
+                draft.owner_user_id === b.owner_user_id &&
+                draft.status === 'active'
+              ) {
+                draft.step_progress = { percent: 100, phrase: '发布完成' };
+              }
+            }
+          }
         } else {
           b.status = 'running';
         }

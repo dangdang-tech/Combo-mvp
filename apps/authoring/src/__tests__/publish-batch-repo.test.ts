@@ -327,6 +327,82 @@ describe('finalizeBatchItemTx 模板 B（终态 + 计数，计数幂等化，§5
     expect(b?.status).toBe('completed');
   });
 
+  it('全部发布成功→只更新匹配 active 草稿的完成进度，保留状态和当前步骤', async () => {
+    const db = new PublishBatchFakeDb();
+    const owner = seedUser(db);
+    const created = await createPublishBatchTx(asTxPool(db), {
+      ownerUserId: owner,
+      items: items('a', 'b'),
+    });
+    db.drafts.set('draft-active', {
+      id: 'draft-active',
+      owner_user_id: owner,
+      status: 'active',
+      current_step: 'publish',
+      step_progress: { percent: 70, phrase: '正在发布' },
+      batch_id: created.batchId,
+    });
+    db.startJob(created.jobId, 1);
+    const rows = await readBatchItems(db, created.batchId);
+
+    await finalizeBatchItemTx(db, {
+      itemId: rows[0]!.id,
+      jobId: created.jobId,
+      fenceToken: 1,
+      state: 'published',
+    });
+    await finalizeBatchItemTx(db, {
+      itemId: rows[1]!.id,
+      jobId: created.jobId,
+      fenceToken: 1,
+      state: 'published',
+    });
+
+    expect(db.drafts.get('draft-active')).toMatchObject({
+      status: 'active',
+      current_step: 'publish',
+      step_progress: { percent: 100, phrase: '发布完成' },
+    });
+  });
+
+  it('批次完成但含失败项→不覆盖草稿的原进度', async () => {
+    const db = new PublishBatchFakeDb();
+    const owner = seedUser(db);
+    const created = await createPublishBatchTx(asTxPool(db), {
+      ownerUserId: owner,
+      items: items('a', 'b'),
+    });
+    db.drafts.set('draft-partial', {
+      id: 'draft-partial',
+      owner_user_id: owner,
+      status: 'active',
+      current_step: 'publish',
+      step_progress: { percent: 50, phrase: '有 1 项等待重试' },
+      batch_id: created.batchId,
+    });
+    db.startJob(created.jobId, 1);
+    const rows = await readBatchItems(db, created.batchId);
+
+    await finalizeBatchItemTx(db, {
+      itemId: rows[0]!.id,
+      jobId: created.jobId,
+      fenceToken: 1,
+      state: 'failed',
+      error: errBody,
+    });
+    await finalizeBatchItemTx(db, {
+      itemId: rows[1]!.id,
+      jobId: created.jobId,
+      fenceToken: 1,
+      state: 'published',
+    });
+
+    expect(db.drafts.get('draft-partial')?.step_progress).toEqual({
+      percent: 50,
+      phrase: '有 1 项等待重试',
+    });
+  });
+
   it('fence 失配 → moved=false、计数 +0（已被接管）', async () => {
     const db = new PublishBatchFakeDb();
     const owner = seedUser(db);

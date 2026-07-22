@@ -56,6 +56,8 @@ export interface WizardState {
   capabilityId: string | undefined;
   /** 当前批量发布批次 id（STEP⑤「全部发布」建批回填 + 续传从 DraftView.batchId 回填，续传恢复同一批次不重建）。 */
   batchId: string | undefined;
+  /** 提取结果中是否已有可继续包装的 Agent；由能力结果页的真实候选响应回填，不用 job id 猜完成。 */
+  agentReady: boolean;
   /**
    * 底栏步骤摘要前缀（各步可选注入，如 STEP① 完成态「原始数据仅你可见 · 」5.1.3 / 导入-17）。
    * 各步在 effect 内 setSummaryPrefix（离开/卸载时清回 undefined），WizardShell 透传给 WizardFooter。
@@ -63,8 +65,7 @@ export interface WizardState {
   summaryPrefix: string | undefined;
   /**
    * 末步（STEP⑤）单条发布是否已进入终态（发布成功，reviewStatus=alpha_pending/published，BUG-022）。
-   * PublishStepPage 发布成功后 setPublishCompleted(true)（卸载/换批量模式清回 false）；WizardShell 据它把
-   * STEP⑤ 步骤条从「进行中」标「已完成」，与页面主体「已提交，Alpha 人工评审中」+ 底栏「回工作台」终态一致。
+   * 能力结果页从真实发布批次 item 恢复并 setPublishCompleted(true)；WizardShell 据它把共享旅程标为完成。
    */
   publishCompleted: boolean;
 }
@@ -90,6 +91,8 @@ export interface WizardActions {
   setCapabilityId: (capabilityId: string | undefined) => void;
   /** 设/换当前批次 id（STEP⑤「全部发布」建批后回填，续传恢复同一批次）。 */
   setBatchId: (batchId: string | undefined) => void;
+  /** 标记真实候选是否已准备好，让上传页与结果页共享同一阶段事实。 */
+  setAgentReady: (ready: boolean) => void;
   /**
    * 续传：用 DraftView 恢复 draftId + selection + snapshot/extract/version/capability/batch 全引用（F-15，
    * current_step 由路由落点决定）。各步优先读这些引用而非新建任务（STEP④ 不重建版、STEP⑤ 不缺 version、
@@ -100,7 +103,7 @@ export interface WizardActions {
   setPrimaryAction: (action: PrimaryAction | null) => void;
   /** 设/清底栏摘要前缀（各步 effect 内注入，如 STEP① 完成态「原始数据仅你可见 · 」5.1.3；卸载置 undefined）。 */
   setSummaryPrefix: (prefix: string | undefined) => void;
-  /** 标/清末步发布终态（STEP⑤ 单发布成功后置 true，使步骤条标已完成；卸载/换批量模式清回 false，BUG-022）。 */
+  /** 标/清发布终态（能力结果页从真实批次 item 写入，使共享旅程标已完成）。 */
   setPublishCompleted: (completed: boolean) => void;
 }
 
@@ -120,6 +123,7 @@ type Action =
   | { type: 'setVersionId'; versionId: string | undefined }
   | { type: 'setCapabilityId'; capabilityId: string | undefined }
   | { type: 'setBatchId'; batchId: string | undefined }
+  | { type: 'setAgentReady'; ready: boolean }
   | { type: 'hydrateFromDraft'; draft: DraftView }
   | { type: 'setPrimaryAction'; action: PrimaryAction | null }
   | { type: 'setSummaryPrefix'; prefix: string | undefined }
@@ -173,6 +177,8 @@ function reducer(state: InternalState, action: Action): InternalState {
         : { ...state, capabilityId: action.capabilityId };
     case 'setBatchId':
       return state.batchId === action.batchId ? state : { ...state, batchId: action.batchId };
+    case 'setAgentReady':
+      return state.agentReady === action.ready ? state : { ...state, agentReady: action.ready };
     case 'hydrateFromDraft':
       // 续传恢复 draftId + selection + snapshot/extract/version/batch 全引用（current_step 由路由落点决定，
       // 不在此覆写 currentStep）。各步据这些引用续接已生成产物，不重建任务（已生成不丢、续传精确）。
@@ -184,6 +190,12 @@ function reducer(state: InternalState, action: Action): InternalState {
         versionId: action.draft.versionId ?? state.versionId,
         capabilityId: action.draft.capabilityId ?? state.capabilityId,
         batchId: action.draft.batchId ?? state.batchId,
+        agentReady:
+          state.agentReady ||
+          action.draft.currentStep === 'select' ||
+          action.draft.currentStep === 'structure' ||
+          action.draft.currentStep === 'publish' ||
+          Boolean(action.draft.versionId || action.draft.capabilityId),
         selection: coerceSelection(action.draft.selection),
       };
     case 'setPrimaryAction':
@@ -241,6 +253,7 @@ export function WizardProvider({
     versionId: initialVersionId,
     capabilityId: initialCapabilityId,
     batchId: initialBatchId,
+    agentReady: Boolean(initialVersionId || initialCapabilityId || initialBatchId),
     summaryPrefix: undefined,
     publishCompleted: false,
     primaryAction: null,
@@ -286,6 +299,10 @@ export function WizardProvider({
     (batchId: string | undefined) => dispatch({ type: 'setBatchId', batchId }),
     [],
   );
+  const setAgentReady = useCallback(
+    (ready: boolean) => dispatch({ type: 'setAgentReady', ready }),
+    [],
+  );
   const hydrateFromDraft = useCallback(
     (draft: DraftView) => dispatch({ type: 'hydrateFromDraft', draft }),
     [],
@@ -316,6 +333,7 @@ export function WizardProvider({
       setVersionId,
       setCapabilityId,
       setBatchId,
+      setAgentReady,
       hydrateFromDraft,
       setPrimaryAction,
       setSummaryPrefix,
@@ -333,6 +351,7 @@ export function WizardProvider({
       setVersionId,
       setCapabilityId,
       setBatchId,
+      setAgentReady,
       hydrateFromDraft,
       setPrimaryAction,
       setSummaryPrefix,

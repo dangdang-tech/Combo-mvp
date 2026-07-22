@@ -85,14 +85,18 @@ describe('侧栏导航分两组且菜单项齐全（外壳首页-03）', () => {
     }
   });
 
-  it('暂未开放项置灰且不可点击（工作台/数据分析/收益/个人主页）', () => {
+  it('暂未开放项置灰且不可点击（数据分析/收益/个人主页）', () => {
     renderShell('/capabilities');
     const nav = screen.getByRole('navigation', { name: '主导航' });
-    for (const label of ['工作台', '数据分析', '收益', '个人主页']) {
+    for (const label of ['数据分析', '收益', '个人主页']) {
       const item = within(nav).getByText(label).closest('.cb-shell__navlink');
       expect(item).toHaveClass('cb-shell__navlink--disabled');
       expect(item).toHaveAttribute('aria-disabled', 'true');
     }
+    expect(within(nav).getByRole('link', { name: '工作台' })).toHaveAttribute(
+      'href',
+      '/creator',
+    );
     expect(within(nav).queryByRole('link', { name: '数据分析' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: '收益' })).toBeNull();
     expect(within(nav).queryByRole('link', { name: '个人主页' })).toBeNull();
@@ -195,10 +199,10 @@ describe('当前页高亮（外壳首页-28）', () => {
     const user = userEvent.setup();
     renderShell('/creator');
     const nav = screen.getByRole('navigation', { name: '主导航' });
-    expect(within(nav).getByText('工作台').closest('.cb-shell__navlink')).toHaveClass(
-      'cb-shell__navlink--disabled',
+    expect(within(nav).getByRole('link', { name: '工作台' })).toHaveClass(
+      'cb-shell__navlink--active',
     );
-    expect(within(nav).getAllByRole('link')).toHaveLength(2);
+    expect(within(nav).getAllByRole('link')).toHaveLength(3);
 
     await user.click(within(nav).getByRole('link', { name: '我的能力' }));
     expect(within(nav).getByRole('link', { name: '我的能力' })).toHaveClass(

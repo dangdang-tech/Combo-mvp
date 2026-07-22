@@ -68,6 +68,7 @@ export interface DraftRow {
   status: string;
   current_step: string;
   extract_job_id: string | null;
+  step_progress: { percent?: number; phrase?: string };
 }
 
 function ok<R>(rows: R[]): QueryResultLike<R> {
@@ -134,7 +135,12 @@ export class ExtractRoutesFakeDb implements Queryable {
             structure: 3,
             publish: 4,
           };
-          if ((rank[d.current_step] ?? 0) <= 1) d.current_step = 'extract'; // 永不倒退
+          if ((rank[d.current_step] ?? 0) <= 1) {
+            d.current_step = 'extract'; // 永不倒退
+            if (sql.includes('step_progress')) {
+              d.step_progress = { percent: 0, phrase: '正在识别 Agent' };
+            }
+          }
         }
       }
       return ok<R>([{ id, fence_token: 1, attempt_no: 0, created_at: createdAt }] as R[]);
@@ -157,7 +163,7 @@ export class ExtractRoutesFakeDb implements Queryable {
           id: d.id,
           status: d.status,
           current_step: d.current_step,
-          step_progress: {},
+          step_progress: d.step_progress,
           title: null,
           snapshot_id: null,
           extract_job_id: d.extract_job_id,
@@ -437,6 +443,7 @@ export function seedDraft(
     status: args.status ?? 'active',
     current_step: args.currentStep ?? 'extract',
     extract_job_id: null,
+    step_progress: {},
   });
   return id;
 }

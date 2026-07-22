@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { DashboardCapabilityRow } from '@cb/shared';
+import type { DashboardCapabilityRow, DraftView } from '@cb/shared';
 import { installFetchMock, type FetchMock } from '../../test/mockFetch.js';
 import { renderPage } from '../__testutils__/renderPage.js';
 import { CapabilitiesPage } from './CapabilitiesPage.js';
@@ -52,6 +52,15 @@ function pageBody(
   };
 }
 
+function draftPageBody(drafts: DraftView[]): unknown {
+  return {
+    data: drafts,
+    meta: {
+      page: { nextCursor: null, hasMore: false, limit: 20, order: 'desc' },
+    },
+  };
+}
+
 let mock: FetchMock | undefined;
 afterEach(() => mock?.restore());
 
@@ -67,6 +76,33 @@ describe('我的能力页', () => {
     // 状态徽章在表内（与同名筛选 chip 区分：scope 到 table）。
     expect(within(screen.getByRole('table')).getByText('已上架')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '我的能力' })).toBeInTheDocument();
+  });
+
+  it('顶部显示进行中的创作，并根据真实断点给出继续动作', async () => {
+    mock = installFetchMock([
+      { status: 200, json: pageBody([row()]) },
+      {
+        status: 200,
+        json: draftPageBody([
+          {
+            id: 'd1',
+            status: 'active',
+            currentStep: 'select',
+            stepProgress: { percent: 100, phrase: '已识别 5 个候选' },
+            title: '内容选题 Agent',
+            snapshotId: 's1',
+            extractJobId: 'j1',
+            createdAt: '2026-07-22T04:00:00Z',
+            updatedAt: '2026-07-22T04:10:00Z',
+          },
+        ]),
+      },
+    ]);
+    renderPage(<CapabilitiesPage />);
+
+    expect(await screen.findByRole('region', { name: '进行中的创作' })).toBeInTheDocument();
+    expect(screen.getByText('内容选题 Agent')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '查看 Agent →' })).toBeInTheDocument();
   });
 
   it('usage 列统一占位（本月调用 / 收益）：显示占位文案、绝不显 0', async () => {
@@ -175,6 +211,7 @@ describe('我的能力页', () => {
           nextCursor: 'CUR2',
         }),
       },
+      { status: 200, json: draftPageBody([]) },
       {
         status: 200,
         json: pageBody([row({ capabilityId: 'cap-2', name: '能力 B' })], { hasMore: false }),
@@ -203,6 +240,7 @@ describe('我的能力页', () => {
           nextCursor: 'CUR2',
         }),
       },
+      { status: 200, json: draftPageBody([]) },
       {
         status: 200,
         // 后端重叠返回了 cap-1（边界/并发新增导致游标重叠）+ 新行 cap-2。
@@ -236,6 +274,7 @@ describe('我的能力页', () => {
           nextCursor: 'CUR2',
         }),
       },
+      { status: 200, json: draftPageBody([]) },
       {
         status: 200,
         json: pageBody([row({ capabilityId: 'cap-2', name: '能力 B' })], { hasMore: false }),
@@ -269,17 +308,20 @@ describe('我的能力页', () => {
   });
 
   it('后端失败 → ErrorState（只人话 + 重试，无错误码）', async () => {
-    mock = installFetchMock({
-      status: 500,
-      json: {
-        error: {
-          userMessage: '经营数据没能加载，请重试。',
-          retriable: true,
-          action: 'retry',
-          traceId: 'tr-x',
+    mock = installFetchMock([
+      {
+        status: 500,
+        json: {
+          error: {
+            userMessage: '经营数据没能加载，请重试。',
+            retriable: true,
+            action: 'retry',
+            traceId: 'tr-x',
+          },
         },
       },
-    });
+      { status: 200, json: draftPageBody([]) },
+    ]);
     const { container } = renderPage(<CapabilitiesPage />);
 
     expect(await screen.findByText('经营数据没能加载，请重试。')).toBeInTheDocument();

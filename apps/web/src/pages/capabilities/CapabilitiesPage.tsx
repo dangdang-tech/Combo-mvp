@@ -14,7 +14,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import type { DashboardCapabilityRow, Meta, PageMeta, Range } from '@cb/shared';
+import type { DashboardCapabilityRow, DraftView, Meta, PageMeta, Range } from '@cb/shared';
 import { apiGetEnvelope } from '../../api/index.js';
 import { ErrorState, LoadingState } from '../../components/index.js';
 import {
@@ -25,6 +25,8 @@ import {
   useMoreMenu,
 } from '../dashboard/CapabilityTable.js';
 import { dedupeByCapabilityId } from '../dashboard/dedupe.js';
+import { DraftStrip } from '../dashboard/DraftStrip.js';
+import { useDrafts } from '../dashboard/hooks.js';
 
 /** 状态筛选档（与后端 DashboardCapabilitiesQuery.status 一致）。 */
 export type CapabilityStatusFilter =
@@ -80,6 +82,16 @@ export function CapabilitiesPage(): ReactElement {
   const [status, setStatus] = useState<CapabilityStatusFilter>('all');
   const range: Range = '30d';
 
+  const resumeDraft = (draft: DraftView, path: string): void => {
+    const params = new URLSearchParams({ draftId: draft.id });
+    if (draft.snapshotId) params.set('snapshotId', draft.snapshotId);
+    if (draft.extractJobId) params.set('extractJobId', draft.extractJobId);
+    if (draft.versionId) params.set('version', draft.versionId);
+    if (draft.capabilityId) params.set('capability', draft.capabilityId);
+    if (draft.batchId) params.set('batchId', draft.batchId);
+    navigate(`${path}?${params.toString()}`);
+  };
+
   const query = useInfiniteQuery<CapabilitiesPageResult, Error>({
     // 换筛选即换 queryKey → 新口径独立累积（旧筛选累积页不串台，cursor 自然回第一页，60 §1.6）。
     queryKey: ['capabilities-page', status, range],
@@ -94,6 +106,7 @@ export function CapabilitiesPage(): ReactElement {
     getNextPageParam: (last) =>
       last.page.hasMore ? (last.page.nextCursor ?? undefined) : undefined,
   });
+  const drafts = useDrafts();
 
   const pages = query.data?.pages ?? [];
   // 真追加：摊平所有已翻页 → 去重（旧行不被替换）。最近一页 meta 作 usage 占位/分页源。
@@ -117,6 +130,15 @@ export function CapabilitiesPage(): ReactElement {
         </h2>
         <p className="cb-page__lead">管理你创建的能力体：查看状态、编辑、试用与更多操作。</p>
       </header>
+
+      {/* 同一条创作旅程的异步入口：离开上传/提取/编辑后，可从常驻管理页继续到真实断点。 */}
+      {drafts.isLoading ? (
+        <LoadingState skeletonRows={1} label="正在查找进行中的创作" />
+      ) : drafts.isError ? (
+        <ErrorState error={drafts.error} onRetry={drafts.retry} />
+      ) : (
+        <DraftStrip drafts={drafts.items} onResume={resumeDraft} />
+      )}
 
       {/* 状态筛选段控（当前档有选中标识）。 */}
       <div className="cb-capabilities__filters" role="group" aria-label="按状态筛选">

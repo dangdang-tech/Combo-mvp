@@ -112,6 +112,7 @@ export async function insertFullExtractJob(
      ),
      draft_backfill AS (
         -- 同事务回填本草稿（P0）：extract_job_id 焊死 + current_step 推进到 'extract'（永不倒退：已过萃取的草稿不被打回）。
+        --   仍在 import/extract 的草稿同时写入可读的初始进度；已经进入后续步骤的草稿保留自己的 step_progress。
         --   current_step 永不倒退：仅当当前步序 ≤ extract(=1) 才置 'extract'（select/structure/publish 序更后，保留）。
         --   owner 守卫（draftId 客户端传入，必须独立守门）：owner_user_id=本人 AND status='active'；$5 NULL → 0 行（无草稿不回填）。
         UPDATE drafts d
@@ -121,6 +122,12 @@ export async function insertFullExtractJob(
                                         WHEN 'import' THEN 0 WHEN 'extract' THEN 1 WHEN 'select' THEN 2
                                         WHEN 'structure' THEN 3 WHEN 'publish' THEN 4 ELSE 0 END) <= 1
                                 THEN 'extract' ELSE d.current_step END,
+               step_progress = CASE
+                                 WHEN (CASE d.current_step
+                                         WHEN 'import' THEN 0 WHEN 'extract' THEN 1 WHEN 'select' THEN 2
+                                         WHEN 'structure' THEN 3 WHEN 'publish' THEN 4 ELSE 0 END) <= 1
+                                 THEN jsonb_build_object('percent', 0, 'phrase', '正在识别 Agent')
+                                 ELSE d.step_progress END,
                updated_at = now()
           FROM new_job nj
          WHERE d.id = $5

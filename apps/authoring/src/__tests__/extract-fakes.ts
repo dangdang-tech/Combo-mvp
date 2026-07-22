@@ -59,6 +59,15 @@ export interface EvidenceRowF {
   snapshot_id: string;
 }
 
+export interface DraftRowF {
+  id: string;
+  owner_user_id: string;
+  status: string;
+  current_step: string;
+  extract_job_id: string | null;
+  step_progress: { percent: number; phrase: string };
+}
+
 function ok<R>(rows: R[]): QueryResultLike<R> {
   return { rows, rowCount: rows.length };
 }
@@ -76,6 +85,7 @@ export class ExtractFakeDb implements Queryable {
   readonly segments = new Map<string, SegmentRowF>();
   readonly candidates = new Map<string, CandidateRowF>();
   readonly evidence = new Map<string, EvidenceRowF>();
+  readonly drafts = new Map<string, DraftRowF>();
   now = 1_000_000;
 
   async connect(): Promise<{ query: Queryable['query']; release: () => void }> {
@@ -357,6 +367,10 @@ export class ExtractFakeTxPool {
     const zeroRowSegmentCount = this.zeroRowSegmentCount;
     // 事务内缓冲（COMMIT 才落、ROLLBACK 丢弃）。
     const pendingJob: Array<{ id: string; status: string; progress: unknown }> = [];
+    const pendingDraft: Array<{
+      id: string;
+      stepProgress: { percent: number; phrase: string };
+    }> = [];
     const pendingOutbox: Array<{ eventId: string; topic: string; payload: unknown }> = [];
     // 单候选/重试写入直接作用于 db.candidates/db.evidence，但 BEGIN 处快照 → ROLLBACK 整体还原（事务原子，Codex#4）。
     let snapCandidates: Map<string, CandidateRowF> | null = null;
@@ -396,6 +410,26 @@ export class ExtractFakeTxPool {
           });
           return { rows: [], rowCount: 1 } as QueryResultLike<R>;
         }
+        // 全量 extract 收尾：与 complete job / outbox 同事务回写匹配的 active draft；不改 current_step。
+        if (sql.includes('UPDATE drafts') && sql.includes('step_progress')) {
+          const jobId = params[0] as string;
+          const ownerUserId = params[1] as string;
+          const phrase = params[2] as string;
+          const matches = [...db.drafts.values()].filter(
+            (draft) =>
+              draft.extract_job_id === jobId &&
+              draft.owner_user_id === ownerUserId &&
+              draft.status === 'active' &&
+              (draft.current_step === 'import' || draft.current_step === 'extract'),
+          );
+          for (const draft of matches) {
+            pendingDraft.push({
+              id: draft.id,
+              stepProgress: { percent: 100, phrase },
+            });
+          }
+          return { rows: [], rowCount: matches.length } as QueryResultLike<R>;
+        }
         if (sql.includes('INSERT INTO outbox_events')) {
           if (throwOnOutbox) throw new Error('injected outbox failure');
           pendingOutbox.push({
@@ -434,6 +468,10 @@ export class ExtractFakeTxPool {
               j.progress = pj.progress;
             }
           }
+          for (const pd of pendingDraft) {
+            const draft = db.drafts.get(pd.id);
+            if (draft) draft.step_progress = pd.stepProgress;
+          }
           outbox.push(...pendingOutbox);
           committed.push(true);
           snapCandidates = null;
@@ -441,6 +479,7 @@ export class ExtractFakeTxPool {
         }
         if (sql.startsWith('ROLLBACK')) {
           pendingJob.length = 0;
+          pendingDraft.length = 0;
           pendingOutbox.length = 0;
           // 还原候选/证据快照（事务原子：单候选事务中途抛错 → 候选/证据一并不落，Codex#4）。
           if (snapCandidates) {

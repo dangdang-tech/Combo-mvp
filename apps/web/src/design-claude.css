@@ -254,6 +254,41 @@
   border-color: var(--cb-feedback-live-border);
 }
 
+/* 上传、识别与结果页共享的创作项目脊柱。只保留身份和当前阶段，不承担导航。 */
+.cb-creation-journey {
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--cb-border);
+}
+
+.cb-creation-journey .cb-cmdbox__eyebrow {
+  margin-bottom: 5px;
+  color: var(--cb-accent);
+  font-size: 10px;
+}
+
+.cb-creation-journey .cb-cmdbox__title {
+  font-family: var(--cb-font-serif);
+  font-size: clamp(20px, 2.4vw, 25px);
+  font-weight: 500;
+}
+
+.cb-creation-journey .cb-cap-status {
+  flex: 0 0 auto;
+  align-self: center;
+  border: 1px solid var(--cb-border);
+  padding: 4px 9px;
+  background: var(--cb-surface-soft);
+  color: var(--cb-muted);
+  font-size: 10px;
+}
+
+.cb-creation-journey .cb-cap-status[data-tone='ok'] {
+  border-color: var(--cb-state-success-border);
+  background: var(--cb-state-success-bg);
+  color: var(--cb-state-success-fg);
+}
+
 .cb-agent-primary {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
@@ -532,6 +567,14 @@
 }
 
 @media (max-width: 760px) {
+  .cb-creation-journey .cb-cmdbox__header {
+    gap: 12px;
+  }
+
+  .cb-creation-journey .cb-cmdbox__title {
+    font-size: 20px;
+  }
+
   .cb-agent-result .cb-capabilities__header {
     display: block;
   }

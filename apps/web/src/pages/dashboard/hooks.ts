@@ -134,6 +134,11 @@ export function useDrafts(): PagedState<DraftView> {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.page?.hasMore ? (lastPage.page.nextCursor ?? undefined) : undefined,
+    // 上传、提取和页面生成都可能在用户离开当前页后继续。入口页低频刷新同一份
+    // Draft 真源，让“进行中的创作”无需手动刷新即可长出最新阶段。
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
   return useFlattenInfinite(query);
 }

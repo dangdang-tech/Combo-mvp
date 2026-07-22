@@ -185,6 +185,8 @@ export function CapabilitiesStepPage(): ReactElement {
     capabilityId: ctxCapabilityId,
     setVersionId,
     setCapabilityId,
+    setAgentReady,
+    setPublishCompleted,
     selection: draftSelection,
     setSelection,
   } = useWizard();
@@ -293,19 +295,23 @@ export function CapabilitiesStepPage(): ReactElement {
   }, [phase.kind, snapshotId, triggerKey, draftId, attempt, setExtractJobId, setSearchParams]);
 
   // SSE done → 拉全量候选；ready 渲染层再按真实 reusability 稳定排序。
-  const handleJobDone = useCallback((doneJobId: string, done: DonePayload | undefined): void => {
-    setDoneResult(doneResultOf(done));
-    void (async () => {
-      try {
-        const res = await fetchCandidates(doneJobId, { limit: 50 });
-        failCountRef.current = 0;
-        setCandidates(res.candidates);
-        setPhase({ kind: 'ready' });
-      } catch (e) {
-        setError(e instanceof ApiError ? e : fallbackError('候选加载失败，请稍后重试。'));
-      }
-    })();
-  }, []);
+  const handleJobDone = useCallback(
+    (doneJobId: string, done: DonePayload | undefined): void => {
+      setDoneResult(doneResultOf(done));
+      void (async () => {
+        try {
+          const res = await fetchCandidates(doneJobId, { limit: 50 });
+          failCountRef.current = 0;
+          setCandidates(res.candidates);
+          setAgentReady(res.candidates.some((candidate) => candidate.status === 'ready'));
+          setPhase({ kind: 'ready' });
+        } catch (e) {
+          setError(e instanceof ApiError ? e : fallbackError('候选加载失败，请稍后重试。'));
+        }
+      })();
+    },
+    [setAgentReady],
+  );
 
   const handleJobError = useCallback((): void => {
     failCountRef.current += 1;
@@ -988,8 +994,18 @@ export function CapabilitiesStepPage(): ReactElement {
     return m;
   }, [activeCandidateId, activeTrialCapability, candidates, merged]);
 
+  const primaryItem = activeCandidate ? itemByCandidate.get(activeCandidate.id) : undefined;
+  const trialForPrimary =
+    activeCandidate && trialLaunch?.candidateId === activeCandidate.id ? trialLaunch : null;
+  const trialBusy = Boolean(trialLaunch && trialLaunch.phase !== 'error');
   const readyCount = readyCandidates.length;
   const allDone = merged ? merged.processedCount >= merged.total && merged.total > 0 : false;
+  const published = primaryItem?.state === 'published';
+
+  // 发布终态来自真实批次 item；刷新/续传重新拉到 published 后仍会恢复旅程完成态。
+  useEffect(() => {
+    setPublishCompleted(published);
+  }, [published, setPublishCompleted]);
 
   // —— 渲染 ——
   if (error) {
@@ -1023,14 +1039,7 @@ export function CapabilitiesStepPage(): ReactElement {
 
   const analyzed = doneResult?.analyzedSegments;
   const identified = doneResult?.candidateCount ?? candidates.length;
-  const primaryItem = activeCandidate ? itemByCandidate.get(activeCandidate.id) : undefined;
-  const trialForPrimary =
-    activeCandidate && trialLaunch?.candidateId === activeCandidate.id ? trialLaunch : null;
-  const trialBusy = Boolean(trialLaunch && trialLaunch.phase !== 'error');
-  const published = primaryItem?.state === 'published';
   const trialBadge = published ? '已发布' : trialVerified ? '已试用' : '可试用';
-  const trialStepDone = trialVerified || Boolean(primaryItem);
-  const publishStepDone = published;
 
   return (
     <section className="cb-capabilities cb-agent-result" aria-label="Agent 创作结果">
@@ -1065,35 +1074,6 @@ export function CapabilitiesStepPage(): ReactElement {
           </div>
         </dl>
       </header>
-
-      <ol className="cb-agent-result__flow" aria-label="创作进度">
-        <li data-state="done" aria-label="已完成：导入会话">
-          <span>1</span>导入会话
-        </li>
-        <li data-state="done" aria-label="已完成：提取能力">
-          <span>2</span>提取能力
-        </li>
-        <li
-          data-state={trialStepDone ? 'done' : 'active'}
-          aria-current={trialStepDone ? undefined : 'step'}
-          aria-label={trialStepDone ? '已完成：真实试用' : '当前步骤：真实试用'}
-        >
-          <span>3</span>真实试用
-        </li>
-        <li
-          data-state={publishStepDone ? 'done' : trialStepDone ? 'active' : 'pending'}
-          aria-current={!publishStepDone && trialStepDone ? 'step' : undefined}
-          aria-label={
-            publishStepDone
-              ? '已完成：发布 Agent'
-              : trialStepDone
-                ? '当前步骤：发布 Agent'
-                : '待进行：发布 Agent'
-          }
-        >
-          <span>4</span>发布 Agent
-        </li>
-      </ol>
 
       {readyCount === 0 ? (
         <p className="cb-capabilities__empty">

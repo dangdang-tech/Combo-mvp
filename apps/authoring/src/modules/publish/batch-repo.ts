@@ -362,7 +362,7 @@ export async function finalizeBatchItemTx(
   const res = await db.query<{ batch_completed: boolean; moved: boolean }>(
     `WITH
      guard AS (
-        SELECT bi.id AS item_id, b.id AS batch_id, b.total
+        SELECT bi.id AS item_id, b.id AS batch_id, b.total, b.owner_user_id
           FROM publish_batch_items bi
           JOIN publish_batches b ON b.id = bi.batch_id
           JOIN jobs j           ON j.id = b.job_id
@@ -398,7 +398,19 @@ export async function finalizeBatchItemTx(
           FROM guard
          WHERE b.id = guard.batch_id
            AND EXISTS (SELECT 1 FROM moved)
-        RETURNING b.status
+        RETURNING b.status, b.failed_count
+     ),
+     finished_draft AS (
+        UPDATE drafts d
+           SET step_progress = jsonb_build_object('percent', 100, 'phrase', '发布完成'),
+               updated_at = now()
+          FROM guard, bumped
+         WHERE d.batch_id = guard.batch_id
+           AND d.owner_user_id = guard.owner_user_id
+           AND d.status = 'active'
+           AND bumped.status = 'completed'
+           AND bumped.failed_count = 0
+        RETURNING d.id
      )
      SELECT (SELECT status FROM bumped) = 'completed' AS batch_completed,
             EXISTS (SELECT 1 FROM moved) AS moved`,

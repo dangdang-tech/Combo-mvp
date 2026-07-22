@@ -23,9 +23,9 @@ describe('CREATOR_NAV 分组结构（外壳首页-03）', () => {
     for (const n of CREATOR_NAV) expect(typeof n.icon).toBe('function');
   });
 
-  it('暂未开放入口置灰：工作台 / 数据分析 / 收益 / 个人主页', () => {
+  it('暂未开放入口置灰：数据分析 / 收益 / 个人主页', () => {
     const disabledLabels = CREATOR_NAV.filter((n) => n.disabled).map((n) => n.label);
-    expect(disabledLabels).toEqual(['工作台', '数据分析', '收益', '个人主页']);
+    expect(disabledLabels).toEqual(['数据分析', '收益', '个人主页']);
   });
 
   it('每个分组键都在 NAV_GROUPS 中有定义（无孤儿组）', () => {

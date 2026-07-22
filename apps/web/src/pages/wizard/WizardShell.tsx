@@ -2,8 +2,9 @@
 //
 // 结构（自上而下，全在 4A Shell 的 <Outlet> 内容区内；不改 4A 外壳侧栏/顶栏）：
 //   1. 顶栏「保存草稿」：上抬到 4A Shell 顶栏（topbarSlot），不在本壳内独立成条。
-//   2. 续传/保存的加载与错误安抚条（永不裸转圈/裸错）。
-//   3. 步骤内容区：<Outlet> 渲染当前步（上传 / 能力页）。
+//   2. 常驻创作身份：上传与能力页共享同一项目名称和紧凑四阶段旅程。
+//   3. 续传/保存的加载与错误安抚条（永不裸转圈/裸错）。
+//   4. 步骤内容区：<Outlet> 渲染当前步（上传 / 能力页）。
 //
 // 已随 2 步坍缩下线：顶部常驻步骤条（StepBar）+ 恒定底栏主按钮（WizardFooter）。
 //   上传完成即自动进入能力页（无需手动点「下一步」）、能力页自带「一键发布」，故无需步骤条/底栏编排。
@@ -12,6 +13,7 @@ import { useCallback, useEffect, useRef, type ReactElement } from 'react';
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ErrorState } from '../../components/index.js';
 import { useTopbarActionSetter } from '../../shell/topbarSlot.js';
+import { CreationJourney } from './CreationJourney.js';
 import { stepForPath, WIZARD_STEPS } from './wizardMachine.js';
 import { useWizard } from './WizardContext.js';
 import { useSaveDraft } from './useSaveDraft.js';
@@ -21,7 +23,17 @@ export function WizardShell(): ReactElement {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { draftId: ctxDraftId, setCurrentStep } = useWizard();
+  const {
+    draftId: ctxDraftId,
+    snapshotId,
+    extractJobId,
+    versionId,
+    capabilityId,
+    batchId,
+    agentReady,
+    publishCompleted,
+    setCurrentStep,
+  } = useWizard();
   const save = useSaveDraft();
   // 稳定的存草稿函数（useSaveDraft 内 useCallback）：单独取出供 handleSaveDraft 依赖，避免每渲染换引用导致注册抖动。
   const runSave = save.save;
@@ -64,6 +76,19 @@ export function WizardShell(): ReactElement {
 
   return (
     <div className="cb-wizard" data-step={routeStep}>
+      <CreationJourney
+        pathname={location.pathname}
+        draftId={ctxDraftId}
+        snapshotId={snapshotId}
+        extractJobId={extractJobId}
+        versionId={versionId}
+        capabilityId={capabilityId}
+        batchId={batchId}
+        hasAgentReady={agentReady}
+        hasTrialResult={searchParams.has('session') || searchParams.has('tested')}
+        publishCompleted={publishCompleted}
+      />
+
       {/* 保存草稿失败：就地人话错误 + 重试退路（永不裸错；不阻塞继续编辑）。 */}
       {save.error && (
         <ErrorState

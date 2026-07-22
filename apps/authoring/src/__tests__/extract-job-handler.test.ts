@@ -342,11 +342,63 @@ describe('extract handler — 正常链路（B-22）', () => {
     expect(res.finalized).toBe(true);
   });
 
+  it('全量提取完成会原子回写匹配草稿，工作台无需用户再次保存即可看到 Agent 已准备好', async () => {
+    const { db, handler } = setup();
+    seedSegments(db, 'snap-1');
+    const job = runningJob(db);
+    db.drafts.set('draft-1', {
+      id: 'draft-1',
+      owner_user_id: 'u1',
+      status: 'active',
+      current_step: 'extract',
+      extract_job_id: job.id,
+      step_progress: { percent: 42, phrase: '正在识别 Agent' },
+    });
+    db.drafts.set('draft-2', {
+      id: 'draft-2',
+      owner_user_id: 'u1',
+      status: 'active',
+      current_step: 'select',
+      extract_job_id: job.id,
+      step_progress: { percent: 88, phrase: '旧的完成文案' },
+    });
+    db.drafts.set('draft-archived', {
+      id: 'draft-archived',
+      owner_user_id: 'u1',
+      status: 'archived',
+      current_step: 'extract',
+      extract_job_id: job.id,
+      step_progress: { percent: 10, phrase: '归档状态不应变化' },
+    });
+
+    await handler.run(job, makeCtx(job).ctx);
+
+    const draft = db.drafts.get('draft-1')!;
+    expect(draft.step_progress).toEqual({ percent: 100, phrase: '已准备好 2 个 Agent' });
+    expect(draft.current_step).toBe('extract'); // 完成回写只更新进度，不擅自推进步骤。
+    expect(db.drafts.get('draft-2')).toMatchObject({
+      current_step: 'select',
+      step_progress: { percent: 88, phrase: '旧的完成文案' },
+    });
+    expect(db.drafts.get('draft-archived')!.step_progress).toEqual({
+      percent: 10,
+      phrase: '归档状态不应变化',
+    });
+  });
+
   it('同事务 outbox 失败 → 收尾回滚：job 不落 completed、不吞失败（已浮现候选保留）', async () => {
     const { db, tx, handler } = setup();
     seedSegments(db, 'snap-1');
     tx.throwOnOutbox = true;
     const job = runningJob(db);
+    db.drafts.set('draft-rollback', {
+      id: 'draft-rollback',
+      owner_user_id: 'u1',
+      status: 'active',
+      current_step: 'extract',
+      extract_job_id: job.id,
+      step_progress: { percent: 75, phrase: '正在准备 Agent' },
+    });
     await expect(handler.run(job, makeCtx(job).ctx)).rejects.toBeTruthy();
     // 候选已落（各自单候选事务已 COMMIT，已浮现不丢），但收尾事务（complete job + outbox）抛错 ROLLBACK：
     //   job 未落 completed、outbox 无行、发生过回滚（绝不吞失败、不另起事务，Codex P0-3）。
@@ -354,18 +406,34 @@ describe('extract handler — 正常链路（B-22）', () => {
     expect(db.jobs.get(job.id)!.status).toBe('running');
     expect(tx.outbox).toHaveLength(0);
     expect(tx.rolledBack.length).toBeGreaterThanOrEqual(1);
+    expect(db.drafts.get('draft-rollback')!.step_progress).toEqual({
+      percent: 75,
+      phrase: '正在准备 Agent',
+    });
   });
 
   it('空态：snapshot 无段 → 候选 0、completed、candidateCount=0（提取-26，非错误、非裸转圈）', async () => {
     const { db, tx, handler } = setup();
     // 不种段。
     const job = runningJob(db);
+    db.drafts.set('draft-empty', {
+      id: 'draft-empty',
+      owner_user_id: 'u1',
+      status: 'active',
+      current_step: 'extract',
+      extract_job_id: job.id,
+      step_progress: { percent: 25, phrase: '正在识别 Agent' },
+    });
     const cap = makeCtx(job);
     const res = await handler.run(job, cap.ctx);
     expect((res.result as { candidateCount: number }).candidateCount).toBe(0);
     expect(res.finalized).toBe(true);
     expect(db.jobs.get(job.id)!.status).toBe('completed');
     expect(tx.outbox).toHaveLength(1); // 仍发完成通知（带 candidateCount=0）
+    expect(db.drafts.get('draft-empty')).toMatchObject({
+      current_step: 'extract',
+      step_progress: { percent: 100, phrase: '没有识别到可复用的 Agent' },
+    });
     // 五项子任务仍全部点亮（永不裸转圈）。
     expect(cap.subtasks.filter((s) => s.status === 'done').length).toBeGreaterThanOrEqual(5);
   });
@@ -617,6 +685,14 @@ describe('extract handler — 单候选重试（B-23，新 retry job + 新流）
         extractJobId: 'ejob-1',
       },
     });
+    db.drafts.set('draft-retry', {
+      id: 'draft-retry',
+      owner_user_id: 'u1',
+      status: 'active',
+      current_step: 'select',
+      extract_job_id: retryJob.id,
+      step_progress: { percent: 64, phrase: '保留项目级进度' },
+    });
     gw.default = { text: '{"name":"重试后能力","intent":"重试后用途"}', degraded: false };
     const cap = makeCtx(retryJob);
     const res = await handler.run(retryJob, cap.ctx);
@@ -647,6 +723,10 @@ describe('extract handler — 单候选重试（B-23，新 retry job + 新流）
     // event_id = extract_done:{retryJobId}:{attemptNo}（retry job 自己的 id/attempt，与原萃取 job 不撞）。
     expect(retryOutbox[0]!.eventId).toBe(`extract_done:retry-1:${retryJob.attemptNo}`);
     expect((retryOutbox[0]!.payload as { candidateCount: number }).candidateCount).toBe(1);
+    expect(db.drafts.get('draft-retry')!.step_progress).toEqual({
+      percent: 64,
+      phrase: '保留项目级进度',
+    });
   });
 
   it('重试再失败（命名 LLM 抛错）→ 候选回 failed + 人话 error，无连坐（其余候选不动）', async () => {
