@@ -1092,7 +1092,7 @@ check_loopback_listeners_once() {
   s3_pid=$(timeout 10 systemctl show combo-dev-s3-forward.service -p MainPID --value 2>/dev/null) || return 2
   [[ "$web_pid" =~ ^[1-9][0-9]*$ && "$s3_pid" =~ ^[1-9][0-9]*$ ]] || return 1
   "$INSTALL_ROOT/bin/combo-dev-production-safety" validate-listeners \
-    --input "$sockets" --web-pid "$web_pid" --s3-pid "$s3_pid" >/dev/null 2>&1
+    --input "$sockets" --web-pid "$web_pid" --s3-pid "$s3_pid" >/dev/null 2>&1 || return 1
 }
 
 wait_loopback_listeners() {

@@ -1423,6 +1423,7 @@ test('listener validation rejects every additional IPv4 or IPv6 address and wron
     deploy,
     /systemctl start combo-dev-s3-forward\.service[\s\S]*wait_loopback_listeners/,
   );
+  assert.match(deploy, /validate-listeners[\s\S]*\|\| return 1/);
   const work = mkdtempSync(join(tmpdir(), 'combo-dev-listeners-'));
   try {
     const input = join(work, 'listeners');
