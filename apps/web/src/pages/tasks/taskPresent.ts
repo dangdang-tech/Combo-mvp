@@ -17,6 +17,11 @@ export function taskStatusVariant(task: TaskView): 'published' | 'pending' | 're
 
 /** 上传分片进度人话（partsExpected 未声明前为 null）。 */
 export function uploadProgressLabel(task: TaskView): string {
+  if (!task.upload) {
+    if (task.status === 'succeeded') return '本地提取完成';
+    if (task.status === 'failed') return '本地提取已停止';
+    return '本地提取中';
+  }
   const { partsLanded, partsExpected, status } = task.upload;
   if (status === 'expired') {
     if (partsExpected !== null) return `已超时 · ${partsLanded} / ${partsExpected} 片`;

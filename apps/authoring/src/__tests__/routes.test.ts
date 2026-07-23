@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { ALL_ENDPOINTS } from '../bootstrap/routes.js';
 
 describe('route registry self-check', () => {
-  it('registers exactly 17 endpoints (account 5 + task 8 + capability 4;dev-login 条件注册不进表)', () => {
-    expect(ALL_ENDPOINTS).toHaveLength(17);
+  it('registers exactly 21 endpoints (account 5 + task 12 + capability 4；dev-login 条件注册不进表)', () => {
+    expect(ALL_ENDPOINTS).toHaveLength(21);
   });
 
   it('no duplicate (method,url) pairs', () => {
@@ -17,9 +17,13 @@ describe('route registry self-check', () => {
   });
 
   it('写命令（非 GET）除助手上传外都带守卫链', () => {
-    // /auth/*：登录流程本身；/connect/upload：助手侧凭配对码鉴权（handler 内验码），无登录态。
+    // /auth/*：登录流程本身；connect 端点和 local claim 在 handler 内验短期绑定码，无登录态。
     // refresh/logout 不挂 requireAuth，但必须挂 Cookie 变更来源守卫。
-    const exempt = new Set(['/connect/prepare', '/connect/upload']);
+    const exempt = new Set([
+      '/connect/prepare',
+      '/connect/upload',
+      '/tasks/:taskId/local-execution/claim',
+    ]);
     for (const ep of ALL_ENDPOINTS) {
       if (ep.method === 'GET' || exempt.has(ep.url)) continue;
       expect(

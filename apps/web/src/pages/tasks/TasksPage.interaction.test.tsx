@@ -36,7 +36,7 @@ describe('TasksPage — 表格交互语义', () => {
       within(row)
         .getAllByRole('cell')
         .map((cell) => cell.getAttribute('data-label')),
-    ).toEqual(['任务', '状态', '上传进度', '能力项', '下一步']);
+    ).toEqual(['任务', '状态', '处理进度', '能力项', '下一步']);
 
     const capabilityLink = within(row).getByRole('link', { name: '查看并试用能力' });
     expect(capabilityLink).toHaveClass('cb-task-action');

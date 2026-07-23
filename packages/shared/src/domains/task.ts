@@ -3,6 +3,11 @@
 import { z } from 'zod';
 import { IdSchema, IsoDateTimeSchema } from '../core/ids.js';
 import { ErrorBodySchema } from '../core/errors.js';
+import { ProgressViewSchema } from '../core/progress.js';
+import { CapabilityDefinitionSchema, CapabilityViewSchema } from './capability.js';
+
+export const ExecutionModeSchema = z.enum(['cloud', 'local']);
+export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
 
 export const TaskStepSchema = z.enum(['upload', 'extract']);
 export type TaskStep = z.infer<typeof TaskStepSchema>;
@@ -37,10 +42,14 @@ export const TaskViewSchema = z.object({
   id: IdSchema,
   currentStep: TaskStepSchema,
   status: TaskStatusSchema,
+  executionMode: ExecutionModeSchema,
   description: z.string().optional(),
   retryCount: z.number().int(),
   lastError: ErrorBodySchema.optional().describe('最后一次失败的人话错误（失败态才有）'),
-  upload: UploadViewSchema,
+  /** cloud Task 才有上传明细；local Task 的原始输入始终留在用户机器。 */
+  upload: UploadViewSchema.optional(),
+  /** 刷新恢复用的持久化进度快照。 */
+  progress: ProgressViewSchema.optional(),
   capabilityCount: z.number().int().describe('已提取出的能力项数'),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
@@ -54,7 +63,82 @@ export const CreateTaskResultSchema = z.object({
 });
 export type CreateTaskResult = z.infer<typeof CreateTaskResultSchema>;
 
-// ---------- 助手上传（配对路径，唯一上传路径）----------
+// ---------- 本地执行（只替换 extract 执行位置）----------
+export const CreateLocalTaskBodySchema = z
+  .object({
+    idempotencyKey: z.string().min(8).max(128),
+    description: z.string().max(500).optional(),
+  })
+  .strict();
+export type CreateLocalTaskBody = z.infer<typeof CreateLocalTaskBodySchema>;
+
+export const CreateLocalTaskResultSchema = z.object({
+  task: TaskViewSchema,
+  localExecution: z.object({
+    bindCode: z.string().min(1),
+    expiresAt: IsoDateTimeSchema,
+  }),
+});
+export type CreateLocalTaskResult = z.infer<typeof CreateLocalTaskResultSchema>;
+
+export const DevicePublicKeySchema = z
+  .object({
+    kty: z.literal('OKP'),
+    crv: z.literal('Ed25519'),
+    x: z.string().min(1),
+  })
+  .strict();
+
+export const ClaimLocalExecutionBodySchema = z
+  .object({
+    bindCode: z.string().min(1),
+    devicePublicKey: DevicePublicKeySchema,
+    workerVersion: z.string().min(1).max(128),
+    algorithmVersion: z.string().min(1).max(128),
+  })
+  .strict();
+export type ClaimLocalExecutionBody = z.infer<typeof ClaimLocalExecutionBodySchema>;
+
+export const ClaimLocalExecutionResultSchema = z.object({
+  taskToken: z.string().min(1),
+  tokenExpiresAt: IsoDateTimeSchema,
+  nextExpectedSeq: z.number().int().positive(),
+});
+export type ClaimLocalExecutionResult = z.infer<typeof ClaimLocalExecutionResultSchema>;
+
+export const ReportLocalProgressBodySchema = z
+  .object({
+    seq: z.number().int().positive(),
+    progress: ProgressViewSchema,
+  })
+  .strict();
+export type ReportLocalProgressBody = z.infer<typeof ReportLocalProgressBodySchema>;
+
+export const ReportLocalProgressResultSchema = z.object({
+  acceptedSeq: z.number().int().positive(),
+  nextExpectedSeq: z.number().int().positive(),
+});
+export type ReportLocalProgressResult = z.infer<typeof ReportLocalProgressResultSchema>;
+
+export const SubmitLocalResultBodySchema = z
+  .object({
+    resultVersion: z.literal(1),
+    workerVersion: z.string().min(1).max(128),
+    algorithmVersion: z.string().min(1).max(128),
+    items: z.array(CapabilityDefinitionSchema).min(1).max(20),
+  })
+  .strict();
+export type SubmitLocalResultBody = z.infer<typeof SubmitLocalResultBodySchema>;
+
+export const SubmitLocalResultResultSchema = z.object({
+  taskId: IdSchema,
+  currentStep: z.literal('extract'),
+  status: z.literal('succeeded'),
+  items: z.array(CapabilityViewSchema),
+});
+export type SubmitLocalResultResult = z.infer<typeof SubmitLocalResultResultSchema>;
+
+// ---------- 助手上传（配对路径，cloud Task 的唯一原始输入路径）----------
 export const UploadBundleIdSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 export const ConnectPrepareBodySchema = z

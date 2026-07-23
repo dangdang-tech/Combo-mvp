@@ -76,6 +76,7 @@ describe('任务域 DTO', () => {
       id: 't1',
       currentStep: 'extract',
       status: 'succeeded',
+      executionMode: 'cloud',
       retryCount: 0,
       upload: {
         status: 'processed',
@@ -89,6 +90,9 @@ describe('任务域 DTO', () => {
     };
     expect(TaskViewSchema.safeParse(base).success).toBe(true);
     expect(TaskViewSchema.safeParse({ ...base, currentStep: 'publish' }).success).toBe(false);
+    expect(
+      TaskViewSchema.safeParse({ ...base, executionMode: 'local', upload: undefined }).success,
+    ).toBe(true);
   });
 
   it('助手分片上传：首片就要声明总数', () => {

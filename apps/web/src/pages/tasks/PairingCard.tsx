@@ -19,6 +19,7 @@ export interface PairingCardProps {
 /** 配对等待区的人话反馈（纯函数，便于状态回归测试）。 */
 export function pairingProgressLabel(task: TaskView, progressUnavailable = false): string {
   if (task.status === 'failed') return '任务已停止，正在打开详情…';
+  if (!task.upload) return '本地任务已进入提取阶段…';
   if (task.currentStep === 'extract' || task.upload.status !== 'pending') {
     return '上传完成，正在进入提取…';
   }
@@ -59,7 +60,8 @@ export function PairingCard({
         <code className="cb-pairing__code">{created.pairingCode}</code>
         <CopyButton text={created.pairingCode} label="复制" />
         <span className="cb-pairing__note">
-          只显示一次，有效期至 {formatTime(created.task.upload.pairingExpiresAt)}
+          只显示一次，有效期至{' '}
+          {created.task.upload ? formatTime(created.task.upload.pairingExpiresAt) : '未知'}
         </span>
       </div>
 

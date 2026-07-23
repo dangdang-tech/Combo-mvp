@@ -106,6 +106,22 @@ describe('migrations', () => {
     expect(sql).toMatch(/role IN \('user', 'assistant', 'tool'\)/);
   });
 
+  it('0004 adds local execution without duplicating tasks, capabilities, or publications', () => {
+    const sql = readFileSync(join(MIGRATIONS_DIR, '0004_local_task_execution.sql'), 'utf-8');
+    expect(sql).toContain("execution_mode IN ('cloud', 'local')");
+    expect(sql).toContain('CREATE TABLE local_task_executions (');
+    expect(sql).toContain("execution_mode = 'cloud'");
+    expect(sql).toContain("lease_expires_at = 'infinity'::timestamptz");
+    expect(sql).toContain('DROP INDEX idx_tasks_claimable');
+    expect(sql).toContain('idx_local_task_executions_token_expiry');
+    expect(sql).toContain('result_capability_ids');
+    expect(sql).toContain('last_progress_seq');
+    expect(sql).not.toContain('CREATE TABLE agent_build_runs');
+    expect(sql).not.toContain('CREATE TABLE agent_build_progress_events');
+    expect(sql).not.toContain('CREATE TABLE agent_build_artifacts');
+    expect(sql).not.toContain('CREATE TABLE agent_capability_publications');
+  });
+
   it('0003 adds lock-free turns and per-turn message ordering', () => {
     const sql = readFileSync(join(MIGRATIONS_DIR, '0003_turns.sql'), 'utf-8');
     expect(sql).toContain('CREATE TABLE turns (');

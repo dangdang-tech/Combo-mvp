@@ -26,6 +26,7 @@ export interface TaskRowF {
   owner_user_id: string;
   current_step: string;
   status: string;
+  execution_mode: 'cloud' | 'local';
   description: string | null;
   meta: Record<string, unknown>;
   retry_count: number;
@@ -48,6 +49,26 @@ export interface UploadRowF {
   meta: Record<string, unknown>;
 }
 
+export interface LocalExecutionRowF {
+  task_id: string;
+  owner_user_id: string;
+  status: 'pending' | 'claimed' | 'revoked' | 'expired';
+  bind_code_hash: string;
+  bind_expires_at: string;
+  device_public_key: Record<string, unknown> | null;
+  device_key_thumbprint: string | null;
+  task_token_hash: string | null;
+  token_expires_at: string | null;
+  token_version: number;
+  last_progress_seq: number;
+  last_progress_sha256: string | null;
+  result_status: 'pending' | 'committing' | 'committed';
+  result_sha256: string | null;
+  result_capability_ids: string[] | null;
+  worker_version: string | null;
+  algorithm_version: string | null;
+}
+
 export interface CapabilityRowF {
   id: string;
   task_id: string;
@@ -67,10 +88,11 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-/** 忠实假 PG（tasks / uploads / capabilities 三表）。也可当 TxPool 用（BEGIN/COMMIT 透传）。 */
+/** 忠实假 PG，覆盖任务、上传、本地执行和能力索引。也可当 TxPool 用（BEGIN/COMMIT 透传）。 */
 export class FakeDb implements TxPool {
   tasks = new Map<string, TaskRowF>();
   uploads = new Map<string, UploadRowF>();
+  localExecutions = new Map<string, LocalExecutionRowF>();
   capabilities = new Map<string, CapabilityRowF>();
   /** 每条 UPDATE 影响行数历史（断言「单次写、命中/未命中」）。 */
   updateRowCounts: number[] = [];
@@ -97,7 +119,21 @@ export class FakeDb implements TxPool {
 
     // ---------- tasks ----------
     if (s.startsWith('INSERT INTO tasks')) {
-      const [owner, description, idemKey] = params as [string, string | null, string];
+      const [
+        owner,
+        description,
+        idemKey,
+        executionMode = 'cloud',
+        currentStep = 'upload',
+        leaseExpiresAt = null,
+      ] = params as [
+        string,
+        string | null,
+        string,
+        'cloud' | 'local' | undefined,
+        string | undefined,
+        string | null | undefined,
+      ];
       for (const t of this.tasks.values()) {
         if (t.idempotency_key === idemKey) return { rows: [], rowCount: 0 }; // ON CONFLICT DO NOTHING
       }
@@ -106,14 +142,15 @@ export class FakeDb implements TxPool {
       this.tasks.set(id, {
         id,
         owner_user_id: owner,
-        current_step: 'upload',
+        current_step: currentStep,
         status: 'running',
+        execution_mode: executionMode,
         description,
         meta: {},
         retry_count: 0,
         last_error: null,
         lease_owner: null,
-        lease_expires_at: null,
+        lease_expires_at: leaseExpiresAt,
         idempotency_key: idemKey,
         created_at: now,
         updated_at: now,
@@ -125,7 +162,16 @@ export class FakeDb implements TxPool {
       const key = params[0] as string;
       const t = [...this.tasks.values()].find((x) => x.idempotency_key === key);
       return t
-        ? { rows: [{ id: t.id, owner_user_id: t.owner_user_id }] as R[], rowCount: 1 }
+        ? {
+            rows: [
+              {
+                id: t.id,
+                owner_user_id: t.owner_user_id,
+                execution_mode: t.execution_mode,
+              },
+            ] as R[],
+            rowCount: 1,
+          }
         : { rows: [], rowCount: 0 };
     }
 
@@ -167,7 +213,13 @@ export class FakeDb implements TxPool {
       const [id, leaseOwner, leaseMs] = params as [string, string, string];
       const t = this.tasks.get(id);
       const leaseValid = t?.lease_expires_at && new Date(t.lease_expires_at).getTime() > Date.now();
-      if (!t || t.status !== 'running' || t.current_step !== 'extract' || leaseValid) {
+      if (
+        !t ||
+        t.status !== 'running' ||
+        t.current_step !== 'extract' ||
+        t.execution_mode !== 'cloud' ||
+        leaseValid
+      ) {
         this.updateRowCounts.push(0);
         return { rows: [], rowCount: 0 };
       }
@@ -209,7 +261,11 @@ export class FakeDb implements TxPool {
     }
 
     // readTaskCore
-    if (s.includes('SELECT id, owner_user_id, current_step, status, last_error, meta FROM tasks')) {
+    if (
+      s.includes(
+        'SELECT id, owner_user_id, current_step, status, execution_mode, last_error, meta FROM tasks',
+      )
+    ) {
       const t = this.tasks.get(params[0] as string);
       if (!t) return { rows: [], rowCount: 0 };
       return {
@@ -219,6 +275,7 @@ export class FakeDb implements TxPool {
             owner_user_id: t.owner_user_id,
             current_step: t.current_step,
             status: t.status,
+            execution_mode: t.execution_mode,
             last_error: t.last_error,
             meta: t.meta,
           },
@@ -230,6 +287,7 @@ export class FakeDb implements TxPool {
     // expireIncompleteUploadTasks：单条 CTE 原子置 upload=expired + task=failed；完整清单排除。
     if (
       s.startsWith('WITH candidates AS MATERIALIZED') &&
+      s.includes('UPDATE uploads') &&
       s.includes("SET status = 'expired'") &&
       s.includes("SET status = 'failed'")
     ) {
@@ -278,7 +336,13 @@ export class FakeDb implements TxPool {
     ) {
       const rows = [...this.tasks.values()]
         .filter((t) => {
-          if (t.status !== 'running' || t.current_step !== 'extract') return false;
+          if (
+            t.status !== 'running' ||
+            t.current_step !== 'extract' ||
+            t.execution_mode !== 'cloud'
+          ) {
+            return false;
+          }
           if (t.lease_expires_at) return new Date(t.lease_expires_at).getTime() < Date.now();
           return new Date(t.updated_at).getTime() < Date.now() - 2 * 60 * 1000;
         })
@@ -286,29 +350,31 @@ export class FakeDb implements TxPool {
       return { rows: rows as R[], rowCount: rows.length };
     }
 
-    // TaskView 读（单个 / 列表）：JOIN uploads + capability_count。
-    if (s.includes('FROM tasks t JOIN uploads u ON u.task_id = t.id')) {
+    // TaskView 读（单个 / 列表）：LEFT JOIN uploads，local Task 没有上传行。
+    if (s.includes('FROM tasks t LEFT JOIN uploads u ON u.task_id = t.id')) {
       const shape = (t: TaskRowF): Record<string, unknown> => {
-        const u = this.uploads.get(t.id)!;
+        const u = this.uploads.get(t.id);
         return {
           id: t.id,
           current_step: t.current_step,
           status: t.status,
+          execution_mode: t.execution_mode,
           description: t.description,
           retry_count: t.retry_count,
           last_error: t.last_error,
+          meta: t.meta,
           created_at: t.created_at,
           updated_at: t.updated_at,
-          upload_status: u.status,
-          parts: u.parts,
-          pairing_expires_at: u.pairing_expires_at,
+          upload_status: u?.status ?? null,
+          parts: u?.parts ?? null,
+          pairing_expires_at: u?.pairing_expires_at ?? null,
           capability_count: [...this.capabilities.values()].filter((c) => c.task_id === t.id)
             .length,
         };
       };
       if (s.includes('WHERE t.id = $1 AND t.owner_user_id = $2')) {
         const t = this.tasks.get(params[0] as string);
-        if (!t || t.owner_user_id !== params[1] || !this.uploads.get(t.id)) {
+        if (!t || t.owner_user_id !== params[1]) {
           return { rows: [], rowCount: 0 };
         }
         return { rows: [shape(t)] as R[], rowCount: 1 };
@@ -321,6 +387,206 @@ export class FakeDb implements TxPool {
         .slice(0, limit)
         .map(shape);
       return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    // ---------- local_task_executions ----------
+    if (
+      s.startsWith('WITH candidates AS MATERIALIZED') &&
+      s.includes('UPDATE local_task_executions') &&
+      s.includes("SET status = 'expired'")
+    ) {
+      const [limit, lastErrorJson] = params as [number, string];
+      const candidates = [...this.localExecutions.values()]
+        .filter((local) => {
+          const task = this.tasks.get(local.task_id);
+          const expired =
+            (local.status === 'pending' &&
+              new Date(local.bind_expires_at).getTime() <= Date.now()) ||
+            (local.status === 'claimed' &&
+              !!local.token_expires_at &&
+              new Date(local.token_expires_at).getTime() <= Date.now());
+          return (
+            !!task &&
+            task.execution_mode === 'local' &&
+            task.current_step === 'extract' &&
+            task.status === 'running' &&
+            expired
+          );
+        })
+        .slice(0, limit);
+      for (const local of candidates) {
+        local.status = 'expired';
+        const task = this.tasks.get(local.task_id)!;
+        task.status = 'failed';
+        task.last_error = JSON.parse(lastErrorJson);
+        task.lease_owner = null;
+        task.lease_expires_at = null;
+        task.updated_at = nowIso();
+      }
+      const rows = candidates.map((local) => ({ id: local.task_id }));
+      return { rows: rows as R[], rowCount: rows.length };
+    }
+
+    if (s.startsWith('INSERT INTO local_task_executions')) {
+      const [taskId, ownerUserId, bindCodeHash, bindExpiresAt] = params as [
+        string,
+        string,
+        string,
+        string,
+      ];
+      this.localExecutions.set(taskId, {
+        task_id: taskId,
+        owner_user_id: ownerUserId,
+        status: 'pending',
+        bind_code_hash: bindCodeHash,
+        bind_expires_at: bindExpiresAt,
+        device_public_key: null,
+        device_key_thumbprint: null,
+        task_token_hash: null,
+        token_expires_at: null,
+        token_version: 1,
+        last_progress_seq: 0,
+        last_progress_sha256: null,
+        result_status: 'pending',
+        result_sha256: null,
+        result_capability_ids: null,
+        worker_version: null,
+        algorithm_version: null,
+      });
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (s.includes('UPDATE local_task_executions') && s.includes('SET bind_code_hash = $2')) {
+      const [taskId, bindCodeHash, bindExpiresAt] = params as [string, string, string];
+      const local = this.localExecutions.get(taskId);
+      if (!local || local.status !== 'pending') return { rows: [], rowCount: 0 };
+      local.bind_code_hash = bindCodeHash;
+      local.bind_expires_at = bindExpiresAt;
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (s.includes('UPDATE local_task_executions le') && s.includes("SET status = 'claimed'")) {
+      const [
+        taskId,
+        bindCodeHash,
+        devicePublicKeyJson,
+        deviceKeyThumbprint,
+        taskTokenHash,
+        tokenExpiresAt,
+        workerVersion,
+        algorithmVersion,
+      ] = params as [string, string, string, string, string, string, string, string];
+      const local = this.localExecutions.get(taskId);
+      const task = this.tasks.get(taskId);
+      if (
+        !local ||
+        !task ||
+        local.bind_code_hash !== bindCodeHash ||
+        new Date(local.bind_expires_at).getTime() <= Date.now() ||
+        (local.status !== 'pending' &&
+          !(local.status === 'claimed' && local.device_key_thumbprint === deviceKeyThumbprint)) ||
+        task.execution_mode !== 'local' ||
+        task.current_step !== 'extract' ||
+        task.status !== 'running'
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (local.status === 'claimed') local.token_version += 1;
+      local.status = 'claimed';
+      local.device_public_key = JSON.parse(devicePublicKeyJson);
+      local.device_key_thumbprint = deviceKeyThumbprint;
+      local.task_token_hash = taskTokenHash;
+      local.token_expires_at = tokenExpiresAt;
+      local.worker_version = workerVersion;
+      local.algorithm_version = algorithmVersion;
+      return {
+        rows: [{ last_progress_seq: local.last_progress_seq }] as R[],
+        rowCount: 1,
+      };
+    }
+
+    if (
+      s.includes('FROM local_task_executions le JOIN tasks t ON t.id = le.task_id') &&
+      s.includes('le.task_token_hash = $2')
+    ) {
+      const [taskId, tokenHash] = params as [string, string];
+      const local = this.localExecutions.get(taskId);
+      const task = this.tasks.get(taskId);
+      if (
+        !local ||
+        !task ||
+        local.task_token_hash !== tokenHash ||
+        local.status !== 'claimed' ||
+        !local.token_expires_at ||
+        new Date(local.token_expires_at).getTime() <= Date.now()
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+      return {
+        rows: [
+          {
+            task_id: taskId,
+            owner_user_id: local.owner_user_id,
+            task_status: task.status,
+            current_step: task.current_step,
+            execution_mode: task.execution_mode,
+            task_progress: task.meta.progress ?? null,
+            status: local.status,
+            device_public_key: local.device_public_key,
+            device_key_thumbprint: local.device_key_thumbprint,
+            token_expires_at: local.token_expires_at,
+            last_progress_seq: local.last_progress_seq,
+            last_progress_sha256: local.last_progress_sha256,
+            result_status: local.result_status,
+            result_sha256: local.result_sha256,
+            result_capability_ids: local.result_capability_ids,
+          },
+        ] as R[],
+        rowCount: 1,
+      };
+    }
+
+    if (s.includes('UPDATE local_task_executions') && s.includes('SET last_progress_seq = $2')) {
+      const [taskId, progressSeq, progressSha] = params as [string, number, string];
+      const local = this.localExecutions.get(taskId);
+      if (!local) return { rows: [], rowCount: 0 };
+      local.last_progress_seq = progressSeq;
+      local.last_progress_sha256 = progressSha;
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (
+      s.includes('UPDATE local_task_executions') &&
+      s.includes("SET result_status = 'committing'")
+    ) {
+      const [taskId, resultSha, capabilityIds, workerVersion, algorithmVersion] = params as [
+        string,
+        string,
+        string[],
+        string,
+        string,
+      ];
+      const local = this.localExecutions.get(taskId);
+      if (!local || local.result_status !== 'pending') return { rows: [], rowCount: 0 };
+      local.result_status = 'committing';
+      local.result_sha256 = resultSha;
+      local.result_capability_ids = capabilityIds;
+      local.worker_version = workerVersion;
+      local.algorithm_version = algorithmVersion;
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (
+      s.includes('UPDATE local_task_executions') &&
+      s.includes("SET result_status = 'committed'")
+    ) {
+      const [taskId, resultSha] = params as [string, string];
+      const local = this.localExecutions.get(taskId);
+      if (!local || local.result_status !== 'committing' || local.result_sha256 !== resultSha) {
+        return { rows: [], rowCount: 0 };
+      }
+      local.result_status = 'committed';
+      return { rows: [], rowCount: 1 };
     }
 
     // ---------- uploads ----------

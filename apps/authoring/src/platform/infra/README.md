@@ -4,7 +4,7 @@
 
 ## 文件
 
-- `index.ts` 是容器组装入口：buildInfra 把连接池、双 Redis、队列端口、对象存储端口、LLM 网关聚成 InfraContext 注入 Fastify 的 app.infra，并转出各文件的全部导出。
+- `index.ts` 是容器组装入口：buildInfra 把连接池、双 Redis、队列端口、对象存储端口、LLM 网关和基于 redis_hot 的任务事件桥聚成 InfraContext 注入 Fastify 的 app.infra，并转出各文件的全部导出。
 - `db.ts` 管 PostgreSQL 连接池单例（pg），定义单测可注入的最小查询接口 Queryable，提供 SELECT 1 探针、优雅关闭，以及各业务仓储共用的行映射助手 toIso（timestamptz 转 ISO 字符串）。
 - `db-tx.ts` 是最小事务抽象：withTransaction 从池里领一条连接执行 BEGIN/COMMIT/ROLLBACK，保证回调内多表写入原子提交；asTxPool 把 pg.Pool 适配成可 mock 的事务池。
 - `redis.ts` 管两个 Redis 单例：redis_queue 给 BullMQ 专用，redis_hot 给进度流和锁；含 PING 探针和关闭。

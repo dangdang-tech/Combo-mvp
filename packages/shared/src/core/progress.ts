@@ -34,3 +34,12 @@ export const PIPELINE_SUBTASKS = [
   { key: 'extract', label: '归纳提炼能力' },
   { key: 'persist', label: '生成能力项' },
 ] as const;
+
+/** Cloud 与 Local Worker 共用的当前进度区间；Local 只写到 extract.end。 */
+export const PIPELINE_PROGRESS_RANGES = {
+  fetch: { start: 2, end: 6 },
+  redact: { start: 8, end: 30 },
+  segment: { start: 35, end: 45 },
+  extract: { start: 48, end: 80 },
+  persist: { start: 82, end: 100 },
+} as const;

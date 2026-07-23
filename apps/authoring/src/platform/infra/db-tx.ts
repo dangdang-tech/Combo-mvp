@@ -10,7 +10,7 @@ export interface QueryableDb {
   query<R = Record<string, unknown>>(
     sql: string,
     params?: unknown[],
-  ): Promise<{ rows: R[]; rowCount?: number | null }>;
+  ): Promise<{ rows: R[]; rowCount: number | null }>;
 }
 
 /** 事务句柄（单连接，回调内所有写入复用它 → 同一事务原子提交/回滚）。 */

@@ -1,12 +1,12 @@
 # authoring 服务源码总览
 
-这是 Combo 创作侧后端服务：创作者登录后建任务，本机助手把 Claude / Codex 对话历史上传上来，后台流水线解析、脱敏并用大模型归纳出可复用的「能力项」，创作者再把能力项发布出去。对外提供 HTTP 接口和进度推送（SSE，服务器单向事件流），路由前缀是 `/api/v1`。
+这是 Combo 创作侧后端服务：创作者登录后建任务，可以让云端 Worker 读取上传的 Claude / Codex 对话历史，也可以让本地 Worker 在用户机器上完成提取；两种模式最终都写入同一套能力定义、能力索引和发布状态。创作者随后可以审阅并发布能力项。对外提供 HTTP 接口和进度推送（SSE，服务器单向事件流），路由前缀是 `/api/v1`。
 
 ## 四层布局
 
 - `processes/`：进程入口。同一份代码按环境变量分成 api 进程（对外 HTTP 服务）和 worker 进程（后台消费队列跑提取流水线）两个进程运行。
 - `bootstrap/`：api 进程的组装层。构建 Fastify 应用，挂全局插件、统一错误信封、健康检查和全部业务路由。
-- `modules/`：业务模块层，按领域分三个模块：account（登录与用户）、task（任务与上传）、capability（能力项）。
+- `modules/`：业务模块层，按领域分三个模块：account（登录与用户）、task（任务、云端上传和本地执行）、capability（能力项与共享持久化）。
 - `platform/`：平台层，与具体业务无关的公共设施：配置加载、HTTP 工具、基础设施客户端（数据库、Redis、队列、对象存储、大模型网关、登录服务）、鉴权中间件、链路追踪、SSE 推流、文本工具。
 
 依赖方向是单向的：processes 用 bootstrap 和 modules，bootstrap 用 modules 和 platform，modules 用 platform，platform 不反向依赖任何业务代码。类型契约、错误码、Zod 校验等公共定义来自仓库内共享包 `@cb/shared`。

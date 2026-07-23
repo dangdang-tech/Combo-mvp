@@ -3,6 +3,7 @@
 //     0 行即拒（状态已被并发变更/接管，调用方按 0 行安全退出，绝不覆盖别人的终态）。
 //   - createTask：一个事务插 tasks+uploads；幂等键 ON CONFLICT DO NOTHING 后回读返回已存在任务。
 //   - retryTask：failed 才可重试——retry_count+1、重置 running、重新入队。
+import { randomBytes } from 'node:crypto';
 import {
   ErrorCode,
   errorBodyFor,
@@ -18,8 +19,10 @@ import { withTransaction, type TxPool } from '../../platform/infra/db-tx.js';
 import { TASK_PIPELINE_QUEUE } from '../../platform/infra/queue.js';
 import { generatePairingCode, hashPairingCode, pairingExpiresAt } from './pairing-code.js';
 import {
+  expireAbandonedLocalTasks,
   expireIncompleteUploadTasks,
   findTaskByIdempotencyKey,
+  insertLocalExecution,
   insertTask,
   insertUpload,
   listStaleUploadPurgeCandidates,
@@ -28,6 +31,7 @@ import {
   markExpiredUploadPurged,
   readTaskCore,
   readTaskView,
+  rotateLocalBindCode,
   rotatePairingCode,
 } from './repo.js';
 import { purgeRawObjects } from './raw-purge.js';
@@ -58,8 +62,9 @@ export async function transition(
   expect: TaskExpect,
   patch: TaskPatch,
 ): Promise<boolean> {
-  const errMode =
-    patch.lastError === undefined ? 'keep' : patch.lastError === null ? 'clear' : 'set';
+  let errMode: 'keep' | 'clear' | 'set' = 'keep';
+  if (patch.lastError === null) errMode = 'clear';
+  else if (patch.lastError !== undefined) errMode = 'set';
   const res = await db.query(
     `UPDATE tasks
         SET current_step = COALESCE($4, current_step),
@@ -128,13 +133,80 @@ export async function createTask(
   // 幂等回放：回读既有任务（他人占用同 key → 409 冲突，不暴露他人任务）。
   const existing = await findTaskByIdempotencyKey(db, input.idempotencyKey);
   if (!existing) return { kind: 'conflict' }; // 竞态下极端读不到：按冲突处理，让客户端换 key 重试
-  if (existing.ownerUserId !== input.ownerUserId) return { kind: 'conflict' };
+  if (existing.ownerUserId !== input.ownerUserId || existing.executionMode !== 'cloud') {
+    return { kind: 'conflict' };
+  }
   await rotatePairingCode(db, {
     taskId: existing.id,
     pairingCodeHash: codeHash,
     pairingExpiresAt: expiresAt,
   });
   return { kind: 'ok', taskId: existing.id, pairingCode: code, replayed: true };
+}
+
+export type CreateLocalTaskOutcome =
+  | {
+      kind: 'ok';
+      taskId: string;
+      bindCode: string;
+      bindExpiresAt: string;
+      replayed: boolean;
+    }
+  | { kind: 'conflict' };
+
+/** local Task 直接进入 extract/running，不创建 uploads，也不进入 Cloud Worker 队列。 */
+export async function createLocalTask(
+  pool: TxPool,
+  db: Queryable,
+  input: CreateTaskInput,
+): Promise<CreateLocalTaskOutcome> {
+  // local bind code 由宿主直接交给 Worker，无须人工抄写，使用高熵随机值抵抗无登录 Claim 猜测。
+  const bindCode = randomBytes(32).toString('base64url');
+  const bindCodeHash = hashPairingCode(bindCode);
+  const bindExpiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
+
+  const createdId = await withTransaction(pool, async (tx) => {
+    const taskId = await insertTask(tx, {
+      ownerUserId: input.ownerUserId,
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      idempotencyKey: input.idempotencyKey,
+      executionMode: 'local',
+    });
+    if (!taskId) return null;
+    await insertLocalExecution(tx, {
+      taskId,
+      ownerUserId: input.ownerUserId,
+      bindCodeHash,
+      bindExpiresAt,
+    });
+    return taskId;
+  });
+
+  if (createdId) {
+    return { kind: 'ok', taskId: createdId, bindCode, bindExpiresAt, replayed: false };
+  }
+
+  const existing = await findTaskByIdempotencyKey(db, input.idempotencyKey);
+  if (
+    !existing ||
+    existing.ownerUserId !== input.ownerUserId ||
+    existing.executionMode !== 'local'
+  ) {
+    return { kind: 'conflict' };
+  }
+  const rotated = await rotateLocalBindCode(db, {
+    taskId: existing.id,
+    bindCodeHash,
+    bindExpiresAt,
+  });
+  if (!rotated) return { kind: 'conflict' };
+  return {
+    kind: 'ok',
+    taskId: existing.id,
+    bindCode,
+    bindExpiresAt,
+    replayed: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +232,11 @@ export async function retryTask(
   if (!core || core.ownerUserId !== input.ownerUserId) return { kind: 'not_found' };
   // upload 失败（目前即配对窗口已过期）不能原地重试：明文配对码不可恢复，且旧 parts 清单
   // 不能安全套用到一次新的本机扫描。前端会引导“重新上传”建新任务；这里只允许 extract 重跑。
-  if (core.status !== 'failed' || core.currentStep !== 'extract') {
+  if (
+    core.status !== 'failed' ||
+    core.currentStep !== 'extract' ||
+    core.executionMode !== 'cloud'
+  ) {
     return { kind: 'not_retriable' };
   }
 
@@ -181,7 +257,7 @@ export async function retryTask(
 }
 
 // ---------------------------------------------------------------------------
-// 历史上传任务状态修复
+// 过期任务状态修复
 // ---------------------------------------------------------------------------
 
 /**
@@ -199,6 +275,21 @@ export async function reconcileExpiredUploadTasks(
     userMessage: '上传等待已超时，请重新上传。',
   }).body;
   const ids = await expireIncompleteUploadTasks(db, { ...input, lastError });
+  return ids.length;
+}
+
+/** 把绑定窗口或 Task Token 已到期的 local Task 收口为 failed，避免永久 running。 */
+export async function reconcileExpiredLocalTasks(
+  db: Queryable,
+  input: { traceId: string; limit?: number },
+): Promise<number> {
+  const lastError = errorBodyFor(ErrorCode.PAIRING_EXPIRED, input.traceId, {
+    userMessage: '本地执行凭证已过期，请回到 Combo Plugin 重新创建任务。',
+  }).body;
+  const ids = await expireAbandonedLocalTasks(db, {
+    lastError,
+    ...(input.limit !== undefined ? { limit: input.limit } : {}),
+  });
   return ids.length;
 }
 

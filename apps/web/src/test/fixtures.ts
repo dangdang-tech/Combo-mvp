@@ -6,6 +6,7 @@ export function makeTask(overrides: Partial<TaskView> = {}): TaskView {
     id: 'task-1',
     currentStep: 'upload',
     status: 'running',
+    executionMode: 'cloud',
     retryCount: 0,
     upload: {
       status: 'pending',
