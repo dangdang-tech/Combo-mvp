@@ -1085,15 +1085,24 @@ prune_stale_web_configs() {
   (( failed == 0 )) || fail '旧 Web 配置无法清理。'
 }
 
-check_loopback_listeners() {
+check_loopback_listeners_once() {
   local sockets="$WORK/listeners.txt" web_pid s3_pid
-  ss -H -ltnp >"$sockets" 2>/dev/null || blocked '无法读取主机监听状态。'
-  web_pid=$(timeout 10 systemctl show combo-dev-web-forward.service -p MainPID --value 2>/dev/null) || blocked 'Web 转发器进程身份不可读。'
-  s3_pid=$(timeout 10 systemctl show combo-dev-s3-forward.service -p MainPID --value 2>/dev/null) || blocked 'S3 转发器进程身份不可读。'
-  [[ "$web_pid" =~ ^[1-9][0-9]*$ && "$s3_pid" =~ ^[1-9][0-9]*$ ]] || blocked '回环转发器没有活动主进程。'
+  ss -H -ltnp >"$sockets" 2>/dev/null || return 2
+  web_pid=$(timeout 10 systemctl show combo-dev-web-forward.service -p MainPID --value 2>/dev/null) || return 2
+  s3_pid=$(timeout 10 systemctl show combo-dev-s3-forward.service -p MainPID --value 2>/dev/null) || return 2
+  [[ "$web_pid" =~ ^[1-9][0-9]*$ && "$s3_pid" =~ ^[1-9][0-9]*$ ]] || return 1
   "$INSTALL_ROOT/bin/combo-dev-production-safety" validate-listeners \
-    --input "$sockets" --web-pid "$web_pid" --s3-pid "$s3_pid" >/dev/null 2>&1 ||
-    fail '开发端口完整监听集合不是两个固定回环转发器。'
+    --input "$sockets" --web-pid "$web_pid" --s3-pid "$s3_pid" >/dev/null 2>&1
+}
+
+wait_loopback_listeners() {
+  local attempt rc
+  for ((attempt = 1; attempt <= 30; attempt++)); do
+    if check_loopback_listeners_once; then return 0; else rc=$?; fi
+    (( rc == 1 )) || blocked '无法读取主机监听状态或转发器进程身份。'
+    sleep 1
+  done
+  fail '开发端口完整监听集合不是两个固定回环转发器。'
 }
 
 post_capacity() {
@@ -1215,7 +1224,7 @@ main() {
 
   timeout 30 systemctl start combo-dev-web-forward.service >/dev/null 2>&1 || fail 'Web 回环转发器启动失败。'
   timeout 30 systemctl start combo-dev-s3-forward.service >/dev/null 2>&1 || fail 'S3 回环转发器启动失败。'
-  check_loopback_listeners
+  wait_loopback_listeners
 
   [[ -x "$ACCEPTANCE_RUNNER" ]] || blocked '真实浏览器与产品流验收器尚未由主机所有者配置。'
   [[ $(stat -c '%u' "$ACCEPTANCE_RUNNER" 2>/dev/null) == 0 ]] || blocked '真实验收器不归 root 所有。'

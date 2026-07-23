@@ -1415,6 +1415,14 @@ test('listener validation rejects every additional IPv4 or IPv6 address and wron
     assert.match(script, /systemctl show combo-dev-web-forward\.service -p MainPID/);
     assert.match(script, /validate-listeners/);
   }
+  assert.match(
+    deploy,
+    /wait_loopback_listeners\(\) \{[\s\S]*for \(\(attempt = 1; attempt <= 30; attempt\+\+\)\)/,
+  );
+  assert.match(
+    deploy,
+    /systemctl start combo-dev-s3-forward\.service[\s\S]*wait_loopback_listeners/,
+  );
   const work = mkdtempSync(join(tmpdir(), 'combo-dev-listeners-'));
   try {
     const input = join(work, 'listeners');
