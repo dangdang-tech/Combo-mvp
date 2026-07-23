@@ -403,6 +403,13 @@ test('static local PV bindings are complete, canonical, and cannot fall back out
   assert.match(guard, /stat -c '%u:%g:%a' "\$STORAGE_POOL"/);
   assert.match(guard, /"\$source" != "\$parent_source"/);
   assert.match(guard, /"\$target" == "\$STORAGE_POOL"/);
+  for (const script of [bootstrap, text('scripts/combo-dev-deploy.sh'), guard]) {
+    assert.doesNotMatch(script, /df -P[^\n]*--output/);
+  }
+  if (process.platform === 'linux') {
+    assert.equal(spawnSync('df', ['-B1', '--output=size', '/'], { stdio: 'ignore' }).status, 0);
+    assert.equal(spawnSync('df', ['-i', '--output=iavail', '/'], { stdio: 'ignore' }).status, 0);
+  }
 
   for (const scriptPath of [
     'scripts/combo-dev-bootstrap.sh',
