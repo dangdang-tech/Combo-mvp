@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 恢复固定 Cloud Review 槽位的预览专属 Secret。
-# 只接受 combo-preview 自己的主机备份或历史 API 容器环境；绝不读取生产 namespace。
+# 只接受 combo-preview 自己的主机备份或工作负载环境；绝不读取生产 namespace。
 set -euo pipefail
 
 KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
@@ -24,10 +24,17 @@ chmod 700 "$SECRET_ROOT"
 raw_env_file="$(mktemp)"
 filtered_env_file="$(mktemp)"
 inspect_file="$(mktemp)"
+candidate_env_file="$(mktemp)"
+merged_env_file="$(mktemp)"
 review_access_token="$(cat)"
 preview_environment_captured=false
 cleanup() {
-  rm -f "$raw_env_file" "$filtered_env_file" "$inspect_file"
+  rm -f \
+    "$raw_env_file" \
+    "$filtered_env_file" \
+    "$inspect_file" \
+    "$candidate_env_file" \
+    "$merged_env_file"
   unset review_access_token
 }
 trap cleanup EXIT
@@ -60,41 +67,14 @@ if any(not values.get(name) for name in required):
 PY
 }
 
-capture_preview_environment() {
-  local workload_name pod_name container_id
-
-  if "$preview_environment_captured" && test -s "$raw_env_file"; then
-    return 0
-  fi
-
-  for workload_name in api runtime; do
-    pod_name="$(
-      kubectl -n "$NAMESPACE" get pods \
-        -l app="$workload_name" \
-        --field-selector=status.phase=Running \
-        -o 'jsonpath={.items[0].metadata.name}' 2>/dev/null || true
-    )"
-    if test -n "$pod_name" &&
-      kubectl -n "$NAMESPACE" exec "$pod_name" -c "$workload_name" -- env > "$raw_env_file" 2>/dev/null &&
-      raw_environment_has_required_app_keys; then
-      preview_environment_captured=true
-      echo "[cloud-review] 从仍在运行的预览 $workload_name Pod 恢复配置"
-      return 0
-    fi
-  done
-
-  command -v k3s >/dev/null 2>&1 || return 1
-  for workload_name in api runtime; do
-    while IFS= read -r container_id; do
-      test -n "$container_id" || continue
-      if ! k3s crictl inspect "$container_id" > "$inspect_file" 2>/dev/null; then
-        continue
-      fi
-      if python3 - \
-        "$inspect_file" \
-        "$raw_env_file" \
-        "$NAMESPACE" \
-        "$workload_name" <<'PY'
+extract_inspected_container_environment() {
+  local workload_name="$1"
+  local target_file="$2"
+  python3 - \
+    "$inspect_file" \
+    "$target_file" \
+    "$NAMESPACE" \
+    "$workload_name" <<'PY'
 import json
 import sys
 
@@ -126,7 +106,184 @@ with open(target, "w", encoding="utf-8") as handle:
             handle.write(item)
             handle.write("\n")
 PY
-      then
+}
+
+append_environment_fragment() {
+  local source_file="$1"
+  python3 - "$source_file" "$merged_env_file" <<'PY'
+import sys
+
+source, target = sys.argv[1:]
+allowed = {
+    "CORS_ORIGIN",
+    "NODE_ENV",
+    "LOG_LEVEL",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_DB",
+    "REDIS_QUEUE_URL",
+    "REDIS_HOT_URL",
+    "S3_ENDPOINT",
+    "S3_PUBLIC_ENDPOINT",
+    "S3_ACCESS_KEY",
+    "S3_SECRET_KEY",
+    "S3_REGION",
+    "LOGTO_ENDPOINT",
+    "LOGTO_ISSUER",
+    "LOGTO_JWKS_URI",
+    "LOGTO_ADMIN_ENDPOINT",
+    "LOGTO_DB_ALTERATION_TARGET",
+    "LOGTO_APP_ID",
+    "LOGTO_APP_SECRET",
+    "LOGTO_REDIRECT_URI",
+    "LOGTO_AUDIENCE",
+    "ANTHROPIC_API_KEY",
+    "OPENROUTER_API_KEY",
+    "LLM_PROVIDER",
+    "LLM_BASE_URL",
+    "LLM_MODEL",
+    "RUNTIME_LLM_PROVIDER",
+    "RUNTIME_LLM_MODEL",
+    "DEV_SESSION_SECRET",
+}
+aliases = {
+    "MINIO_ROOT_USER": "S3_ACCESS_KEY",
+    "MINIO_ROOT_PASSWORD": "S3_SECRET_KEY",
+}
+values = {}
+with open(source, encoding="utf-8") as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+        if not line or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = aliases.get(name, name)
+        if name in allowed and value and "\r" not in value:
+            values[name] = value
+if not values:
+    raise SystemExit(1)
+with open(target, "a", encoding="utf-8") as handle:
+    for name in sorted(values):
+        handle.write(f"{name}={values[name]}\n")
+PY
+}
+
+capture_workload_fragment() {
+  local workload_name="$1"
+  local pod_name container_id
+
+  pod_name="$(
+    kubectl -n "$NAMESPACE" get pods \
+      -l app="$workload_name" \
+      --field-selector=status.phase=Running \
+      -o 'jsonpath={.items[0].metadata.name}' 2>/dev/null || true
+  )"
+  if test -n "$pod_name" &&
+    kubectl -n "$NAMESPACE" exec "$pod_name" -c "$workload_name" -- env > "$candidate_env_file" 2>/dev/null &&
+    append_environment_fragment "$candidate_env_file"; then
+    echo "[cloud-review] 找到预览 $workload_name Pod 配置片段"
+    return 0
+  fi
+
+  command -v k3s >/dev/null 2>&1 || return 1
+  while IFS= read -r container_id; do
+    test -n "$container_id" || continue
+    if ! k3s crictl inspect "$container_id" > "$inspect_file" 2>/dev/null; then
+      continue
+    fi
+    if extract_inspected_container_environment "$workload_name" "$candidate_env_file" &&
+      append_environment_fragment "$candidate_env_file"; then
+      echo "[cloud-review] 找到上一代预览 $workload_name 容器配置片段"
+      return 0
+    fi
+  done < <(k3s crictl ps -a --name "$workload_name" -q 2>/dev/null || true)
+
+  return 1
+}
+
+print_missing_required_app_keys() {
+  python3 - "$raw_env_file" <<'PY'
+import sys
+
+required = {
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_DB",
+    "S3_ACCESS_KEY",
+    "S3_SECRET_KEY",
+    "LOGTO_ISSUER",
+    "LOGTO_JWKS_URI",
+    "LOGTO_AUDIENCE",
+}
+present = set()
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+        if "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        if value:
+            present.add(name)
+missing = sorted(required - present)
+print("[cloud-review] 预览配置片段仍缺少键：" + ", ".join(missing), file=sys.stderr)
+PY
+}
+
+validate_public_oidc_metadata() {
+  python3 - <<'PY'
+import json
+import sys
+import urllib.request
+
+url = "https://andkzt.logto.app/oidc/.well-known/openid-configuration"
+expected = {
+    "issuer": "https://andkzt.logto.app/oidc",
+    "jwks_uri": "https://andkzt.logto.app/oidc/jwks",
+}
+try:
+    with urllib.request.urlopen(url, timeout=10) as response:
+        payload = json.load(response)
+except Exception:
+    print("[cloud-review] 无法验证预览使用的公开 OIDC metadata", file=sys.stderr)
+    raise SystemExit(1)
+for name, value in expected.items():
+    if payload.get(name) != value:
+        print(f"[cloud-review] 公开 OIDC metadata 的 {name} 不符合预期", file=sys.stderr)
+        raise SystemExit(1)
+PY
+}
+
+capture_preview_environment() {
+  local workload_name pod_name container_id fragment_count
+
+  if "$preview_environment_captured" && test -s "$raw_env_file"; then
+    return 0
+  fi
+
+  for workload_name in api runtime; do
+    pod_name="$(
+      kubectl -n "$NAMESPACE" get pods \
+        -l app="$workload_name" \
+        --field-selector=status.phase=Running \
+        -o 'jsonpath={.items[0].metadata.name}' 2>/dev/null || true
+    )"
+    if test -n "$pod_name" &&
+      kubectl -n "$NAMESPACE" exec "$pod_name" -c "$workload_name" -- env > "$raw_env_file" 2>/dev/null &&
+      raw_environment_has_required_app_keys; then
+      preview_environment_captured=true
+      echo "[cloud-review] 从仍在运行的预览 $workload_name Pod 恢复配置"
+      return 0
+    fi
+  done
+
+  command -v k3s >/dev/null 2>&1 || return 1
+  for workload_name in api runtime; do
+    while IFS= read -r container_id; do
+      test -n "$container_id" || continue
+      if ! k3s crictl inspect "$container_id" > "$inspect_file" 2>/dev/null; then
+        continue
+      fi
+      if extract_inspected_container_environment "$workload_name" "$raw_env_file"; then
         if ! raw_environment_has_required_app_keys; then
           continue
         fi
@@ -137,6 +294,41 @@ PY
     done < <(k3s crictl ps -a --name "$workload_name" -q 2>/dev/null || true)
   done
 
+  : > "$merged_env_file"
+  fragment_count=0
+  # 数据库与对象存储以仍挂载当前 PVC 的两个平台工作负载为唯一权威来源，
+  # 不用可能滞后的业务容器值静默覆盖当前凭据。
+  for workload_name in postgres minio; do
+    if capture_workload_fragment "$workload_name"; then
+      fragment_count=$((fragment_count + 1))
+    fi
+  done
+
+  # 这些是公开、非敏感的预览路由/协议标识；数据库和对象存储凭据仍必须来自 combo-preview 自身。
+  {
+    printf '%s\n' \
+      'LOG_LEVEL=info' \
+      'CORS_ORIGIN=https://review.43-160-242-46.sslip.io' \
+      'REDIS_QUEUE_URL=redis://redis-queue:6379/0' \
+      'REDIS_HOT_URL=redis://redis-hot:6379/0' \
+      'S3_ENDPOINT=http://minio:9000' \
+      'S3_PUBLIC_ENDPOINT=https://review-s3.43-160-242-46.sslip.io' \
+      'S3_REGION=us-east-1' \
+      'LOGTO_ENDPOINT=https://andkzt.logto.app' \
+      'LOGTO_ISSUER=https://andkzt.logto.app/oidc' \
+      'LOGTO_JWKS_URI=https://andkzt.logto.app/oidc/jwks' \
+      'LOGTO_REDIRECT_URI=https://review.43-160-242-46.sslip.io/api/v1/auth/callback' \
+      'LOGTO_AUDIENCE=https://api.buildwithcombo.com'
+  } >> "$merged_env_file"
+
+  cp "$merged_env_file" "$raw_env_file"
+  if raw_environment_has_required_app_keys; then
+    validate_public_oidc_metadata
+    preview_environment_captured=true
+    echo "[cloud-review] 已从 $fragment_count 个预览工作负载聚合恢复配置"
+    return 0
+  fi
+  print_missing_required_app_keys
   return 1
 }
 
@@ -247,7 +439,7 @@ restore_app_secret() {
     cp "$SECRET_ROOT/app.env" "$raw_env_file"
     echo "[cloud-review] 从预览主机备份恢复 $ENV_SECRET"
   elif ! capture_preview_environment; then
-    echo "[cloud-review] 找不到预览 app.env、运行中业务 Pod 或历史预览容器；拒绝生产回退" >&2
+    echo "[cloud-review] 无法从预览备份或工作负载片段恢复 app.env；拒绝生产回退" >&2
     exit 78
   fi
 
@@ -352,10 +544,18 @@ restore_bootstrap_secret() {
   if ! test -s "$dev_session_secret_file"; then
     if ! capture_preview_environment ||
       ! extract_environment_value DEV_SESSION_SECRET "$dev_session_secret_file"; then
-      echo "[cloud-review] 缺少预览专属 dev session 密钥备份，历史预览环境也不可恢复" >&2
-      exit 78
+      python3 - "$dev_session_secret_file" <<'PY'
+import secrets
+import sys
+
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    handle.write(secrets.token_hex(32))
+PY
+      chmod 600 "$dev_session_secret_file"
+      echo "[cloud-review] 原 dev session 密钥不可恢复，已轮换预览专属密钥"
+    else
+      echo "[cloud-review] 从历史预览环境恢复 dev session 密钥"
     fi
-    echo "[cloud-review] 从历史预览环境恢复 dev session 密钥"
   fi
 
   if ! review_token_is_valid "$review_access_token" &&
