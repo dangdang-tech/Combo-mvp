@@ -127,6 +127,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [resolve, images]
     environment: cloud-review
+    env:
+      REVIEW_ROOT: /opt/combo/cloud-review
     timeout-minutes: 15
     permissions:
       contents: read
@@ -164,17 +166,17 @@ jobs:
 
       - name: Sync review-only manifests and scripts
         run: |
-          ssh cloud-review-target 'mkdir -p /opt/combo-preview/infra/k8s /opt/combo-preview/scripts'
-          rsync -az --delete infra/k8s/ cloud-review-target:/opt/combo-preview/infra/k8s/
+          ssh cloud-review-target "mkdir -p $REVIEW_ROOT/infra/k8s $REVIEW_ROOT/scripts"
+          rsync -az --delete infra/k8s/ cloud-review-target:"$REVIEW_ROOT/infra/k8s/"
           rsync -az \
             scripts/deploy-cloud-review.sh \
             scripts/recover-cloud-review-secrets.sh \
             scripts/release-cloud-review-nodeports.sh \
             scripts/cloud-review-smoke.sh \
-            cloud-review-target:/opt/combo-preview/scripts/
+            cloud-review-target:"$REVIEW_ROOT/scripts/"
 
       - name: Release legacy review NodePorts
-        run: ssh cloud-review-target bash /opt/combo-preview/scripts/release-cloud-review-nodeports.sh
+        run: ssh cloud-review-target bash "$REVIEW_ROOT/scripts/release-cloud-review-nodeports.sh"
 
       - name: Refresh preview image pull credential
         env:
@@ -184,7 +186,7 @@ jobs:
           test -n "$GHCR_USERNAME"
           test -n "$GHCR_TOKEN"
           ssh cloud-review-target \
-            'kubectl apply -f /opt/combo-preview/infra/k8s/overlays/cloud-review/platform/namespace.yaml >/dev/null'
+            "kubectl apply -f $REVIEW_ROOT/infra/k8s/overlays/cloud-review/platform/namespace.yaml >/dev/null"
           python3 - <<'PY' | ssh cloud-review-target 'kubectl apply -f - >/dev/null'
           import base64
           import json
@@ -225,7 +227,10 @@ jobs:
         run: |
           test -n "$REVIEW_ACCESS_TOKEN"
           printf '%s' "$REVIEW_ACCESS_TOKEN" |
-            ssh cloud-review-target bash /opt/combo-preview/scripts/recover-cloud-review-secrets.sh
+            ssh cloud-review-target env \
+              SECRET_ROOT="$REVIEW_ROOT/secrets" \
+              SRC_ROOT="$REVIEW_ROOT/infra/k8s" \
+              bash "$REVIEW_ROOT/scripts/recover-cloud-review-secrets.sh"
 
       - name: Sync preview LLM configuration
         env:
@@ -259,7 +264,11 @@ jobs:
       - name: Deploy after migration succeeds
         env:
           SHA: ${{ needs.resolve.outputs.sha }}
-        run: ssh cloud-review-target env SHA="$SHA" bash /opt/combo-preview/scripts/deploy-cloud-review.sh
+        run: |
+          ssh cloud-review-target env \
+            SHA="$SHA" \
+            SRC_ROOT="$REVIEW_ROOT/infra/k8s" \
+            bash "$REVIEW_ROOT/scripts/deploy-cloud-review.sh"
 
       - name: Public smoke
         env:

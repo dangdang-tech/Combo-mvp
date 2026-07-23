@@ -6,7 +6,8 @@ set -euo pipefail
 KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
 # 主机备份路径保持不变，以便把现有 Cloud Review 凭据安全迁入新 namespace。
 NAMESPACE=combo-review
-SECRET_ROOT=/opt/combo-preview/secrets
+SECRET_ROOT="${SECRET_ROOT:-/opt/combo-preview/secrets}"
+SRC_ROOT="${SRC_ROOT:-/opt/combo-preview/infra/k8s}"
 ENV_SECRET=combo-preview-env
 BOOTSTRAP_SECRET=combo-preview-bootstrap
 PULL_SECRET=combo-preview-ghcr-pull
@@ -577,7 +578,7 @@ PY
   apply_bootstrap_secret "$dev_session_secret_file" "$review_access_token_file"
 }
 
-kubectl apply -f /opt/combo-preview/infra/k8s/overlays/cloud-review/platform/namespace.yaml
+kubectl apply -f "$SRC_ROOT/overlays/cloud-review/platform/namespace.yaml"
 restore_app_secret
 restore_bootstrap_secret
 kubectl -n "$NAMESPACE" get secret "$PULL_SECRET" >/dev/null 2>&1 || {
