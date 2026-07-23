@@ -25,6 +25,8 @@ const POSTGRES_IMAGE =
 const REDIS_IMAGE = 'redis@sha256:bb186d083732f669da90be8b0f975a37812b15e913465bb14d845db72a4e3e08';
 const MINIO_IMAGE =
   'minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0';
+const MINIO_MC_IMAGE =
+  'minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc';
 const dockerAvailable = spawnSync('docker', ['info'], { stdio: 'ignore' }).status === 0;
 const imageArgs = [
   '--api-image',
@@ -582,12 +584,86 @@ test(
         ['--user', '1000:1000', '--entrypoint', '/bin/sh'],
         'test "$(id -u):$(id -g)" = 1000:1000 && command -v cat >/dev/null && test -x /usr/bin/docker-entrypoint.sh',
       ],
+      [
+        MINIO_MC_IMAGE,
+        ['--entrypoint', '/bin/sh'],
+        'command -v mc >/dev/null && command -v sleep >/dev/null',
+      ],
     ];
     for (const [image, options, command] of probes) {
       const result = spawnSync('docker', ['run', '--rm', ...options, image, '-ec', command], {
         stdio: 'ignore',
       });
       assert.equal(result.status, 0, `${image} identity probe failed`);
+    }
+  },
+);
+
+test(
+  'MinIO initialization runs with the exact pinned mc image toolset',
+  { skip: !dockerAvailable },
+  () => {
+    const resource = text('infra/k8s/overlays/combo-dev/init/resources.yaml');
+    const lines = resource.split('\n');
+    const start = lines.indexOf('  init-buckets.sh: |') + 1;
+    const end = lines.indexOf('kind: ConfigMap');
+    assert.ok(start > 0 && end > start);
+    const script = lines
+      .slice(start, end)
+      .map((line) => (line.length === 0 ? '' : line.slice(4)))
+      .join('\n');
+    const work = mkdtempSync(join(tmpdir(), 'combo-dev-minio-init-'));
+    try {
+      const scriptPath = join(work, 'init.sh');
+      const fakeMc = join(work, 'mc');
+      writeFileSync(scriptPath, `${script}\n`);
+      writeFileSync(
+        fakeMc,
+        `#!/bin/sh
+case "$*" in
+  "admin user list local --json")
+    printf '%s\\n' '{"status":"success","accessKey":"appKey1"}'
+    [ -f /tmp/fake-mc-removed ] || printf '%s\\n' '{"status":"success","accessKey":"staleKey1"}'
+    ;;
+  "admin user remove local staleKey1") : >/tmp/fake-mc-removed ;;
+  "admin user info local staleKey1") exit 1 ;;
+  "alias set revoked "*) exit 1 ;;
+  *) exit 0 ;;
+esac
+`,
+      );
+      chmodSync(scriptPath, 0o755);
+      chmodSync(fakeMc, 0o755);
+      const result = spawnSync(
+        'docker',
+        [
+          'run',
+          '--rm',
+          '--entrypoint',
+          '/bin/sh',
+          '-v',
+          `${work}:/probe:ro`,
+          '-e',
+          'MINIO_ROOT_USER=rootuser',
+          '-e',
+          'MINIO_ROOT_PASSWORD=rootpass',
+          '-e',
+          'S3_ACCESS_KEY=appKey1',
+          '-e',
+          'S3_SECRET_KEY=secretKey1',
+          '-e',
+          'S3_ENDPOINT=http://minio.invalid',
+          '-e',
+          'MC_CONFIG_DIR=/tmp/mc-test',
+          MINIO_MC_IMAGE,
+          '-ec',
+          'PATH=/probe:/bin /bin/sh /probe/init.sh',
+        ],
+        { stdio: 'ignore' },
+      );
+      assert.equal(result.status, 0);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
     }
   },
 );
@@ -1475,6 +1551,9 @@ test('combo-dev delivery is manual-only and shares the exact production CD concu
   assert.match(workflow, /\^\[0-9a-f\]\{40\}\$/);
   assert.match(workflow, /git\/ref\/heads\/main/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/runs\?head_sha=\$\{REVISION\}/);
+  assert.match(workflow, /echo ' {2}ServerAliveInterval 30'/);
+  assert.match(workflow, /echo ' {2}ServerAliveCountMax 20'/);
+  assert.match(workflow, /echo ' {2}TCPKeepAlive yes'/);
   assert.match(
     workflow,
     /\.head_branch == "main" and \.event == "push" and \.conclusion == "success"/,
@@ -1648,7 +1727,9 @@ test('MinIO initialization removes stale application identities and performs a n
   assert.match(init, /mc admin user remove local "\$identity" >\/dev\/null 2>&1/);
   assert.match(init, /if mc admin user info local "\$identity" >\/dev\/null 2>&1; then/);
   assert.match(init, /mc ls revoked\/combo-raw >\/dev\/null 2>&1/);
-  assert.match(init, /\[ "\$records" = "\$parsed" \] && \[ "\$parsed" = 1 \]/);
+  assert.match(init, /inventory_users\(\) \{/);
+  assert.match(init, /\[ "\$inventory_records" -eq 1 \]/);
+  assert.doesNotMatch(init, /^\s+(?:grep|sed|awk|jq)\b/m);
   assert.doesNotMatch(init, /echo .*\$identity/);
 });
 

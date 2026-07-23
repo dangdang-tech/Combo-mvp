@@ -167,6 +167,9 @@ jobs:
             echo '  IdentitiesOnly yes'
             echo '  StrictHostKeyChecking yes'
             echo '  BatchMode yes'
+            echo '  ServerAliveInterval 30'
+            echo '  ServerAliveCountMax 20'
+            echo '  TCPKeepAlive yes'
             echo '  LogLevel ERROR'
           } > "$HOME/.ssh/config"
           chmod 600 "$HOME/.ssh/config"
