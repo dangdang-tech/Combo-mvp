@@ -16,16 +16,21 @@ fail() {
 command -v curl >/dev/null 2>&1 || fail '需要 curl'
 cookie_jar="$(mktemp)"
 connect_headers="$(mktemp)"
+home_headers="$(mktemp)"
+home_asset_headers="$(mktemp)"
+runtime_headers="$(mktemp)"
+runtime_asset_headers="$(mktemp)"
 token_header_config="$(mktemp)"
-trap 'rm -f "$cookie_jar" "$connect_headers" "$token_header_config"' EXIT
+trap 'rm -f "$cookie_jar" "$connect_headers" "$home_headers" "$home_asset_headers" "$runtime_headers" "$runtime_asset_headers" "$token_header_config"' EXIT
 printf 'header = "X-Review-Token: %s"\n' "$REVIEW_ACCESS_TOKEN" > "$token_header_config"
 chmod 600 "$token_header_config"
 unset REVIEW_ACCESS_TOKEN
 curl_common=(--silent --show-error --location --max-time "$REVIEW_CURL_TIMEOUT" --retry 3 --retry-all-errors)
 curl_direct=(--silent --show-error --max-time "$REVIEW_CURL_TIMEOUT" --retry 3 --retry-all-errors)
 
-anonymous_code="$(curl "${curl_common[@]}" --output /dev/null --write-out '%{http_code}' "$REVIEW_BASE_URL/")"
+anonymous_code="$(curl "${curl_common[@]}" --dump-header "$connect_headers" --output /dev/null --write-out '%{http_code}' "$REVIEW_BASE_URL/")"
 test "$anonymous_code" = 401 || fail "匿名首页应被 Review 访问闸拦截，实际 HTTP $anonymous_code"
+grep -Eiq '^x-combo-review-gate:[[:space:]]*required' "$connect_headers" || fail '匿名首页 401 缺少 Review 访问闸标识'
 pass '匿名访问被 401 拦截'
 
 # 本机助手不会带 Review Cookie；伪 pairing code / 假二进制可以被应用拒绝，但不能被访问闸拦截。
@@ -59,9 +64,14 @@ test "$access_code" = 204 || fail "Review Cookie 交换失败，HTTP $access_cod
 grep -Eiq '^set-cookie: combo_review_access=[^;]+; Path=/; Max-Age=604800; HttpOnly; Secure; SameSite=Strict' "$connect_headers" || fail 'Review Cookie 缺少预期安全属性'
 pass 'Review token 已换成安全的 HttpOnly Cookie'
 
-home="$(curl "${curl_common[@]}" --cookie "$cookie_jar" --fail "$REVIEW_BASE_URL/")" || fail '授权后首页不可达'
+home="$(curl "${curl_common[@]}" --cookie "$cookie_jar" --dump-header "$home_headers" --fail "$REVIEW_BASE_URL/")" || fail '授权后首页不可达'
 printf '%s' "$home" | grep -qi '<html' || fail '首页未返回 HTML'
-pass '授权后产品首页可达'
+grep -Eiq '^cache-control:.*no-store' "$home_headers" || fail '产品 SPA shell 必须返回 Cache-Control: no-store'
+home_asset_path="$(printf '%s' "$home" | grep -Eo 'assets/[^"[:space:]]+\.(css|js)' | sed -n '1p' || true)"
+test -n "$home_asset_path" || fail '产品首页未引用内容 hash 静态资源'
+curl "${curl_direct[@]}" --cookie "$cookie_jar" --dump-header "$home_asset_headers" --output /dev/null --fail "$REVIEW_BASE_URL/$home_asset_path" || fail '产品内容 hash 静态资源不可达'
+grep -Eiq '^cache-control:.*immutable' "$home_asset_headers" || fail '产品内容 hash 静态资源必须使用 immutable 缓存'
+pass '授权后产品首页可达，SPA shell 与内容 hash 资源缓存策略正确'
 
 bootstrap="$(curl "${curl_common[@]}" --cookie "$cookie_jar" --fail "$REVIEW_BASE_URL/__review/bootstrap")" || fail 'bootstrap 页面不可达'
 printf '%s' "$bootstrap" | grep -q 'COMBO · CLOUD REVIEW' || fail 'bootstrap 页面标识不正确'
@@ -81,8 +91,13 @@ runtime_ready="$(curl "${curl_common[@]}" --cookie "$cookie_jar" --fail "$REVIEW
 printf '%s' "$runtime_ready" | grep -q '"ok":true' || fail "Runtime readiness 未返回 ok=true：$runtime_ready"
 pass '公网 Runtime readiness 通过'
 
-runtime="$(curl "${curl_common[@]}" --cookie "$cookie_jar" --fail "$REVIEW_BASE_URL/try/")" || fail 'runtime 页面不可达'
+runtime="$(curl "${curl_common[@]}" --cookie "$cookie_jar" --dump-header "$runtime_headers" --fail "$REVIEW_BASE_URL/try/")" || fail 'runtime 页面不可达'
 printf '%s' "$runtime" | grep -qi '<html' || fail 'runtime 入口未返回 HTML'
-pass 'runtime 静态入口可达'
+grep -Eiq '^cache-control:.*no-store' "$runtime_headers" || fail 'runtime SPA shell 必须返回 Cache-Control: no-store'
+runtime_asset_path="$(printf '%s' "$runtime" | grep -Eo 'assets/[^"[:space:]]+\.(css|js)' | sed -n '1p' || true)"
+test -n "$runtime_asset_path" || fail 'runtime 入口未引用内容 hash 静态资源'
+curl "${curl_direct[@]}" --cookie "$cookie_jar" --dump-header "$runtime_asset_headers" --output /dev/null --fail "$REVIEW_BASE_URL/try/$runtime_asset_path" || fail 'runtime 内容 hash 静态资源不可达'
+grep -Eiq '^cache-control:.*immutable' "$runtime_asset_headers" || fail 'runtime 内容 hash 静态资源必须使用 immutable 缓存'
+pass 'runtime 静态入口可达，SPA shell 与内容 hash 资源缓存策略正确'
 
 pass "Cloud Review 公网冒烟通过：$REVIEW_BASE_URL"
