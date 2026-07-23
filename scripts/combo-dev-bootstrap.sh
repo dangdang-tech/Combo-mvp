@@ -96,7 +96,8 @@ forwarders_stopped() {
 
 stop_forwarders() {
   rm -rf -- /run/combo-dev-forwarders
-  timeout 30 systemctl stop combo-dev-web-forward.service combo-dev-s3-forward.service >/dev/null 2>&1 || return 1
+  # 首次 bootstrap 时这两个单元尚未安装；stop 的 not-found 可以忽略，但随后仍须验证没有活动监听者。
+  timeout 30 systemctl stop combo-dev-web-forward.service combo-dev-s3-forward.service >/dev/null 2>&1 || true
   forwarders_stopped
 }
 
@@ -926,8 +927,11 @@ install_control_files() {
   timeout 30 systemctl daemon-reload >/dev/null 2>&1 || blocked 'systemd 配置刷新失败。'
   timeout 30 systemctl disable combo-dev-web-forward.service combo-dev-s3-forward.service >/dev/null 2>&1 || true
   timeout 30 systemctl stop combo-dev-web-forward.service combo-dev-s3-forward.service >/dev/null 2>&1 || true
-  timeout 30 systemctl enable --now combo-dev-storage-guard.timer >/dev/null 2>&1 || blocked '持续存储低水位守卫无法启用。'
+  # Persistent timer 在首次安装时可能立即补跑。先停用计时器并串行完成首次检查，避免两个 guard 并发收敛同一批凭据和写入者。
+  timeout 30 systemctl disable --now combo-dev-storage-guard.timer >/dev/null 2>&1 || true
+  timeout 30 systemctl reset-failed combo-dev-storage-guard.service >/dev/null 2>&1 || true
   timeout 30 systemctl start combo-dev-storage-guard.service >/dev/null 2>&1 || blocked '存储低水位守卫首次检查失败。'
+  timeout 30 systemctl enable --now combo-dev-storage-guard.timer >/dev/null 2>&1 || blocked '持续存储低水位守卫无法启用。'
   local enabled active
   for unit in combo-dev-web-forward.service combo-dev-s3-forward.service; do
     enabled=$(timeout 10 systemctl is-enabled "$unit" 2>/dev/null || true)

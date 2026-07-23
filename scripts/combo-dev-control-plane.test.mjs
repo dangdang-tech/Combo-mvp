@@ -1173,6 +1173,30 @@ bootstrap_mutations
   assert.match(guard, /verify_writers_fenced/);
 });
 
+test('first bootstrap tolerates absent forwarder units and serializes the persistent storage guard', () => {
+  const bootstrap = text('scripts/combo-dev-bootstrap.sh');
+  const stopBody = bootstrap.slice(
+    bootstrap.indexOf('stop_forwarders() {'),
+    bootstrap.indexOf('cleanup() {'),
+  );
+  assert.match(
+    stopBody,
+    /systemctl stop combo-dev-web-forward\.service combo-dev-s3-forward\.service[^\n]*\|\| true/,
+  );
+  assert.ok(stopBody.indexOf('systemctl stop') < stopBody.indexOf('forwarders_stopped'));
+
+  const installBody = bootstrap.slice(
+    bootstrap.indexOf('install_control_files() {'),
+    bootstrap.indexOf('production_fingerprint() {'),
+  );
+  const timerStop = installBody.indexOf('systemctl disable --now combo-dev-storage-guard.timer');
+  const firstCheck = installBody.indexOf('systemctl start combo-dev-storage-guard.service');
+  const timerStart = installBody.indexOf('systemctl enable --now combo-dev-storage-guard.timer');
+  assert.ok(timerStop >= 0);
+  assert.ok(timerStop < firstCheck);
+  assert.ok(firstCheck < timerStart);
+});
+
 test('the always-on host guard uses an independent minimal fencer for missing, malformed, expired, or unauthorized dispatcher credentials', () => {
   const bootstrap = text('scripts/combo-dev-bootstrap.sh');
   const deploy = text('scripts/combo-dev-deploy.sh');
