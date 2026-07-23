@@ -144,7 +144,7 @@ verify_bounded_storage_pool() {
   [[ -n "$source" && "$source" != "$parent_source" ]] || return 1
   options=$(findmnt -rn -M "$STORAGE_POOL" -o OPTIONS 2>/dev/null) || return 1
   [[ ",$options," == *,rw,* && ",$options," == *,nodev,* && ",$options," == *,nosuid,* ]] || return 1
-  total=$(df -PB1 --output=size "$STORAGE_POOL" 2>/dev/null | awk 'NR==2 {print $1}') || return 1
+  total=$(df -B1 --output=size "$STORAGE_POOL" 2>/dev/null | awk 'NR==2 {print $1}') || return 1
   [[ "$total" =~ ^[0-9]+$ ]] || return 1
   (( total >= STORAGE_MIN_BYTES && total <= STORAGE_MAX_BYTES ))
 }
