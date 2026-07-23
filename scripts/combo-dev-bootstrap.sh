@@ -988,7 +988,8 @@ bootstrap_mutations() {
   bootstrap_boundary fencer-credential provision_fencer_credential || blocked '独立最小失败收敛凭据无法建立。'
   bootstrap_boundary dispatcher-credential provision_dispatcher_credential || blocked '命名空间调度凭据无法建立。'
   bootstrap_boundary approval-files write_bootstrap_approvals || blocked '开发环境批准状态无法写入。'
-  bootstrap_boundary platform-apply "${AK[@]}" apply \
+  bootstrap_boundary platform-apply "${AK[@]}" apply --server-side \
+    --field-manager=combo-dev-dispatcher --force-conflicts \
     -k "$ROOT/infra/k8s/overlays/combo-dev/platform" >/dev/null 2>&1 ||
     blocked '平台配额与网络策略应用失败。'
 

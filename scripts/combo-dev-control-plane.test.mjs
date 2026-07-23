@@ -1195,6 +1195,10 @@ test('first bootstrap tolerates absent forwarder units and serializes the persis
   assert.ok(timerStop >= 0);
   assert.ok(timerStop < firstCheck);
   assert.ok(firstCheck < timerStart);
+  assert.match(
+    bootstrap,
+    /bootstrap_boundary platform-apply "\$\{AK\[@\]\}" apply --server-side[\s\S]*--field-manager=combo-dev-dispatcher --force-conflicts/,
+  );
 });
 
 test('the always-on host guard uses an independent minimal fencer for missing, malformed, expired, or unauthorized dispatcher credentials', () => {
