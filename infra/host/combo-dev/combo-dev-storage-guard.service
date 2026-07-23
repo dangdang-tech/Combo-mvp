@@ -1,0 +1,17 @@
+[Unit]
+Description=Fence combo-dev writers on storage, credential, or persistent guard failure
+After=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/combo-dev/bin/combo-dev-storage-guard
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+StateDirectory=combo-dev
+StateDirectoryMode=0700
+ReadWritePaths=/run /var/lib/combo-dev

@@ -1,0 +1,238 @@
+name: Combo development
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 当前 main 的完整提交 SHA；该提交必须已有成功的 main CI。
+        required: true
+        type: string
+
+concurrency:
+  group: cd-tecent2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+jobs:
+  deploy:
+    name: Resolve, validate and deploy current main
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: combo-dev
+    steps:
+      - name: Select immutable current-main revision
+        id: revision
+        env:
+          INPUT_REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          [[ "$INPUT_REVISION" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid immutable revision.' >&2; exit 1; }
+          printf 'revision=%s\n' "$INPUT_REVISION" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.revision.outputs.revision }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify current main and successful CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ steps.revision.outputs.revision }}
+        run: |
+          set -euo pipefail
+          remote_main=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')
+          [[ "$remote_main" == "$REVISION" ]] || { echo 'BLOCKED: revision is no longer the current main tip.' >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "$REVISION" ]] || exit 1
+          git diff --quiet && git diff --cached --quiet || exit 1
+          success=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${REVISION}&status=completed&per_page=100" \
+            --jq '[.workflow_runs[] | select(.head_sha == "'"$REVISION"'" and .head_branch == "main" and .event == "push" and .conclusion == "success")] | length > 0')
+          [[ "$success" == true ]] || { echo 'BLOCKED: current main has no successful main CI run.' >&2; exit 1; }
+
+      - name: Resolve SHA-tagged application images to immutable digests
+        id: images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ steps.revision.outputs.revision }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin >/dev/null 2>&1
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          resolve() {
+            local repository=$1 digest
+            digest=$(docker buildx imagetools inspect "${repository}:${REVISION}" --format '{{.Manifest.Digest}}' 2>/dev/null)
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
+            printf '%s@%s' "$repository" "$digest"
+          }
+          api=$(resolve ghcr.io/dangdang-tech/combo-api) || { echo 'Missing immutable API image.' >&2; exit 1; }
+          runtime=$(resolve ghcr.io/dangdang-tech/combo-runtime) || { echo 'Missing immutable runtime image.' >&2; exit 1; }
+          web=$(resolve ghcr.io/dangdang-tech/combo-web) || { echo 'Missing immutable Web image.' >&2; exit 1; }
+          printf 'api=%s\nruntime=%s\nweb=%s\n' "$api" "$runtime" "$web" >> "$GITHUB_OUTPUT"
+
+      - name: Render and enforce the deployment contract
+        env:
+          API_IMAGE: ${{ steps.images.outputs.api }}
+          RUNTIME_IMAGE: ${{ steps.images.outputs.runtime }}
+          WEB_IMAGE: ${{ steps.images.outputs.web }}
+        run: |
+          set -euo pipefail
+          rendered=$(mktemp)
+          trap 'rm -f "$rendered"' EXIT
+          bash scripts/combo-dev-deploy.sh --render-only \
+            --output "$rendered" \
+            --api-image "$API_IMAGE" \
+            --runtime-image "$RUNTIME_IMAGE" \
+            --web-image "$WEB_IMAGE"
+          [[ -s "$rendered" ]]
+
+      - name: Build the allowlisted deployment bundle
+        id: bundle
+        env:
+          REVISION: ${{ steps.revision.outputs.revision }}
+          API_IMAGE: ${{ steps.images.outputs.api }}
+          RUNTIME_IMAGE: ${{ steps.images.outputs.runtime }}
+          WEB_IMAGE: ${{ steps.images.outputs.web }}
+        run: |
+          set -euo pipefail
+          root=$(mktemp -d)
+          trap 'rm -rf "$root"' EXIT
+          mkdir -p "$root/metadata" "$root/infra/k8s/overlays/combo-dev" "$root/infra/host/combo-dev" "$root/scripts"
+          overlay_files=(
+            kustomization.yaml
+            platform/kustomization.yaml platform/limit-range.yaml platform/namespace.yaml
+            platform/network-policies.yaml platform/quota.yaml platform/rbac.yaml
+            platform/storage-class.yaml platform/storage-volumes.yaml
+            foundation/kustomization.yaml foundation/postgres-entrypoint.sh foundation/resources.yaml
+            init/kustomization.yaml init/minio-app-policy.json init/resources.yaml
+            migrate/kustomization.yaml migrate/resources.yaml
+            apps/kustomization.yaml apps/nginx-dev.conf apps/resources.yaml
+          )
+          for relative in "${overlay_files[@]}"; do
+            install -D -m 0644 "infra/k8s/overlays/combo-dev/$relative" \
+              "$root/infra/k8s/overlays/combo-dev/$relative"
+          done
+          cp infra/host/combo-dev/README.md \
+             infra/host/combo-dev/combo-dev-web-forward.service \
+             infra/host/combo-dev/combo-dev-s3-forward.service \
+             infra/host/combo-dev/combo-dev-storage-guard.service \
+             infra/host/combo-dev/combo-dev-storage-guard.timer "$root/infra/host/combo-dev/"
+          cp scripts/combo-dev-bootstrap.sh scripts/combo-dev-deploy.sh scripts/combo-dev-smoke.sh \
+             scripts/combo-dev-connect.sh scripts/combo-dev-logs.sh scripts/combo-dev-reset.sh \
+             scripts/combo-dev-forwarder-lease.sh scripts/combo-dev-storage-guard.sh \
+             scripts/combo-dev-production-safety.py "$root/scripts/"
+          printf '%s\n' "$REVISION" > "$root/metadata/revision"
+          printf 'API_IMAGE=%s\nRUNTIME_IMAGE=%s\nWEB_IMAGE=%s\n' \
+            "$API_IMAGE" "$RUNTIME_IMAGE" "$WEB_IMAGE" > "$root/metadata/image-digests.txt"
+          if find "$root" -type l -print -quit | grep -q .; then echo 'Bundle contains a symlink.' >&2; exit 1; fi
+          if find "$root" -type f \( -name '.env' -o -name '.env.*' -o -name '*secret*' \) -print -quit | grep -q .; then
+            echo 'Bundle contains a prohibited configuration file.' >&2; exit 1
+          fi
+          if grep -RIEq --exclude='*.md' -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}' "$root"; then
+            echo 'Bundle failed credential-pattern scanning.' >&2; exit 1
+          fi
+          archive="$RUNNER_TEMP/combo-dev-${REVISION}.tar.gz"
+          tar -C "$root" -czf "$archive" metadata infra/k8s/overlays/combo-dev infra/host/combo-dev scripts
+          chmod 600 "$archive"
+          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Configure pinned development SSH identity
+        env:
+          SSH_KEY: ${{ secrets.COMBO_DEV_SSH_KEY }}
+          SSH_HOST: ${{ secrets.COMBO_DEV_SSH_HOST }}
+          SSH_USER: ${{ secrets.COMBO_DEV_SSH_USER }}
+          SSH_KNOWN_HOSTS: ${{ secrets.COMBO_DEV_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          [[ "$SSH_HOST" =~ ^[A-Za-z0-9._:-]+$ ]] || { echo 'Invalid development host metadata.' >&2; exit 1; }
+          [[ "$SSH_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo 'Invalid development user metadata.' >&2; exit 1; }
+          [[ -n "$SSH_KEY" && -n "$SSH_KNOWN_HOSTS" ]] || { echo 'Missing development SSH material.' >&2; exit 1; }
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/combo_dev"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/combo_dev_known_hosts"
+          chmod 600 "$HOME/.ssh/combo_dev" "$HOME/.ssh/combo_dev_known_hosts"
+          ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/combo_dev_known_hosts" >/dev/null 2>&1 || {
+            echo 'Pinned host identity does not cover the configured host.' >&2; exit 1;
+          }
+          {
+            echo 'Host combo-dev-target'
+            echo "  HostName $SSH_HOST"
+            echo "  User $SSH_USER"
+            echo '  IdentityFile ~/.ssh/combo_dev'
+            echo '  UserKnownHostsFile ~/.ssh/combo_dev_known_hosts'
+            echo '  IdentitiesOnly yes'
+            echo '  StrictHostKeyChecking yes'
+            echo '  BatchMode yes'
+            echo '  LogLevel ERROR'
+          } > "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Prove development ports are not remotely reachable before deployment
+        env:
+          SSH_HOST: ${{ secrets.COMBO_DEV_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          for port in 18080 19000; do
+            if timeout 4 bash -c "</dev/tcp/${SSH_HOST}/${port}" 2>/dev/null; then
+              echo 'A development port is remotely reachable.' >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload the fixed bundle and invoke the root-owned dispatcher
+        env:
+          ARCHIVE: ${{ steps.bundle.outputs.archive }}
+          REVISION: ${{ steps.revision.outputs.revision }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ && "$RUN_ATTEMPT" =~ ^[0-9]+$ ]] || exit 1
+          remote="/opt/combo-dev/incoming/${REVISION}.tar.gz"
+          temporary="/opt/combo-dev/incoming/.${REVISION}.${RUN_ID}.${RUN_ATTEMPT}.upload"
+          cleanup_upload() {
+            ssh combo-dev-target rm -f -- "$temporary" >/dev/null 2>&1 || true
+          }
+          trap cleanup_upload EXIT
+          ssh combo-dev-target test -d /opt/combo-dev/incoming
+          cleanup_upload
+          scp -q "$ARCHIVE" "combo-dev-target:$temporary"
+          ssh combo-dev-target mv -fT -- "$temporary" "$remote"
+          ssh combo-dev-target sudo /opt/combo-dev/bin/combo-dev-deploy --bundle "$remote" --revision "$REVISION"
+
+      - name: Prove development ports remain private
+        env:
+          SSH_HOST: ${{ secrets.COMBO_DEV_SSH_HOST }}
+        run: |
+          set -euo pipefail
+          for port in 18080 19000; do
+            if timeout 4 bash -c "</dev/tcp/${SSH_HOST}/${port}" 2>/dev/null; then
+              echo 'A development port is remotely reachable.' >&2
+              exit 1
+            fi
+          done
+
+      - name: Remove transient runner and upload files
+        if: always()
+        env:
+          ARCHIVE: ${{ steps.bundle.outputs.archive }}
+          REVISION: ${{ steps.revision.outputs.revision }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set +e
+          cleanup_rc=0
+          if [[ "$REVISION" =~ ^[0-9a-f]{40}$ && "$RUN_ID" =~ ^[0-9]+$ && "$RUN_ATTEMPT" =~ ^[0-9]+$ && -f "$HOME/.ssh/config" ]]; then
+            ssh combo-dev-target rm -f -- \
+              "/opt/combo-dev/incoming/${REVISION}.tar.gz" \
+              "/opt/combo-dev/incoming/.${REVISION}.${RUN_ID}.${RUN_ATTEMPT}.upload" \
+              >/dev/null 2>&1 || cleanup_rc=1
+          fi
+          rm -f -- "$ARCHIVE" "$HOME/.ssh/combo_dev" "$HOME/.ssh/combo_dev_known_hosts" "$HOME/.ssh/config"
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          if (( cleanup_rc != 0 )); then echo 'Remote transient cleanup could not be confirmed.' >&2; fi
+          exit "$cleanup_rc"
