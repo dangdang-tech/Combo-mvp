@@ -1213,6 +1213,12 @@ test('the always-on host guard uses an independent minimal fencer for missing, m
     assert.match(script, /DISPATCHER_FENCE_BEFORE_SECONDS=\$\(\(7 \* 24 \* 60 \* 60\)\)/);
   }
   assert.doesNotMatch(unit, /ConditionPathExists/);
+  assert.match(unit, /^ProtectHome=read-only$/m);
+  assert.match(
+    unit,
+    /^ReadWritePaths=\/run \/var\/lib\/combo-dev \/home\/xingzheng\/data\/combo-dev$/m,
+  );
+  assert.doesNotMatch(unit, /ReadWritePaths=.* \/home\/xingzheng\/data(?:\s|$)/m);
   assert.match(rbac, /name: combo-dev-fencer/);
   assert.match(rbac, /resourceNames: \['api', 'worker', 'runtime', 'web', 'redis-hot'\]/);
   assert.doesNotMatch(
