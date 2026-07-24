@@ -1630,7 +1630,11 @@ test('Test, Preview, and Production serialize only deploy jobs and preserve prom
   assert.doesNotMatch(ci, /github\.event_name == 'workflow_call'/);
   assert.match(
     ci,
-    /^ {2}release:\n[\s\S]*?^ {4}if: >-\n\s+\(github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'\) \|\|\n\s+inputs\.publish_release/m,
+    /^ {2}release:\n[\s\S]*?^ {4}if: >-\n\s+\(github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'\) \|\|\n\s+inputs\.publish_release == true/m,
+  );
+  assert.match(
+    ci,
+    /push: >-\n\s+\$\{\{ \(github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'\) \|\|\n\s+inputs\.publish_release == true \}\}/,
   );
   assert.match(workflow, /combo-release-mutation\.lock/);
   assert.match(workflow, /flock -w 300 9/);
