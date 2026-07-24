@@ -468,7 +468,7 @@ reuse_completed_release() {
 load_post_cut_checkpoint() {
   local created
   CHECKPOINT_PHASE=''
-  [[ -e "$pending_checkpoint" ]] || return
+  [[ -e "$pending_checkpoint" ]] || return 0
   [[ -f "$pending_checkpoint" && ! -L "$pending_checkpoint" ]] ||
     fail 'post-cut checkpoint is not a regular file'
   jq -e \
