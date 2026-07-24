@@ -249,7 +249,7 @@ preflight() {
     --production-namespace "$PRODUCTION_NAMESPACE" \
     --work-dir "$WORK/observer-audit" >/dev/null 2>&1 || blocked '生产观察身份不符合精确只读边界。'
   validate_static_storage_live
-  "${K[@]}" apply --server-side --dry-run=server --field-manager=combo-dev-dispatcher -k "$FOUNDATION" >/dev/null 2>&1 || blocked '基础清单未通过清空数据前服务端校验。'
+  "${K[@]}" apply --server-side --dry-run=server --field-manager=combo-dev-dispatcher --force-conflicts -k "$FOUNDATION" >/dev/null 2>&1 || blocked '基础清单未通过清空数据前服务端校验。'
 }
 
 validate_static_storage_live() {

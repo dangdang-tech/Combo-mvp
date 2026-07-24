@@ -1946,6 +1946,10 @@ test('existing deployment invariants remain fail-closed', () => {
   assert.match(reset, /wipe_static_volume_data/);
   assert.doesNotMatch(reset, /delete "persistentvolumeclaim\/\$name"/);
   assert.match(
+    reset,
+    /apply --server-side --dry-run=server --field-manager=combo-dev-dispatcher --force-conflicts -k "\$FOUNDATION"/,
+  );
+  assert.match(
     rbac,
     /resourceNames: \['combo-dev-postgres', 'combo-dev-redis-queue', 'combo-dev-minio'\]/,
   );
