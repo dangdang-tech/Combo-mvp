@@ -7,6 +7,7 @@ import {
   runtimeBackLabel,
   runtimeBackTarget,
   safeRuntimeReturnTo,
+  safeTaskRuntimeReturnTo,
 } from './runtimeReturn.js';
 
 class MemoryStorage {
@@ -31,6 +32,47 @@ describe('runtime return navigation', () => {
     expect(safeRuntimeReturnTo('//example.com/create/capabilities')).toBeNull();
     expect(safeRuntimeReturnTo('create/capabilities')).toBeNull();
     expect(safeRuntimeReturnTo('/create/capabilities\u0000')).toBeNull();
+  });
+
+  it('accepts only task-detail return paths at the creation trial boundary', () => {
+    const taskPath = '/tasks/018f47ea-bc32-7a3d-8f6e-2f90c7b01d43';
+
+    expect(safeTaskRuntimeReturnTo(taskPath)).toBe(taskPath);
+    expect(safeTaskRuntimeReturnTo(`${taskPath}?from=result#cap-2`)).toBe(
+      `${taskPath}?from=result#cap-2`,
+    );
+    expect(safeTaskRuntimeReturnTo('/tasks')).toBeNull();
+    expect(safeTaskRuntimeReturnTo('/capabilities')).toBeNull();
+    expect(safeTaskRuntimeReturnTo('/tasks/not-a-uuid')).toBeNull();
+    expect(safeTaskRuntimeReturnTo(`//example.com${taskPath}`)).toBeNull();
+    expect(safeTaskRuntimeReturnTo(`${taskPath}\\evil`)).toBeNull();
+    expect(safeTaskRuntimeReturnTo('/javascript:alert(1)')).toBeNull();
+    expect(safeTaskRuntimeReturnTo(`${taskPath}${String.fromCharCode(0)}`)).toBeNull();
+  });
+
+  it('rejects browser normalization and encoded path-segment bypasses', () => {
+    for (const value of [
+      '/tasks/.',
+      '/tasks/..',
+      '/tasks/%2e',
+      '/tasks/%2e%2e',
+      '/tasks/.%2e',
+      '/tasks/%2e.',
+      '/tasks/%252e%252e',
+      '/tasks/ ',
+      '/tasks/%2f%2fexample.com',
+      '/tasks/%252f%252fexample.com',
+      '/tasks/%5c%5cexample.com',
+      '/tasks/%255c%255cexample.com',
+      '/tasks/%00',
+      '/tasks/%2500',
+      '/tasks/javascript%3aalert(1)',
+    ]) {
+      expect(safeTaskRuntimeReturnTo(value), value).toBeNull();
+    }
+
+    const queryDecoded = new URLSearchParams('returnTo=%2Ftasks%2F%252e%252e').get('returnTo');
+    expect(safeTaskRuntimeReturnTo(queryDecoded)).toBeNull();
   });
 
   it('stores and restores returnTo by runtime session id', () => {

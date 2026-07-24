@@ -1,6 +1,8 @@
 export const CREATOR_CAPABILITIES_PATH = '/capabilities';
 
 const RETURN_TO_STORAGE_PREFIX = 'combo.runtime.returnTo:';
+const UUID_PATH_SEGMENT = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const TASK_DETAIL_RETURN_PATH = new RegExp(`^/tasks/${UUID_PATH_SEGMENT}(?:[?#].*)?$`, 'i');
 
 export interface RuntimeReturnStorage {
   getItem(key: string): string | null;
@@ -34,6 +36,13 @@ export function safeRuntimeReturnTo(value: string | null | undefined): string | 
   if (/^\/[a-z][a-z0-9+.-]*:/i.test(value)) return null; // scheme 走私（/javascript: 等）
   if (containsControlCharacter(value)) return null;
   return value;
+}
+
+export function safeTaskRuntimeReturnTo(value: string | null | undefined): string | null {
+  const safe = safeRuntimeReturnTo(value);
+  // Task ids are canonical UUIDs. Keeping the path segment strict also rejects dot-segment
+  // normalization and encoded delimiter/control-character tricks before location.assign().
+  return safe && TASK_DETAIL_RETURN_PATH.test(safe) ? safe : null;
 }
 
 export function rememberRuntimeReturnTo(

@@ -48,8 +48,12 @@ vi.mock('../api/useSessionStream.js', () => ({
 }));
 
 vi.mock('../components/SessionSidebar.js', () => ({
-  SessionSidebar: ({ experience }: { experience?: string }) => (
-    <div data-testid="session-sidebar" data-experience={experience} />
+  SessionSidebar: ({ experience, returnTo }: { experience?: string; returnTo?: string | null }) => (
+    <div
+      data-testid="session-sidebar"
+      data-experience={experience}
+      data-return-to={returnTo ?? undefined}
+    />
   ),
 }));
 
@@ -91,8 +95,8 @@ function sessionDetail(mode?: 'consume' | 'studio'): SessionDetail {
   } as SessionDetail;
 }
 
-function renderPage(url: string): void {
-  render(
+function renderPage(url: string): ReturnType<typeof render> {
+  return render(
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/session/:sessionId" element={<ChatPage />} />
@@ -100,6 +104,10 @@ function renderPage(url: string): void {
     </MemoryRouter>,
   );
 }
+
+beforeEach(() => {
+  window.sessionStorage.clear();
+});
 
 describe('ChatPage studio experience', () => {
   beforeEach(() => {
@@ -275,6 +283,21 @@ describe('ChatPage consume Miniapp bridge', () => {
       title: '周报助手页面',
       updatedAt: '2026-07-23T01:00:00.000Z',
     };
+  });
+
+  it('keeps a task-detail return target across a session-page reload', () => {
+    const sessionPath = '/session/11111111-1111-4111-8111-111111111111';
+    const taskReturnTo = '/tasks/018f47ea-bc32-7a3d-8f6e-2f90c7b01d43';
+    const first = renderPage(`${sessionPath}?returnTo=${encodeURIComponent(taskReturnTo)}`);
+
+    expect(screen.getByTestId('session-sidebar')).toHaveAttribute('data-return-to', taskReturnTo);
+    expect(screen.getByRole('button', { name: '返回发布流程' })).toBeInTheDocument();
+
+    first.unmount();
+    renderPage(sessionPath);
+
+    expect(screen.getByTestId('session-sidebar')).toHaveAttribute('data-return-to', taskReturnTo);
+    expect(screen.getByRole('button', { name: '返回发布流程' })).toBeInTheDocument();
   });
 
   it('forwards a host-confirmed Miniapp request to the real session stream', async () => {

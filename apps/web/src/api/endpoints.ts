@@ -113,6 +113,7 @@ export function createStudioSession(capabilityId: string): Promise<StudioSession
  * 试用端（runtime-web）入口：生产部署在同域 /try/ 子路径（vite base '/try/'，dev 端口 5174 同 base）。
  * /try/c/:id 会为该能力开一局试用会话。
  */
-export function trialUrl(capabilityId: string): string {
-  return `/try/c/${encodeURIComponent(capabilityId)}`;
+export function trialUrl(capabilityId: string, returnTo?: string): string {
+  const path = `/try/c/${encodeURIComponent(capabilityId)}`;
+  return returnTo ? `${path}?returnTo=${encodeURIComponent(returnTo)}` : path;
 }
