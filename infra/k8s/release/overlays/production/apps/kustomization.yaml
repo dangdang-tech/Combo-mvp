@@ -4,6 +4,8 @@ namespace: combo
 namePrefix: release-
 resources:
   - ../../../base/apps
+patches:
+  - path: ../../app-selector-isolation.patch.yaml
 labels:
   - includeSelectors: true
     pairs:

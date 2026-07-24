@@ -6,6 +6,7 @@ resources:
   - ../../../base/apps
 patches:
   - path: dev-session.patch.yaml
+  - path: ../../app-selector-isolation.patch.yaml
 labels:
   - includeSelectors: true
     pairs:

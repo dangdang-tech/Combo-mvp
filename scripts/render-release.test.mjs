@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,6 +13,7 @@ import {
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SHA = 'd'.repeat(40);
+const RELEASE_PREFIX = `release-${SHA.slice(0, 12)}-`;
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const release = {
   schemaVersion: 1,
@@ -53,10 +54,52 @@ function render(environment, phase) {
   return parseAllDocuments(readFileSync(output, 'utf8')).map((document) => document.toJS());
 }
 
+function kubectlDryRunList(resources) {
+  return {
+    apiVersion: 'v1',
+    kind: 'List',
+    items: resources.map((resource) => ({
+      ...structuredClone(resource),
+      metadata: {
+        ...structuredClone(resource.metadata),
+        annotations: {
+          ...(resource.metadata.annotations ?? {}),
+          'kubectl.kubernetes.io/last-applied-configuration': JSON.stringify(resource),
+        },
+      },
+    })),
+  };
+}
+
+function verifyRendered(resources, environment, phase) {
+  const directory = mkdtempSync(join(tmpdir(), 'combo-verify-render-test-'));
+  const manifest = join(directory, 'release.json');
+  writeFileSync(manifest, serializeReleaseManifest(release));
+  return spawnSync(
+    process.execPath,
+    [
+      'scripts/verify-rendered-release.mjs',
+      '--manifest',
+      manifest,
+      '--manifest-digest',
+      releaseManifestDigest(release),
+      '--environment',
+      environment,
+      '--phase',
+      phase,
+    ],
+    {
+      cwd: ROOT,
+      input: JSON.stringify(kubectlDryRunList(resources)),
+      encoding: 'utf8',
+    },
+  );
+}
+
 for (const [environment, namespace, prefix] of [
   ['test', 'combo-preview', ''],
-  ['preview', 'combo-review', 'release-'],
-  ['production', 'combo', 'release-'],
+  ['preview', 'combo-review', RELEASE_PREFIX],
+  ['production', 'combo', RELEASE_PREFIX],
 ]) {
   test(`${environment} renders exactly the four release business planes`, () => {
     const resources = render(environment, 'apps');
@@ -90,6 +133,28 @@ for (const [environment, namespace, prefix] of [
     assert.equal(serialized.includes('consumer'), false);
     assert.equal(serialized.includes('sweeper'), false);
     assert.equal(serialized.includes(':latest'), false);
+    for (const deployment of resources.filter((resource) => resource.kind === 'Deployment')) {
+      const logicalName = deployment.metadata.name.slice(prefix.length);
+      const app = `${prefix}${logicalName}`;
+      assert.deepEqual(deployment.spec.selector.matchLabels, {
+        app,
+        'combo.build/release-track': 'release-v1',
+      });
+      assert.equal(deployment.spec.template.metadata.labels.app, app);
+      const releaseReference = deployment.spec.template.spec.containers[0].envFrom.find(
+        (entry) => entry.configMapRef,
+      );
+      assert.equal(releaseReference.configMapRef.name, `combo-release-meta-${SHA.slice(0, 12)}`);
+    }
+    for (const service of resources.filter((resource) => resource.kind === 'Service')) {
+      const logicalName = service.metadata.name.slice(prefix.length);
+      assert.deepEqual(service.spec.selector, {
+        app: `${prefix}${logicalName}`,
+        'combo.build/release-track': 'release-v1',
+      });
+    }
+    const verification = verifyRendered(resources, environment, 'apps');
+    assert.equal(verification.status, 0, verification.stderr);
   });
 
   test(`${environment} renders migration before apps with the API digest`, () => {
@@ -103,6 +168,12 @@ for (const [environment, namespace, prefix] of [
       resources[0].spec.template.metadata.annotations['combo.build/migration-head'],
       release.migrationHead,
     );
+    assert.equal(
+      resources[0].spec.template.spec.containers[0].envFrom[0].configMapRef.name,
+      `combo-release-meta-${SHA.slice(0, 12)}`,
+    );
+    const verification = verifyRendered(resources, environment, 'migrate');
+    assert.equal(verification.status, 0, verification.stderr);
   });
 }
 
@@ -116,8 +187,9 @@ test('Nginx contract rejects missing hashed assets and defines cache policy', ()
   assert.match(nginx, /location = \/version\.json[\s\S]*?no-store/);
 });
 
-test('Preview foundation uses new retained names and no legacy NodePort', () => {
-  const foundation = render('preview', 'foundation');
+for (const environment of ['preview', 'production']) {
+test(`${environment} foundation uses fresh release names and no legacy NodePort`, () => {
+  const foundation = render(environment, 'foundation');
   assert.equal(
     foundation.some(
       (resource) =>
@@ -148,13 +220,69 @@ test('Preview foundation uses new retained names and no legacy NodePort', () => 
       ),
     false,
   );
-  assert.equal(JSON.stringify(foundation).includes('combo-preview-env'), true);
+  const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
+  assert.equal(JSON.stringify(foundation).includes(expectedSecret), true);
+  const verification = verifyRendered(foundation, environment, 'foundation');
+  assert.equal(verification.status, 0, verification.stderr);
 });
 
-test('Preview bucket initialization targets only the new MinIO service', () => {
-  const resources = render('preview', 'init');
+test(`${environment} bucket initialization targets only the fresh MinIO service`, () => {
+  const resources = render(environment, 'init');
   const job = resources.find((resource) => resource.kind === 'Job');
   assert.equal(job.metadata.name, 'release-minio-init');
   assert.match(JSON.stringify(job), /http:\/\/release-minio:9000/);
-  assert.equal(JSON.stringify(job).includes('combo-preview-env'), true);
+  const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
+  assert.equal(JSON.stringify(job).includes(expectedSecret), true);
+  const verification = verifyRendered(resources, environment, 'init');
+  assert.equal(verification.status, 0, verification.stderr);
+});
+}
+
+test('deployment-side allowlist rejects extra resources and image drift before apply', () => {
+  const apps = render('production', 'apps');
+  apps.push({
+    apiVersion: 'v1',
+    kind: 'Secret',
+    metadata: { name: 'forbidden', namespace: 'combo' },
+    stringData: { password: 'fixture' },
+  });
+  const extra = verifyRendered(apps, 'production', 'apps');
+  assert.notEqual(extra.status, 0);
+  assert.match(extra.stderr, /resource set|forbidden/);
+
+  const wrongImage = render('production', 'apps');
+  const worker = wrongImage.find(
+    (resource) =>
+      resource.kind === 'Deployment' &&
+      resource.metadata.name === `${RELEASE_PREFIX}worker`,
+  );
+  worker.spec.template.spec.containers[0].image =
+    'ghcr.io/dangdang-tech/combo-api@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+  const drift = verifyRendered(wrongImage, 'production', 'apps');
+  assert.notEqual(drift.status, 0);
+  assert.match(drift.stderr, /does not use worker/);
+
+  const migrate = render('production', 'migrate');
+  migrate[0].metadata.namespace = 'combo-review';
+  const escaped = verifyRendered(migrate, 'production', 'migrate');
+  assert.notEqual(escaped.status, 0);
+  assert.match(escaped.stderr, /escaped namespace/);
+});
+
+test('deployment-side allowlist rejects mutable foundation commands', () => {
+  const foundation = render('preview', 'foundation');
+  const redis = foundation.find(
+    (resource) => resource.kind === 'Deployment' && resource.metadata.name === 'release-redis-hot',
+  );
+  redis.spec.template.spec.containers[0].command = ['sh', '-c', 'exit 0'];
+  const command = verifyRendered(foundation, 'preview', 'foundation');
+  assert.notEqual(command.status, 0);
+  assert.match(command.stderr, /unapproved command/);
+
+  const init = render('preview', 'init');
+  const script = init.find((resource) => resource.kind === 'ConfigMap');
+  script.data['init-buckets.sh'] = '#!/bin/sh\nexit 0\n';
+  const changedScript = verifyRendered(init, 'preview', 'init');
+  assert.notEqual(changedScript.status, 0);
+  assert.match(changedScript.stderr, /script differs/);
 });

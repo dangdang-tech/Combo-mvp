@@ -13,11 +13,8 @@ const K8S_ROOT = join(REPOSITORY_ROOT, 'infra', 'k8s');
 const ENVIRONMENTS = Object.freeze({
   test: {
     namespace: 'combo-preview',
-    prefix: '',
     environmentCredentialName: 'combo-dev-env',
     pullCredentialName: 'combo-dev-registry',
-    apiHost: 'api.combo-preview.svc.cluster.local',
-    runtimeHost: 'runtime.combo-preview.svc.cluster.local',
     postgresHost: 'postgres',
     redisQueueHost: 'redis-queue',
     redisHotHost: 'redis-hot',
@@ -25,11 +22,8 @@ const ENVIRONMENTS = Object.freeze({
   },
   preview: {
     namespace: 'combo-review',
-    prefix: 'release-',
     environmentCredentialName: 'combo-preview-env',
     pullCredentialName: 'combo-preview-ghcr-pull',
-    apiHost: 'release-api.combo-review.svc.cluster.local',
-    runtimeHost: 'release-runtime.combo-review.svc.cluster.local',
     postgresHost: 'release-postgres',
     redisQueueHost: 'release-redis-queue',
     redisHotHost: 'release-redis-hot',
@@ -37,15 +31,12 @@ const ENVIRONMENTS = Object.freeze({
   },
   production: {
     namespace: 'combo',
-    prefix: 'release-',
     environmentCredentialName: 'combo-env',
     pullCredentialName: 'ghcr-pull',
-    apiHost: 'release-api.combo.svc.cluster.local',
-    runtimeHost: 'release-runtime.combo.svc.cluster.local',
-    postgresHost: 'postgres',
-    redisQueueHost: 'redis-queue',
-    redisHotHost: 'redis-hot',
-    minioHost: 'minio',
+    postgresHost: 'release-postgres',
+    redisQueueHost: 'release-redis-queue',
+    redisHotHost: 'release-redis-hot',
+    minioHost: 'release-minio',
   },
 });
 const FIXTURE_DIGESTS = Object.freeze({
@@ -78,8 +69,8 @@ function parseOptions(argv) {
   if (!['apps', 'migrate', 'foundation', 'init'].includes(options.phase)) {
     fail('phase must be apps, migrate, foundation, or init');
   }
-  if (['foundation', 'init'].includes(options.phase) && options.environment !== 'preview') {
-    fail(`${options.phase} is only defined for Preview`);
+  if (['foundation', 'init'].includes(options.phase) && options.environment === 'test') {
+    fail(`${options.phase} is only defined for Preview and Production`);
   }
   return options;
 }
@@ -110,36 +101,60 @@ function replaceFixtureDigests(root, manifest) {
   }
 }
 
-function replaceEnvironmentScalar(value, environment) {
+function releaseMetadataName(manifest) {
+  return `combo-release-meta-${manifest.sourceSha.slice(0, 12)}`;
+}
+
+function applicationPrefix(environment, manifest) {
+  return environment === 'test' ? '' : `release-${manifest.sourceSha.slice(0, 12)}-`;
+}
+
+function replaceEnvironmentScalar(value, environment, manifest) {
   if (typeof value !== 'string') return value;
   const config = ENVIRONMENTS[environment];
+  const prefix = applicationPrefix(environment, manifest);
+  const apiHost = `${prefix}api.${config.namespace}.svc.cluster.local`;
+  const runtimeHost = `${prefix}runtime.${config.namespace}.svc.cluster.local`;
   if (value === 'combo-env') return config.environmentCredentialName;
   if (value === 'ghcr-pull') return config.pullCredentialName;
+  if (value === 'combo-release') return releaseMetadataName(manifest);
+  if (environment !== 'test') {
+    for (const name of ['api', 'runtime', 'web', 'worker']) {
+      if (value === `release-${name}`) return `${prefix}${name}`;
+    }
+  }
   return value
-    .replaceAll('api.combo.svc.cluster.local', config.apiHost)
-    .replaceAll('runtime.combo.svc.cluster.local', config.runtimeHost)
+    .replaceAll('api.combo.svc.cluster.local', apiHost)
+    .replaceAll('runtime.combo.svc.cluster.local', runtimeHost)
     .replaceAll('postgres:5432', `${config.postgresHost}:5432`)
     .replaceAll('redis-queue:6379', `${config.redisQueueHost}:6379`)
     .replaceAll('redis-hot:6379', `${config.redisHotHost}:6379`)
     .replaceAll('minio:9000', `${config.minioHost}:9000`);
 }
 
-function mapScalars(value, environment) {
-  if (Array.isArray(value)) return value.map((item) => mapScalars(item, environment));
+function mapScalars(value, environment, manifest) {
+  if (Array.isArray(value)) {
+    return value.map((item) => mapScalars(item, environment, manifest));
+  }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [key, mapScalars(child, environment)]),
+      Object.entries(value).map(([key, child]) => [key, mapScalars(child, environment, manifest)]),
     );
   }
-  return replaceEnvironmentScalar(value, environment);
+  return replaceEnvironmentScalar(value, environment, manifest);
 }
 
 function podTemplate(resource) {
   return resource.spec?.template;
 }
 
-function expectedName(environment, name) {
-  return `${ENVIRONMENTS[environment].prefix}${name}`;
+function expectedName(environment, name, manifest, phase) {
+  if (['foundation', 'init'].includes(phase)) return `release-${name}`;
+  return `${applicationPrefix(environment, manifest)}${name}`;
+}
+
+function expectedPodApp(environment, name, manifest) {
+  return `${applicationPrefix(environment, manifest)}${name}`;
 }
 
 function annotateWorkload(resource, manifest, manifestDigest) {
@@ -176,10 +191,10 @@ function validateResources(resources, options, manifest, manifestDigest) {
     const deployments = resources.filter((resource) => resource.kind === 'Deployment');
     const services = resources.filter((resource) => resource.kind === 'Service');
     const expectedDeployments = ['api', 'runtime', 'web', 'worker']
-      .map((name) => expectedName(options.environment, name))
+      .map((name) => expectedName(options.environment, name, manifest, options.phase))
       .sort();
     const expectedServices = ['api', 'runtime', 'web']
-      .map((name) => expectedName(options.environment, name))
+      .map((name) => expectedName(options.environment, name, manifest, options.phase))
       .sort();
     assertNames(deployments, expectedDeployments, 'Deployment');
     assertNames(services, expectedServices, 'Service');
@@ -188,7 +203,9 @@ function validateResources(resources, options, manifest, manifestDigest) {
     }
     const deployment = (name) =>
       deployments.find(
-        (resource) => resource.metadata.name === expectedName(options.environment, name),
+        (resource) =>
+          resource.metadata.name ===
+          expectedName(options.environment, name, manifest, options.phase),
       );
     if (containerImage(deployment('api'), 'api') !== manifest.images.api)
       fail('API image mismatch');
@@ -208,10 +225,34 @@ function validateResources(resources, options, manifest, manifestDigest) {
       if (service.spec?.ports?.some((port) => port.nodePort !== undefined)) {
         fail('release Services must not contain nodePort');
       }
+      const prefix = applicationPrefix(options.environment, manifest);
+      const name = service.metadata.name.slice(prefix.length);
+      const expectedSelector = {
+        app: expectedPodApp(options.environment, name, manifest),
+        'combo.build/release-track': 'release-v1',
+      };
+      if (JSON.stringify(service.spec?.selector) !== JSON.stringify(expectedSelector)) {
+        fail(`${service.metadata.name} does not have an isolated release selector`);
+      }
+    }
+    for (const name of ['api', 'runtime', 'web', 'worker']) {
+      const item = deployment(name);
+      const expectedSelector = {
+        app: expectedPodApp(options.environment, name, manifest),
+        'combo.build/release-track': 'release-v1',
+      };
+      if (
+        JSON.stringify(item.spec?.selector?.matchLabels) !== JSON.stringify(expectedSelector) ||
+        Object.entries(expectedSelector).some(
+          ([key, value]) => item.spec?.template?.metadata?.labels?.[key] !== value,
+        )
+      ) {
+        fail(`${item.metadata.name} does not have an isolated release Pod selector`);
+      }
     }
     for (const item of deployments) annotateWorkload(item, manifest, manifestDigest);
   } else if (options.phase === 'migrate') {
-    const expected = expectedName(options.environment, 'migrate');
+    const expected = expectedName(options.environment, 'migrate', manifest, options.phase);
     if (
       resources.length !== 1 ||
       resources[0].kind !== 'Job' ||
@@ -236,32 +277,40 @@ function validateResources(resources, options, manifest, manifestDigest) {
       ['StatefulSet', 'postgres'],
       ['StatefulSet', 'redis-queue'],
     ]
-      .map(([kind, name]) => `${kind}/${expectedName(options.environment, name)}`)
+      .map(
+        ([kind, name]) =>
+          `${kind}/${expectedName(options.environment, name, manifest, options.phase)}`,
+      )
       .sort();
     const actual = resources
       .map((resource) => `${resource.kind}/${resource.metadata?.name}`)
       .sort();
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      fail(`Preview foundation set mismatch: ${actual.join(', ')}`);
+      fail(`foundation set mismatch: ${actual.join(', ')}`);
     }
     for (const service of resources.filter((resource) => resource.kind === 'Service')) {
       if (service.spec?.type && service.spec.type !== 'ClusterIP') {
-        fail('Preview foundation Services must be ClusterIP');
+        fail('release foundation Services must be ClusterIP');
       }
       if (service.spec?.ports?.some((port) => port.nodePort !== undefined)) {
-        fail('Preview foundation must not contain nodePort');
+        fail('release foundation must not contain nodePort');
       }
     }
   } else {
     const expected = [
-      `ConfigMap/${expectedName(options.environment, 'minio-init-script')}`,
-      `Job/${expectedName(options.environment, 'minio-init')}`,
+      `ConfigMap/${expectedName(
+        options.environment,
+        'minio-init-script',
+        manifest,
+        options.phase,
+      )}`,
+      `Job/${expectedName(options.environment, 'minio-init', manifest, options.phase)}`,
     ].sort();
     const actual = resources
       .map((resource) => `${resource.kind}/${resource.metadata?.name}`)
       .sort();
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      fail(`Preview init set mismatch: ${actual.join(', ')}`);
+      fail(`init set mismatch: ${actual.join(', ')}`);
     }
     const job = resources.find((resource) => resource.kind === 'Job');
     annotateWorkload(job, manifest, manifestDigest);
@@ -288,8 +337,25 @@ function run(argv) {
     const copiedRoot = join(copiedK8sRoot, 'release');
     replaceFixtureDigests(copiedRoot, manifest);
     const overlay = ['foundation', 'init'].includes(options.phase)
-      ? join(copiedK8sRoot, 'environments', 'preview', options.phase)
+      ? join(copiedK8sRoot, 'environments', options.environment, options.phase)
       : join(copiedRoot, 'overlays', options.environment, options.phase);
+    if (
+      options.environment !== 'test' &&
+      ['apps', 'migrate'].includes(options.phase)
+    ) {
+      const kustomization = join(overlay, 'kustomization.yaml');
+      const source = readFileSync(kustomization, 'utf8');
+      if ((source.match(/^namePrefix: release-$/gm) ?? []).length !== 1) {
+        fail('release overlay does not have the expected namePrefix contract');
+      }
+      writeFileSync(
+        kustomization,
+        source.replace(
+          /^namePrefix: release-$/m,
+          `namePrefix: ${applicationPrefix(options.environment, manifest)}`,
+        ),
+      );
+    }
     const result = spawnSync(
       'kubectl',
       ['kustomize', '--load-restrictor=LoadRestrictionsNone', overlay],
@@ -301,7 +367,7 @@ function run(argv) {
     const documents = parseAllDocuments(result.stdout);
     const resources = documents.map((document) => {
       if (document.errors.length > 0) fail(`invalid rendered YAML: ${document.errors[0].message}`);
-      return mapScalars(document.toJS(), options.environment);
+      return mapScalars(document.toJS(), options.environment, manifest);
     });
     validateResources(resources, options, manifest, actualDigest);
     const output = resources.map((resource) => stringify(resource)).join('---\n');

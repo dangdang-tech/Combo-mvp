@@ -1,6 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: combo-review
+namespace: combo
 namePrefix: release-
 resources:
   - ../../../job-minio-init.yaml
@@ -10,7 +10,7 @@ labels:
   - includeSelectors: false
     includeTemplates: true
     pairs:
-      combo.build/environment-foundation: preview-v1
+      combo.build/environment-foundation: production-v1
 images:
   - name: minio/mc
     newName: minio/mc

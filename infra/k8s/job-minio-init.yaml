@@ -30,7 +30,16 @@ data:
       echo "[init-buckets] ensured bucket '${bucket}'"
     done
 
-    echo "[init-buckets] done"
+    # 有界的合成对象冒烟：只验证一次上传、读取和删除，不枚举业务对象。
+    probe=/tmp/combo-release-minio-smoke
+    object=local/combo-artifacts/.combo-release-minio-smoke
+    printf 'combo-release-minio-smoke\n' >"${probe}.expected"
+    mc cp "${probe}.expected" "$object" >/dev/null
+    mc cat "$object" >"${probe}.actual"
+    cmp "${probe}.expected" "${probe}.actual"
+    mc rm "$object" >/dev/null
+
+    echo "[init-buckets] buckets and synthetic object smoke passed"
 ---
 apiVersion: batch/v1
 kind: Job
