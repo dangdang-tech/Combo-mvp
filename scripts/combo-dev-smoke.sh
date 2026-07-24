@@ -200,8 +200,18 @@ check_live_limits_and_access() {
 }
 
 curl_json() {
-  local path=$1 output=$2
-  curl --silent --show-error --fail --max-time 15 --max-filesize 1048576 --output "$output" "$WEB_ORIGIN$path" 2>/dev/null || blocked '回环健康端点不可读。'
+  local path=$1 output=$2 candidate attempt
+  candidate="${output}.next"
+  for ((attempt = 1; attempt <= 60; attempt++)); do
+    if curl --silent --show-error --fail --max-time 15 --max-filesize 1048576 \
+      --output "$candidate" "$WEB_ORIGIN$path" 2>/dev/null; then
+      mv -fT "$candidate" "$output"
+      return
+    fi
+    rm -f -- "$candidate"
+    (( attempt == 60 )) || sleep 2
+  done
+  blocked "回环健康端点在恢复窗口内不可读：$path"
 }
 
 check_health_and_origin() {

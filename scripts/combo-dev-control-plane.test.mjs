@@ -2164,6 +2164,10 @@ test('existing deployment invariants remain fail-closed', () => {
     smoke,
     /ownership=\$\("\$\{K\[@\]\}" -n "\$NAMESPACE" get "deployment\/\$name" --show-managed-fields=true -o json/,
   );
+  assert.match(
+    smoke,
+    /curl_json\(\) \{[\s\S]*for \(\(attempt = 1; attempt <= 60; attempt\+\+\)\)[\s\S]*mv -fT "\$candidate" "\$output"[\s\S]*恢复窗口内不可读：\$path/,
+  );
   for (const script of [bootstrap, deploy, reset]) {
     assert.match(script, /exec 9>"\$LOCK_FILE"\n\s+flock -w 300 9/);
   }
