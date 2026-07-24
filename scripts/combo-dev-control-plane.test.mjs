@@ -55,10 +55,10 @@ function text(path) {
   return readFileSync(join(repo, path), 'utf8');
 }
 
-function writeReleaseFixture(root) {
+function writeReleaseFixture(root, releaseManifest = RELEASE_MANIFEST) {
   const manifest = join(root, 'release.json');
   const digestFile = join(root, 'release-manifest-digest.txt');
-  const serialized = `${JSON.stringify(RELEASE_MANIFEST, null, 2)}\n`;
+  const serialized = `${JSON.stringify(releaseManifest, null, 2)}\n`;
   writeFileSync(manifest, serialized);
   writeFileSync(digestFile, `sha256:${sha(serialized)}\n`);
   return [
@@ -224,6 +224,7 @@ test('Test apps share one exact immutable release identity without Secret expans
     assert.match(metadata, new RegExp(`^ {2}${key}: ["']?${regexEscape(value)}["']?$`, 'm'));
   }
   assert.equal((metadata.match(/^ {2}COMBO_[A-Z_]+:/gm) ?? []).length, 6);
+  assert.equal((metadata.match(/^immutable: true$/gm) ?? []).length, 1);
   assert.doesNotMatch(metadata, /0{40}|sha256:0{64}/);
 
   for (const name of ['api', 'runtime', 'web', 'worker']) {
@@ -259,6 +260,43 @@ test('Test apps share one exact immutable release identity without Secret expans
   }
   assert.match(nginx, /alias \/usr\/share\/nginx\/html\/try\//);
   assert.doesNotMatch(nginx, /alias \/usr\/share\/nginx\/try\//);
+
+  const root = fixture();
+  try {
+    const deploy = join(root, 'scripts/combo-dev-deploy.sh');
+    const source = readFileSync(deploy, 'utf8');
+    assert.equal((source.match(/^immutable: true$/gm) ?? []).length, 1);
+    writeFileSync(deploy, source.replace(/^immutable: true$/m, 'immutable: false'));
+    expectRenderFailure(root, /guard:release-metadata-immutable/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('root-side release validation rejects a boolean schema version', () => {
+  const root = fixture();
+  try {
+    const output = join(root, 'out.yaml');
+    const invalid = clone(RELEASE_MANIFEST);
+    invalid.schemaVersion = true;
+    const releaseArgs = writeReleaseFixture(root, invalid);
+    const result = spawnSync(
+      'bash',
+      [
+        join(root, 'scripts/combo-dev-deploy.sh'),
+        '--render-only',
+        '--output',
+        output,
+        ...imageArgs,
+        ...releaseArgs,
+      ],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(`${result.stdout}${result.stderr}`, /render-only 发布清单校验失败/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('Restricted combo-preview workloads reject every hostPath injection', () => {
@@ -1674,6 +1712,38 @@ test('combo-dev nginx consumes the exact client-events route without proxying or
   }
 });
 
+test('Test prunes only stale Web and release metadata after proving every live reference', () => {
+  const deploy = text('scripts/combo-dev-deploy.sh');
+  const start = deploy.indexOf('prune_stale_configs() {');
+  const end = deploy.indexOf('\ncheck_loopback_listeners_once() {', start);
+  assert.ok(start > 0 && end > start);
+  const prune = deploy.slice(start, end);
+  assert.match(prune, /get deployment "\$\{APP_NAMES\[@\]\}" -o json/);
+  assert.match(
+    prune,
+    /\(\[\.\[\]\.metadata\.name\] \| sort\) != \["api", "runtime", "web", "worker"\]/,
+  );
+  assert.match(prune, /\(\$release_refs \| unique \| length\) != 1/);
+  assert.match(prune, /\^combo-release-meta-\[0-9a-f\]\{12\}\$/);
+  assert.match(prune, /\^combo-dev-nginx-\[a-z0-9\]\+\$/);
+  assert.match(
+    prune,
+    /get configmaps -l combo\.dev\/environment=combo-dev -o json[\s\S]*stale_json=/,
+  );
+  assert.match(prune, /delete "configmap\/\$name" --wait=false/);
+  assert.doesNotMatch(prune, /delete "\$item"/);
+  assert.ok(prune.indexOf('live_refs=$(') < prune.indexOf('listed=$('));
+  assert.ok(prune.indexOf('stale_json=$(') < prune.indexOf('delete "configmap/$name"'));
+
+  const flow = deploy.slice(deploy.indexOf('  MUTATING=1'));
+  assert.ok(flow.indexOf('wait_apps ') < flow.indexOf('prune_stale_configs'));
+  assert.ok(
+    flow.indexOf('prune_stale_configs') <
+      flow.indexOf('systemctl start combo-dev-web-forward.service'),
+  );
+  assert.match(deploy.slice(0, deploy.indexOf('host_preflight() {')), /fence_all_writers_cleanup/);
+});
+
 test('Test, Preview, and Production serialize only deploy jobs and preserve promotion trust', () => {
   const workflow = text('.github/workflows/combo-dev.yml');
   const ci = text('.github/workflows/ci.yml');
@@ -1726,6 +1796,21 @@ test('Test, Preview, and Production serialize only deploy jobs and preserve prom
     ci,
     /push: >-\n\s+\$\{\{ \(github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'\) \|\|\n\s+inputs\.publish_release == true \}\}/,
   );
+  const webContract = ci.slice(
+    ci.indexOf('      - name: Verify the hardened Web runtime metadata path'),
+    ci.indexOf('      - name: Record the immutable image reference'),
+  );
+  assert.match(webContract, /IMAGE_DIGEST: \$\{\{ steps\.build\.outputs\.digest \}\}/);
+  assert.match(webContract, /case "\$PUBLISH_RELEASE" in/);
+  assert.match(webContract, /\[\[ "\$IMAGE_DIGEST" =~ \^sha256:\[0-9a-f\]\{64\}\$ \]\]/);
+  assert.match(webContract, /IMAGE_REF="\$IMAGE_REPOSITORY@\$IMAGE_DIGEST"/);
+  assert.match(webContract, /docker pull "\$IMAGE_REF"/);
+  assert.match(
+    webContract,
+    /false\)[\s\S]*IMAGE_REF="\$IMAGE_TAG"[\s\S]*docker image inspect "\$IMAGE_REF"/,
+  );
+  assert.match(webContract, /"\$IMAGE_REF" >\/dev\/null/);
+  assert.doesNotMatch(webContract, /docker pull "\$IMAGE_TAG"/);
   assert.match(workflow, /combo-release-mutation\.lock/);
   assert.match(workflow, /flock -w 300 9/);
   assert.match(

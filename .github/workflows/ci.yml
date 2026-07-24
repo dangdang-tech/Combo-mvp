@@ -305,12 +305,29 @@ jobs:
       - name: Verify the hardened Web runtime metadata path
         if: matrix.key == 'web'
         env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_REPOSITORY: ${{ matrix.repository }}
           IMAGE_TAG: ${{ matrix.repository }}:${{ env.SOURCE_SHA }}
+          PUBLISH_RELEASE: >-
+            ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+                inputs.publish_release == true }}
         run: |
           set -euo pipefail
-          if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
-            docker pull "$IMAGE_TAG" >/dev/null
-          fi
+          case "$PUBLISH_RELEASE" in
+            true)
+              [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+              IMAGE_REF="$IMAGE_REPOSITORY@$IMAGE_DIGEST"
+              docker pull "$IMAGE_REF" >/dev/null
+              ;;
+            false)
+              IMAGE_REF="$IMAGE_TAG"
+              docker image inspect "$IMAGE_REF" >/dev/null
+              ;;
+            *)
+              echo 'Invalid publish mode for Web runtime verification.' >&2
+              exit 1
+              ;;
+          esac
           container="combo-web-contract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           cleanup() {
             docker rm -f "$container" >/dev/null 2>&1 || true
@@ -328,7 +345,7 @@ jobs:
             --env NGINX_RESOLVER=127.0.0.11 \
             --env API_UPSTREAM_HOST=api.invalid \
             --env RUNTIME_UPSTREAM_HOST=runtime.invalid \
-            "$IMAGE_TAG" >/dev/null
+            "$IMAGE_REF" >/dev/null
           ready=0
           for _ in $(seq 1 30); do
             if docker exec "$container" wget -qO- http://127.0.0.1:8080/version.json \

@@ -679,7 +679,11 @@ root_keys = [
 ]
 if not isinstance(value, dict) or list(value) != root_keys:
     raise SystemExit(2)
-if value.get('schemaVersion') != 1 or value.get('sourceSha') != revision:
+if (
+    type(value.get('schemaVersion')) is not int
+    or value.get('schemaVersion') != 1
+    or value.get('sourceSha') != revision
+):
     raise SystemExit(2)
 if not re.fullmatch(r'[0-9a-f]{40}', revision) or value.get('releaseId') != f'release-{revision}':
     raise SystemExit(2)
@@ -750,6 +754,7 @@ metadata:
     combo.dev/environment: combo-dev
   name: $name
   namespace: $NAMESPACE
+immutable: true
 data:
   COMBO_ENVIRONMENT: 'test'
   COMBO_SOURCE_SHA: '$revision'
@@ -963,6 +968,8 @@ if not (refs['api']==refs['worker']==refs['migrate'] and refs['redis-hot']==refs
 if release_metadata_name is None:
     raise SystemExit('guard:release-metadata-name')
 release_doc=doc_for('ConfigMap',release_metadata_name)
+if re.findall(r'^immutable:\s*(\S+)$',release_doc,re.M)!=['true']:
+    raise SystemExit('guard:release-metadata-immutable')
 release_data={}
 data_block=re.search(r'^data:\n((?:^  .+\n)+)',release_doc,re.M)
 if data_block is None:
@@ -1290,18 +1297,81 @@ verify_writers_restored() {
   done
 }
 
-prune_stale_web_configs() {
-  local live listed item name failed=0
-  live=$("${K[@]}" -n "$NAMESPACE" get deployment/web -o jsonpath='{.spec.template.spec.volumes[?(@.name=="nginx-template")].configMap.name}' 2>/dev/null) || blocked 'Web 配置引用不可读。'
-  [[ "$live" =~ ^combo-dev-nginx-[a-z0-9]+$ ]] || blocked 'Web 配置引用不是带摘要的 ConfigMap。'
-  listed=$("${K[@]}" -n "$NAMESPACE" get configmaps -l combo.dev/environment=combo-dev -o name 2>/dev/null) || blocked 'Web 配置清单不可读。'
-  while IFS= read -r item; do
-    name=${item##*/}
-    if [[ "$name" == combo-dev-nginx-* && "$name" != "$live" ]]; then
-      "${K[@]}" -n "$NAMESPACE" delete "$item" --wait=false >/dev/null 2>&1 || failed=1
+prune_stale_configs() {
+  local deployments live_refs live_web live_release listed stale_json stale_names name failed=0
+  deployments=$("${K[@]}" -n "$NAMESPACE" get deployment "${APP_NAMES[@]}" -o json 2>/dev/null) ||
+    blocked '应用配置引用清单不可读。'
+  live_refs=$(
+    printf '%s' "$deployments" |
+      jq -cer '
+        def release_ref:
+          .metadata.name as $app
+          | [.spec.template.spec.containers[] | select(.name == $app)] as $containers
+          | if ($containers | length) != 1 then error("container") else $containers[0] end
+          | .envFrom as $sources
+          | if ($sources | type) != "array" or ($sources | length) != 1
+              then error("envFrom")
+            else $sources[0]
+            end
+          | if (keys != ["configMapRef"]) or ((.configMapRef | keys) != ["name"])
+              then error("configMapRef")
+            else .configMapRef.name
+            end;
+        .items
+        | if length != 4 or ([.[].metadata.name] | sort) != ["api", "runtime", "web", "worker"]
+            then error("inventory")
+          else .
+          end
+        | . as $apps
+        | [$apps[] | release_ref] as $release_refs
+        | [
+            $apps[]
+            | select(.metadata.name == "web")
+            | .spec.template.spec.volumes[]?
+            | select(.name == "nginx-template")
+            | .configMap.name
+          ] as $web_refs
+        | if
+            ($release_refs | length) != 4
+            or ($release_refs | unique | length) != 1
+            or ($release_refs[0] | test("^combo-release-meta-[0-9a-f]{12}$")) != true
+            or ($web_refs | length) != 1
+            or ($web_refs[0] | test("^combo-dev-nginx-[a-z0-9]+$")) != true
+          then error("references")
+          else {release: $release_refs[0], web: $web_refs[0]}
+          end
+      '
+  ) || blocked '应用没有共享唯一且带摘要的 Test 配置引用。'
+  live_release=$(jq -er '.release' <<<"$live_refs") || blocked '应用发布身份引用不可读。'
+  live_web=$(jq -er '.web' <<<"$live_refs") || blocked 'Web 配置引用不可读。'
+
+  listed=$("${K[@]}" -n "$NAMESPACE" get configmaps -l combo.dev/environment=combo-dev -o json 2>/dev/null) ||
+    blocked 'Test 配置清单不可读。'
+  stale_json=$(
+    printf '%s' "$listed" |
+      jq -cer --arg release "$live_release" --arg web "$live_web" '
+        [
+          .items[].metadata.name
+          | select(
+              (test("^combo-dev-nginx-[a-z0-9]+$") and . != $web)
+              or (test("^combo-release-meta-[0-9a-f]{12}$") and . != $release)
+            )
+        ] | sort
+      '
+  ) || blocked '旧 Test 配置清单无法安全归类。'
+  stale_names=$(jq -r '.[]' <<<"$stale_json") || blocked '旧 Test 配置名不可读。'
+  [[ -z "$stale_names" ]] && return
+  while IFS= read -r name; do
+    if [[ "$name" =~ ^combo-dev-nginx-[a-z0-9]+$ && "$name" != "$live_web" ]]; then
+      :
+    elif [[ "$name" =~ ^combo-release-meta-[0-9a-f]{12}$ && "$name" != "$live_release" ]]; then
+      :
+    else
+      blocked '旧 Test 配置名不在严格删除白名单内。'
     fi
-  done <<<"$listed"
-  (( failed == 0 )) || fail '旧 Web 配置无法清理。'
+    "${K[@]}" -n "$NAMESPACE" delete "configmap/$name" --wait=false >/dev/null 2>&1 || failed=1
+  done <<<"$stale_names"
+  (( failed == 0 )) || fail '旧 Web 或发布身份配置无法清理。'
 }
 
 check_loopback_listeners_once() {
@@ -1468,7 +1538,7 @@ main() {
   run_job minio-init "$WORK/prepared/render/init.yaml" 360
   run_job migrate "$WORK/prepared/render/migrate.yaml" 660
   wait_apps "$WORK/prepared/render"
-  prune_stale_web_configs
+  prune_stale_configs
 
   timeout 30 systemctl start combo-dev-web-forward.service >/dev/null 2>&1 || fail 'Web 回环转发器启动失败。'
   timeout 30 systemctl start combo-dev-s3-forward.service >/dev/null 2>&1 || fail 'S3 回环转发器启动失败。'
