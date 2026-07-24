@@ -821,7 +821,7 @@ capture_inventory() {
     path_real=$(sudo -n realpath -e "$path")
     [[ "$path_real" == "$storage_root_real/${volume}_${NAMESPACE}_${claim}" ]] ||
       fail "PV $volume does not use its exact dedicated K3s storage path"
-    jq -n \
+    jq -cn \
       --arg claim "$claim" \
       --arg claimUid "$claim_uid" \
       --arg volume "$volume" \
