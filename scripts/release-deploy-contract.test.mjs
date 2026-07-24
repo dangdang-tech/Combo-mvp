@@ -231,6 +231,15 @@ test('traffic cutover uses a recoverable two-phase checkpoint', () => {
   );
 });
 
+test('a first release proceeds without a post-cut checkpoint', () => {
+  const load = functionBody('load_post_cut_checkpoint');
+  assert.match(
+    load,
+    /\[\[ -e "\$pending_checkpoint" \]\] \|\| return 0/,
+    'a normally absent pending checkpoint must not trip set -e',
+  );
+});
+
 test('a completed evidence checkpoint returns before every cluster mutation', () => {
   const evidenceCheck = indexOf(
     /\n[ \t]*(?:verify_completed_release|completed_release_exists|reuse_completed_release)(?:\s|$)/,
