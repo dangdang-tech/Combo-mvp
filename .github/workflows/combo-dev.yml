@@ -150,6 +150,8 @@ jobs:
 
       - name: Render and enforce the deployment contract
         env:
+          REVISION: ${{ needs.authorize.outputs.revision }}
+          RELEASE_ROOT: ${{ runner.temp }}/combo-release
           API_IMAGE: ${{ steps.images.outputs.api }}
           RUNTIME_IMAGE: ${{ steps.images.outputs.runtime }}
           WEB_IMAGE: ${{ steps.images.outputs.web }}
@@ -161,13 +163,17 @@ jobs:
             --output "$rendered" \
             --api-image "$API_IMAGE" \
             --runtime-image "$RUNTIME_IMAGE" \
-            --web-image "$WEB_IMAGE"
+            --web-image "$WEB_IMAGE" \
+            --revision "$REVISION" \
+            --release-manifest "$RELEASE_ROOT/metadata/release.json" \
+            --release-manifest-digest-file "$RELEASE_ROOT/metadata/release-manifest-digest.txt"
           [[ -s "$rendered" ]]
 
       - name: Build the allowlisted deployment bundle
         id: bundle
         env:
           REVISION: ${{ needs.authorize.outputs.revision }}
+          RELEASE_ROOT: ${{ runner.temp }}/combo-release
           API_IMAGE: ${{ steps.images.outputs.api }}
           RUNTIME_IMAGE: ${{ steps.images.outputs.runtime }}
           WEB_IMAGE: ${{ steps.images.outputs.web }}
@@ -202,6 +208,10 @@ jobs:
           printf '%s\n' "$REVISION" > "$root/metadata/revision"
           printf 'API_IMAGE=%s\nRUNTIME_IMAGE=%s\nWEB_IMAGE=%s\n' \
             "$API_IMAGE" "$RUNTIME_IMAGE" "$WEB_IMAGE" > "$root/metadata/image-digests.txt"
+          install -m 0600 \
+            "$RELEASE_ROOT/metadata/release.json" \
+            "$RELEASE_ROOT/metadata/release-manifest-digest.txt" \
+            "$root/metadata/"
           if find "$root" -type l -print -quit | grep -q .; then echo 'Bundle contains a symlink.' >&2; exit 1; fi
           if find "$root" -type f \( -name '.env' -o -name '.env.*' -o -name '*secret*' \) -print -quit | grep -q .; then
             echo 'Bundle contains a prohibited configuration file.' >&2; exit 1

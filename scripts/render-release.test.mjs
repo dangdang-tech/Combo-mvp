@@ -183,8 +183,18 @@ test('Nginx contract rejects missing hashed assets and defines cache policy', ()
   assert.match(nginx, /location \^~ \/try\/assets\/[\s\S]*?try_files \$uri =404;/);
   assert.match(nginx, /public, max-age=31536000, immutable/);
   assert.match(nginx, /no-cache, max-age=0, must-revalidate/);
-  assert.match(nginx, /location = \/runtime-config\.json[\s\S]*?no-store/);
-  assert.match(nginx, /location = \/version\.json[\s\S]*?no-store/);
+  assert.match(
+    nginx,
+    /location = \/runtime-config\.json[\s\S]*?alias \/var\/run\/combo-web\/runtime-config\.json;[\s\S]*?no-store/,
+  );
+  assert.match(
+    nginx,
+    /location = \/version\.json[\s\S]*?alias \/var\/run\/combo-web\/version\.json;[\s\S]*?no-store/,
+  );
+  assert.match(
+    nginx,
+    /location = \/try\/runtime-config\.json[\s\S]*?alias \/var\/run\/combo-web\/try-runtime-config\.json;[\s\S]*?no-store/,
+  );
 });
 
 test('Preview release carries a SHA-scoped access gate without Secret material', () => {
@@ -202,11 +212,15 @@ test('Preview release carries a SHA-scoped access gate without Secret material',
   assert.match(gate.data['default.conf.template'], /\$\{REVIEW_ACCESS_TOKEN\}/);
   assert.match(
     gate.data['default.conf.template'],
-    /location = \/runtime-config\.json[\s\S]*?no-store/,
+    /location = \/runtime-config\.json[\s\S]*?alias \/var\/run\/combo-web\/runtime-config\.json;[\s\S]*?no-store/,
   );
   assert.match(
     gate.data['default.conf.template'],
-    /location = \/version\.json[\s\S]*?add_header X-Combo-Review-Gate \$combo_review_gate_header always;[\s\S]*?no-store/,
+    /location = \/version\.json[\s\S]*?alias \/var\/run\/combo-web\/version\.json;[\s\S]*?add_header X-Combo-Review-Gate \$combo_review_gate_header always;[\s\S]*?no-store/,
+  );
+  assert.match(
+    gate.data['default.conf.template'],
+    /location = \/try\/runtime-config\.json[\s\S]*?alias \/var\/run\/combo-web\/try-runtime-config\.json;[\s\S]*?add_header X-Combo-Review-Gate \$combo_review_gate_header always;[\s\S]*?no-store/,
   );
   assert.match(
     gate.data['default.conf.template'],

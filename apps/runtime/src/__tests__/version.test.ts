@@ -59,4 +59,39 @@ describe('runtime release version', () => {
     const { loadEnv } = await import('../platform/config/env.js');
     expect(() => loadEnv()).toThrow(/COMBO_ENVIRONMENT.*COMBO_WEB_ASSET_MANIFEST/);
   });
+
+  it.each(['test', 'preview'] as const)(
+    'accepts exact %s release metadata in a production-mode Runtime image',
+    async (environment) => {
+      process.env = {
+        ...originalEnv,
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://combo:combo@localhost:5432/combo',
+        REDIS_URL: 'redis://localhost:6379',
+        S3_ENDPOINT: 'http://localhost:9000',
+        S3_ACCESS_KEY: 'test-access',
+        S3_SECRET_KEY: 'test-secret',
+        LOGTO_ISSUER: 'https://identity.example/oidc',
+        LOGTO_JWKS_URI: 'https://identity.example/oidc/jwks',
+        LOGTO_AUDIENCE: 'https://combo.example/api',
+        ...releaseEnvironment,
+        COMBO_ENVIRONMENT: environment,
+      };
+
+      const { loadEnv } = await import('../platform/config/env.js');
+      expect(loadEnv().COMBO_ENVIRONMENT).toBe(environment);
+    },
+  );
+
+  it('rejects Production release metadata in a non-production runtime', async () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'development',
+      ...releaseEnvironment,
+      COMBO_ENVIRONMENT: 'production',
+    };
+
+    const { loadEnv } = await import('../platform/config/env.js');
+    expect(() => loadEnv()).toThrow(/COMBO_\* 发布元数据校验失败/);
+  });
 });

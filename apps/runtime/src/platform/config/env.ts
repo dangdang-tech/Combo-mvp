@@ -163,7 +163,12 @@ export type Env = z.infer<typeof EnvSchema>;
 function assertReleaseMetadata(env: Env): void {
   try {
     const metadata = releaseMetadataFromEnv(env);
-    if ((env.NODE_ENV === 'production') !== (metadata.environment === 'production')) {
+    // NODE_ENV describes process hardening, not the promotion stage: Test and Preview
+    // may use either mode, while Development and Production remain strict boundaries.
+    if (
+      (metadata.environment === 'development' && env.NODE_ENV === 'production') ||
+      (metadata.environment === 'production' && env.NODE_ENV !== 'production')
+    ) {
       throw new Error('runtime and release environments disagree');
     }
   } catch {

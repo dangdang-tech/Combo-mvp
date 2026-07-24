@@ -54,10 +54,16 @@ elif [ "$actual_asset_digest" != "$COMBO_WEB_ASSET_MANIFEST" ]; then
 fi
 
 umask 022
+runtime_directory=/var/run/combo-web
+mkdir -p "$runtime_directory"
+[ -d "$runtime_directory" ] && [ ! -L "$runtime_directory" ] ||
+  fail 'runtime metadata directory is unsafe'
+chmod 0755 "$runtime_directory"
+
 for output in \
-  /usr/share/nginx/html/runtime-config.json \
-  /usr/share/nginx/html/version.json \
-  /usr/share/nginx/html/try/runtime-config.json; do
+  "$runtime_directory/runtime-config.json" \
+  "$runtime_directory/version.json" \
+  "$runtime_directory/try-runtime-config.json"; do
   {
     printf '{\n'
     printf '  "schemaVersion": 1,\n'
@@ -69,4 +75,5 @@ for output in \
     printf '  "webAssetManifest": "%s"\n' "$COMBO_WEB_ASSET_MANIFEST"
     printf '}\n'
   } >"$output"
+  chmod 0644 "$output"
 done

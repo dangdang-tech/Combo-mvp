@@ -36,14 +36,45 @@ const imageArgs = [
   '--web-image',
   `ghcr.io/dangdang-tech/combo-web@sha256:${digest('c')}`,
 ];
+const RELEASE_SHA = 'd'.repeat(40);
+const RELEASE_MANIFEST = {
+  schemaVersion: 1,
+  sourceSha: RELEASE_SHA,
+  releaseId: `release-${RELEASE_SHA}`,
+  images: {
+    api: imageArgs[1],
+    runtime: imageArgs[3],
+    web: imageArgs[5],
+  },
+  migrationHead: '0006_one_running_turn_per_session.sql',
+  builtAt: '2026-07-24T08:00:00.000Z',
+  webAssetManifest: `sha256:${digest('e')}`,
+};
 
 function text(path) {
   return readFileSync(join(repo, path), 'utf8');
 }
 
+function writeReleaseFixture(root) {
+  const manifest = join(root, 'release.json');
+  const digestFile = join(root, 'release-manifest-digest.txt');
+  const serialized = `${JSON.stringify(RELEASE_MANIFEST, null, 2)}\n`;
+  writeFileSync(manifest, serialized);
+  writeFileSync(digestFile, `sha256:${sha(serialized)}\n`);
+  return [
+    '--revision',
+    RELEASE_SHA,
+    '--release-manifest',
+    manifest,
+    '--release-manifest-digest-file',
+    digestFile,
+  ];
+}
+
 function render(root = repo) {
   const work = mkdtempSync(join(tmpdir(), 'combo-dev-render-'));
   const output = join(work, 'rendered.yaml');
+  const releaseArgs = writeReleaseFixture(work);
   try {
     execFileSync(
       'bash',
@@ -53,6 +84,7 @@ function render(root = repo) {
         '--output',
         output,
         ...imageArgs,
+        ...releaseArgs,
       ],
       { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
@@ -75,9 +107,17 @@ function fixture() {
 
 function expectRenderFailure(root, marker) {
   const output = join(root, 'out.yaml');
+  const releaseArgs = writeReleaseFixture(root);
   const result = spawnSync(
     'bash',
-    [join(root, 'scripts/combo-dev-deploy.sh'), '--render-only', '--output', output, ...imageArgs],
+    [
+      join(root, 'scripts/combo-dev-deploy.sh'),
+      '--render-only',
+      '--output',
+      output,
+      ...imageArgs,
+      ...releaseArgs,
+    ],
     { cwd: root, encoding: 'utf8' },
   );
   assert.notEqual(result.status, 0);
@@ -99,6 +139,10 @@ function sha(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function regexEscape(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -116,7 +160,7 @@ function documentFor(kind, name) {
 }
 
 test('stage-only render mounts only the three prebound static claims', () => {
-  assert.equal(renderedDocuments.length, 39);
+  assert.equal(renderedDocuments.length, 40);
   assert.equal(rendered.includes('hostPath:'), false);
   assert.equal(
     renderedDocuments.some((document) =>
@@ -163,6 +207,60 @@ test('stage-only render mounts only the three prebound static claims', () => {
   }
 });
 
+test('Test apps share one exact immutable release identity without Secret expansion', () => {
+  const metadataName = `combo-release-meta-${RELEASE_SHA.slice(0, 12)}`;
+  const metadata = documentFor('ConfigMap', metadataName);
+  const expected = {
+    COMBO_ENVIRONMENT: 'test',
+    COMBO_SOURCE_SHA: RELEASE_SHA,
+    COMBO_RELEASE_ID: `release-${RELEASE_SHA}`,
+    COMBO_BUILT_AT: RELEASE_MANIFEST.builtAt,
+    COMBO_RELEASE_MANIFEST_DIGEST: `sha256:${sha(
+      `${JSON.stringify(RELEASE_MANIFEST, null, 2)}\n`,
+    )}`,
+    COMBO_WEB_ASSET_MANIFEST: RELEASE_MANIFEST.webAssetManifest,
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    assert.match(metadata, new RegExp(`^ {2}${key}: ["']?${regexEscape(value)}["']?$`, 'm'));
+  }
+  assert.equal((metadata.match(/^ {2}COMBO_[A-Z_]+:/gm) ?? []).length, 6);
+  assert.doesNotMatch(metadata, /0{40}|sha256:0{64}/);
+
+  for (const name of ['api', 'runtime', 'web', 'worker']) {
+    const workload = documentFor('Deployment', name);
+    assert.match(
+      workload,
+      new RegExp(`^ {8}envFrom:\n {8}- configMapRef:\n {12}name: ${metadataName}$`, 'm'),
+    );
+    assert.equal((workload.match(/envFrom:/g) ?? []).length, 1);
+    assert.doesNotMatch(workload, /^\s*-\s*secretRef:/m);
+  }
+
+  const web = documentFor('Deployment', 'web');
+  const nginx = text('infra/k8s/overlays/combo-dev/apps/nginx-dev.conf');
+  const runtimeConfig = text('infra/web-runtime-config.sh');
+  assert.match(web, /readOnlyRootFilesystem: true/);
+  assert.match(web, /mountPath: \/var\/run[\s\S]*name: nginx-run/);
+  assert.doesNotMatch(
+    runtimeConfig,
+    />"?\/usr\/share\/nginx\/html\/(?:try\/)?(?:runtime-config|version)\.json/,
+  );
+  for (const [endpoint, file] of [
+    ['/runtime-config.json', 'runtime-config.json'],
+    ['/version.json', 'version.json'],
+    ['/try/runtime-config.json', 'try-runtime-config.json'],
+  ]) {
+    assert.match(
+      nginx,
+      new RegExp(
+        `location = ${endpoint.replaceAll('/', '\\/')} \\{[\\s\\S]*?alias \\/var\\/run\\/combo-web\\/${file};`,
+      ),
+    );
+  }
+  assert.match(nginx, /alias \/usr\/share\/nginx\/html\/try\//);
+  assert.doesNotMatch(nginx, /alias \/usr\/share\/nginx\/try\//);
+});
+
 test('Restricted combo-preview workloads reject every hostPath injection', () => {
   const namespace = text('infra/k8s/overlays/combo-dev/platform/namespace.yaml');
   const deploy = text('scripts/combo-dev-deploy.sh');
@@ -182,23 +280,14 @@ test('Restricted combo-preview workloads reject every hostPath injection', () =>
 
   const root = fixture();
   try {
-    const kustomization = join(root, 'infra/k8s/overlays/combo-dev/apps/kustomization.yaml');
-    const source = readFileSync(kustomization, 'utf8');
+    const resources = join(root, 'infra/k8s/overlays/combo-dev/apps/resources.yaml');
+    const source = readFileSync(resources, 'utf8');
     writeFileSync(
-      kustomization,
-      `${source}patches:
-  - target:
-      kind: Deployment
-      name: web
-    patch: |-
-      - op: add
-        path: /spec/template/spec/volumes/-
-        value:
-          name: forbidden-host
-          hostPath:
-            path: /tmp
-            type: Directory
-`,
+      resources,
+      source.replace(
+        '      volumes:\n        - configMap:\n            name: combo-dev-nginx',
+        '      volumes:\n        - hostPath:\n            path: /tmp\n            type: Directory\n          name: forbidden-host\n        - configMap:\n            name: combo-dev-nginx',
+      ),
     );
     expectRenderFailure(root, /guard:(?:forbidden|workload-hostpath)/);
   } finally {
@@ -1588,6 +1677,7 @@ test('combo-dev nginx consumes the exact client-events route without proxying or
 test('Test, Preview, and Production serialize only deploy jobs and preserve promotion trust', () => {
   const workflow = text('.github/workflows/combo-dev.yml');
   const ci = text('.github/workflows/ci.yml');
+  const testDeploy = text('scripts/combo-dev-deploy.sh');
   const preview = text('.github/workflows/preview.yml');
   const production = text('.github/workflows/cd.yml');
   const deployGroup = (value) =>
@@ -1638,6 +1728,16 @@ test('Test, Preview, and Production serialize only deploy jobs and preserve prom
   );
   assert.match(workflow, /combo-release-mutation\.lock/);
   assert.match(workflow, /flock -w 300 9/);
+  assert.match(
+    workflow,
+    /"\$RELEASE_ROOT\/metadata\/release\.json"[\s\\\n]*"\$RELEASE_ROOT\/metadata\/release-manifest-digest\.txt"[\s\\\n]*"\$root\/metadata\/"/,
+  );
+  assert.match(testDeploy, /'metadata\/release\.json', 'metadata\/release-manifest-digest\.txt'/);
+  assert.match(
+    testDeploy,
+    /validate_release_manifest[\s\\\n]*"\$manifest" "\$digest_file" "\$revision" "\$api_image" "\$runtime_image" "\$web_image"/,
+  );
+  assert.match(testDeploy, /combo-release-meta-\$\{revision:0:12\}/);
   assert.match(
     workflow,
     /combo-dev-reset[\s\\\n]*--confirm=DESTROY-COMBO-PREVIEW-DATA[\s\S]*combo-dev-deploy/,

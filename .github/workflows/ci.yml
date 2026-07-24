@@ -292,11 +292,69 @@ jobs:
           push: >-
             ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
                 inputs.publish_release == true }}
+          load: >-
+            ${{ matrix.key == 'web' &&
+                !((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+                  inputs.publish_release == true) }}
           tags: ${{ matrix.repository }}:${{ env.SOURCE_SHA }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=${{ matrix.key }}
           cache-to: type=gha,scope=${{ matrix.key }},mode=max
+
+      - name: Verify the hardened Web runtime metadata path
+        if: matrix.key == 'web'
+        env:
+          IMAGE_TAG: ${{ matrix.repository }}:${{ env.SOURCE_SHA }}
+        run: |
+          set -euo pipefail
+          if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            docker pull "$IMAGE_TAG" >/dev/null
+          fi
+          container="combo-web-contract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run -d --name "$container" \
+            --read-only \
+            --user 101:101 \
+            --cap-drop ALL \
+            --tmpfs /etc/nginx/conf.d:rw,noexec,nosuid,size=16m,uid=101,gid=101,mode=0755 \
+            --tmpfs /var/cache/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0755 \
+            --tmpfs /var/run:rw,noexec,nosuid,size=8m,uid=101,gid=101,mode=0755 \
+            --tmpfs /tmp:rw,noexec,nosuid,size=32m,uid=101,gid=101,mode=1777 \
+            --mount "type=bind,src=$PWD/infra/k8s/overlays/combo-dev/apps/nginx-dev.conf,dst=/etc/nginx/templates/default.conf.template,readonly" \
+            --env NGINX_RESOLVER=127.0.0.11 \
+            --env API_UPSTREAM_HOST=api.invalid \
+            --env RUNTIME_UPSTREAM_HOST=runtime.invalid \
+            "$IMAGE_TAG" >/dev/null
+          ready=0
+          for _ in $(seq 1 30); do
+            if docker exec "$container" wget -qO- http://127.0.0.1:8080/version.json \
+                >"$RUNNER_TEMP/web-version.json" 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          [[ "$ready" == 1 ]]
+          docker exec "$container" wget -qO- http://127.0.0.1:8080/runtime-config.json \
+            >"$RUNNER_TEMP/web-runtime-config.json"
+          docker exec "$container" wget -qO- http://127.0.0.1:8080/try/runtime-config.json \
+            >"$RUNNER_TEMP/web-try-runtime-config.json"
+          docker exec "$container" wget -qO /dev/null http://127.0.0.1:8080/
+          docker exec "$container" wget -qO /dev/null http://127.0.0.1:8080/try/
+          cmp "$RUNNER_TEMP/web-version.json" "$RUNNER_TEMP/web-runtime-config.json"
+          cmp "$RUNNER_TEMP/web-version.json" "$RUNNER_TEMP/web-try-runtime-config.json"
+          jq -e '
+            .schemaVersion == 1
+            and .environment == "development"
+            and (.sourceSha | test("^[0-9a-f]{40}$"))
+            and (.releaseManifestDigest | test("^sha256:[0-9a-f]{64}$"))
+            and (.webAssetManifest | test("^sha256:[0-9a-f]{64}$"))
+            and .webAssetManifest != ("sha256:" + ("0" * 64))
+          ' "$RUNNER_TEMP/web-version.json" >/dev/null
 
       - name: Record the immutable image reference
         if: >-
