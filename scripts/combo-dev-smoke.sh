@@ -110,7 +110,7 @@ check_controller_readiness() {
     updated=$("${K[@]}" -n "$NAMESPACE" get "deployment/$name" -o jsonpath='{.status.updatedReplicas}' 2>/dev/null) || blocked 'Deployment 更新状态不可读。'
     [[ "$desired" == 1 && "$ready" == 1 && "$updated" == 1 ]] || fail 'Deployment 未保持单副本就绪。'
     if [[ " ${APPS[*]} " == *" $name "* ]]; then
-      ownership=$("${K[@]}" -n "$NAMESPACE" get "deployment/$name" -o json 2>/dev/null) || blocked '应用副本 managedFields 不可读。'
+      ownership=$("${K[@]}" -n "$NAMESPACE" get "deployment/$name" --show-managed-fields=true -o json 2>/dev/null) || blocked '应用副本 managedFields 不可读。'
       jq -e 'any(.metadata.managedFields[]?; .manager == "combo-dev-replicas" and .fieldsV1."f:spec"."f:replicas" == {}) and all(.metadata.managedFields[]?; if .manager == "combo-dev-dispatcher" then .fieldsV1."f:spec"."f:replicas" == null else true end)' <<<"$ownership" >/dev/null 2>&1 || fail '应用副本字段所有权没有与基础清单分离。'
     fi
   done

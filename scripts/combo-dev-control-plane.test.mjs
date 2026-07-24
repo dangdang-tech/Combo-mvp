@@ -2111,6 +2111,7 @@ test('existing deployment invariants remain fail-closed', () => {
   const reset = text('scripts/combo-dev-reset.sh');
   const bootstrap = text('scripts/combo-dev-bootstrap.sh');
   const guard = text('scripts/combo-dev-storage-guard.sh');
+  const smoke = text('scripts/combo-dev-smoke.sh');
   const rbac = text('infra/k8s/overlays/combo-dev/platform/rbac.yaml');
   const testMinioInit = text('infra/k8s/overlays/combo-dev/init/resources.yaml');
   const releaseMinioInit = text('infra/k8s/job-minio-init.yaml');
@@ -2159,6 +2160,10 @@ test('existing deployment invariants remain fail-closed', () => {
       /apply --server-side --field-manager=combo-dev-replicas --force-conflicts -f -/,
     );
   }
+  assert.match(
+    smoke,
+    /ownership=\$\("\$\{K\[@\]\}" -n "\$NAMESPACE" get "deployment\/\$name" --show-managed-fields=true -o json/,
+  );
   for (const script of [bootstrap, deploy, reset]) {
     assert.match(script, /exec 9>"\$LOCK_FILE"\n\s+flock -w 300 9/);
   }
