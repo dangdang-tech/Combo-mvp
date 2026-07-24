@@ -1835,6 +1835,17 @@ test('Test, Preview, and Production serialize only deploy jobs and preserve prom
   assert.match(workflow, /echo ' {2}TCPKeepAlive yes'/);
   assert.match(preview, /\[\[ "\$SOURCE_BRANCH" == main \]\]/);
   assert.match(production, /\.path == "\.github\/workflows\/preview\.yml"/);
+  const credentialRefresh = preview.slice(
+    preview.indexOf('      - name: Refresh an expired Preview image pull credential'),
+    preview.indexOf('      - name: Validate the refreshed Preview registry credential'),
+  );
+  assert.match(credentialRefresh, /\(\( \$\{#GHCR_TOKEN\} > 0 && \$\{#GHCR_TOKEN\} <= 4096 \)\)/);
+  assert.match(
+    credentialRefresh,
+    /\[\[ "\$GHCR_TOKEN" != \*\$'\\n'\* && "\$GHCR_TOKEN" != \*\$'\\r'\* \]\]/,
+  );
+  assert.match(credentialRefresh, /\[\[ "\$GHCR_USER" =~ \^\[A-Za-z0-9_-\]\+\$ \]\]/);
+  assert.doesNotMatch(credentialRefresh, /GHCR_TOKEN" =~/);
   assert.doesNotMatch(workflow, /issue\s*#?112|promotion/i);
 });
 

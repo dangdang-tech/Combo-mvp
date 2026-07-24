@@ -293,7 +293,9 @@ jobs:
           GHCR_USER: ${{ github.actor }}
         run: |
           set -euo pipefail
-          [[ "$GHCR_TOKEN" =~ ^[A-Za-z0-9_]+$ && "$GHCR_USER" =~ ^[A-Za-z0-9_-]+$ ]]
+          (( ${#GHCR_TOKEN} > 0 && ${#GHCR_TOKEN} <= 4096 ))
+          [[ "$GHCR_TOKEN" != *$'\n'* && "$GHCR_TOKEN" != *$'\r'* ]]
+          [[ "$GHCR_USER" =~ ^[A-Za-z0-9_-]+$ ]]
           {
             printf '%s\n' "$GHCR_TOKEN"
             cat <<'REMOTE'
