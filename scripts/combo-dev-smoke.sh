@@ -231,7 +231,7 @@ check_health_and_origin() {
 
   code=$(curl --silent --max-time 15 --max-filesize 1048576 --output "$body" --dump-header "$headers" -H 'Origin: http://127.0.0.1:18080' --write-out '%{http_code}' "$WEB_ORIGIN/ready" 2>/dev/null) || blocked '精确来源探针不可读。'
   [[ "$code" == 200 ]] || fail '精确开发来源被拒绝。'
-  [[ $(grep -Eic '^access-control-allow-origin: http://127\.0\.0\.1:18080\r?$' "$headers") == 1 ]] || fail '精确来源 CORS 响应不唯一。'
+  [[ $(tr -d '\015' <"$headers" | grep -Fxci 'access-control-allow-origin: http://127.0.0.1:18080') == 1 ]] || fail '精确来源 CORS 响应不唯一。'
   code=$(curl --silent --max-time 15 --max-filesize 1048576 --output "$body" -H 'Origin: http://127.0.0.1:18081' --write-out '%{http_code}' "$WEB_ORIGIN/ready" 2>/dev/null) || blocked '敌对来源探针不可读。'
   [[ "$code" == 403 ]] || fail '非固定浏览器来源没有被 Web 边界拒绝。'
 }

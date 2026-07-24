@@ -2168,6 +2168,12 @@ test('existing deployment invariants remain fail-closed', () => {
     smoke,
     /curl_json\(\) \{[\s\S]*for \(\(attempt = 1; attempt <= 60; attempt\+\+\)\)[\s\S]*mv -fT "\$candidate" "\$output"[\s\S]*恢复窗口内不可读：\$path/,
   );
+  assert.ok(
+    smoke.includes(
+      `tr -d '\\015' <"$headers" | grep -Fxci 'access-control-allow-origin: http://127.0.0.1:18080'`,
+    ),
+  );
+  assert.doesNotMatch(smoke, /access-control-allow-origin:[^\n]*\\r/);
   for (const script of [bootstrap, deploy, reset]) {
     assert.match(script, /exec 9>"\$LOCK_FILE"\n\s+flock -w 300 9/);
   }
