@@ -43,7 +43,87 @@ done
 # account 大小写唯一性靠函数唯一索引（不在 pg_constraint 里），单独断言
 uq_idx="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM pg_indexes WHERE indexname='uq_users_account_lower'")"
 [ "$uq_idx" = "1" ] || fail "缺唯一索引 uq_users_account_lower（实际 ${uq_idx}）"
-log "关键命名约束齐全 ✓"
+running_turn_idx="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM pg_indexes WHERE indexname='uq_turns_session_running' AND indexdef LIKE '%UNIQUE INDEX%WHERE (status = ''running''::text)%'")"
+[ "$running_turn_idx" = "1" ] || fail "缺安全部分唯一索引 uq_turns_session_running（实际 ${running_turn_idx}）"
+
+# 在回滚事务内构造最小归属链，真实断言第二个 running Turn 只命中目标索引。
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+BEGIN;
+DO $$
+DECLARE
+  user_id uuid;
+  task_id uuid;
+  capability_id uuid;
+  session_id uuid;
+  violated_constraint text;
+BEGIN
+  INSERT INTO users (logto_user_id, account)
+  VALUES ('sandbox-index-check', 'sandbox-index-check') RETURNING id INTO user_id;
+  INSERT INTO tasks (owner_user_id, idempotency_key)
+  VALUES (user_id, 'sandbox-index-check') RETURNING id INTO task_id;
+  INSERT INTO capabilities (task_id, owner_user_id, name, storage_key)
+  VALUES (task_id, user_id, 'check', 'check') RETURNING id INTO capability_id;
+  INSERT INTO sessions (capability_id, owner_user_id)
+  VALUES (capability_id, user_id) RETURNING id INTO session_id;
+  INSERT INTO turns (id, session_id, status) VALUES (gen_random_uuid(), session_id, 'running');
+
+  BEGIN
+    INSERT INTO turns (id, session_id, status) VALUES (gen_random_uuid(), session_id, 'running');
+    RAISE EXCEPTION 'duplicate running Turn unexpectedly succeeded';
+  EXCEPTION WHEN unique_violation THEN
+    GET STACKED DIAGNOSTICS violated_constraint = CONSTRAINT_NAME;
+    IF violated_constraint <> 'uq_turns_session_running' THEN
+      RAISE EXCEPTION 'unexpected unique constraint: %', violated_constraint;
+    END IF;
+  END;
+END
+$$;
+ROLLBACK;
+SQL
+log "关键命名约束与单 Session 单 running Turn 齐全 ✓"
+
+# 在另一个回滚事务里暂时移除索引并构造历史重复，执行真实 0006 文件。
+# 必须由迁移自己的显式检查先失败，连接退出后 DROP 与测试数据都应回滚。
+set +e
+historical_error="$({
+  cat <<'SQL'
+BEGIN;
+DROP INDEX uq_turns_session_running;
+DO $$
+DECLARE
+  user_id uuid;
+  task_id uuid;
+  capability_id uuid;
+  session_id uuid;
+BEGIN
+  INSERT INTO users (logto_user_id, account)
+  VALUES ('sandbox-history-check', 'sandbox-history-check') RETURNING id INTO user_id;
+  INSERT INTO tasks (owner_user_id, idempotency_key)
+  VALUES (user_id, 'sandbox-history-check') RETURNING id INTO task_id;
+  INSERT INTO capabilities (task_id, owner_user_id, name, storage_key)
+  VALUES (task_id, user_id, 'history-check', 'history-check') RETURNING id INTO capability_id;
+  INSERT INTO sessions (capability_id, owner_user_id)
+  VALUES (capability_id, user_id) RETURNING id INTO session_id;
+  INSERT INTO turns (id, session_id, status)
+  VALUES (gen_random_uuid(), session_id, 'running'),
+         (gen_random_uuid(), session_id, 'running');
+END
+$$;
+SQL
+  cat "${ROOT_DIR}/db/migrations/0006_one_running_turn_per_session.sql"
+} | psql "$DATABASE_URL" -v ON_ERROR_STOP=1 2>&1)"
+historical_status=$?
+set -e
+[ "$historical_status" -ne 0 ] || fail "0006 未拒绝历史重复 running Turn"
+case "$historical_error" in
+  *"cannot create uq_turns_session_running: duplicate running turns exist"*) ;;
+  *) fail "0006 没有由显式历史重复检查失败" ;;
+esac
+post_failure_idx="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM pg_indexes WHERE indexname='uq_turns_session_running'")"
+post_failure_rows="$(psql "$DATABASE_URL" -tAc "SELECT count(*) FROM users WHERE logto_user_id='sandbox-history-check'")"
+[ "$post_failure_idx" = "1" ] || fail "0006 失败事务没有恢复唯一索引"
+[ "$post_failure_rows" = "0" ] || fail "0006 失败事务遗留测试数据"
+log "0006 历史重复检查与事务回滚齐全 ✓"
 
 # 5) 幂等：再跑一次不应报错、不应重复记账
 log "二次迁移（幂等）..."

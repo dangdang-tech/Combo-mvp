@@ -9,6 +9,9 @@
     "compose:up": "docker compose -f docker-compose.yml up -d",
     "compose:down": "docker compose -f docker-compose.yml down",
     "typecheck": "echo 'no ts in infra' && exit 0",
-    "test": "echo 'no tests in infra' && exit 0"
+    "test": "node --test k8s/overlays/sandbox-tools/render.test.mjs"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
   }
 }

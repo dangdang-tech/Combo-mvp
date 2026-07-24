@@ -1,14 +1,10 @@
-# bootstrap —— 应用组装
+# bootstrap 应用组装
 
-这个目录负责把散落在 platform 层和 modules 层的零件组装成一个可监听端口的 Fastify 应用：建基础设施容器、装全局插件、定统一错误信封、挂健康检查和全部业务路由。
+这个目录负责把平台层和业务模块组装成可监听端口的 Fastify 应用。
 
 ## 文件
 
-- `app.ts` 提供 buildApp 工厂函数：加载环境变量，建 Fastify 实例，把基础设施容器挂成 app.infra、把带 Redis 打断广播和周期孤儿清扫的轮次编排器挂成 app.turns，注册跨域和 Cookie 插件，给每个请求分配并回写 traceId，设置统一错误处理器，最后注册健康检查路由和业务路由。应用关闭时先停止轮次清扫并退订广播，再关闭基础设施连接。
-- `routes.ts` 汇总三个业务模块的端点声明为 ALL_ENDPOINTS（供测试核对端点数与鉴权链），并把 capability、session、artifact 三组路由和浏览器事件上报路由统一注册在 API 前缀之下。
+- `app.ts` 加载环境变量并创建 Fastify。它组装数据库、对象存储、Redis 事件设施和可选 SandboxBackend，把基础设施挂到 `app.infra`，再把带跨实例打断、孤儿清扫和沙箱取消接线的 TurnRunner 挂到 `app.turns`。关闭应用时，它创建一个总截止信号，并依次传给轮次中止、远程清理、沙箱后端、数据库和 Redis 关闭。截止时间耗尽后不再等待未决依赖，未能安全收尾的 Turn 保持 `running`。
+- `routes.ts` 汇总 capability、session、artifact 和浏览器事件端点，并统一注册到 API 前缀。
 
-## 上下游
-
-被谁使用：`processes/api.ts` 在启动时调用 buildApp；集成测试也直接用 buildApp 建应用。
-
-依赖什么：`app.ts` 引用 `platform/config/env.ts`（环境变量）、`platform/infra/index.ts`（数据库、对象存储、事件总线容器）、`platform/http/health.ts`（健康检查）、`platform/observability/node.ts`（trace 字段）、`modules/agent/run-turn.ts` 与 `modules/agent/build-agent.ts`（轮次编排器及其模型代理工厂），并以副作用方式引入 `platform/http/fastify.ts` 注册类型增强。`routes.ts` 引用三个模块各自的 routes 文件和 `platform/http/client-events.ts`。
+`SANDBOX_TOOLS_ENABLED=false` 时，组装过程只创建禁用后端，连 Kubernetes 客户端模块也不加载。显式开启时，组装过程动态加载 KubernetesSandboxBackend；镜像或签名私钥缺失会在环境变量校验阶段拒绝启动。

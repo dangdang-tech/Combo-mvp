@@ -106,7 +106,7 @@ describe('migrations', () => {
     expect(sql).toMatch(/role IN \('user', 'assistant', 'tool'\)/);
   });
 
-  it('0003 adds lock-free turns and per-turn message ordering', () => {
+  it('0003 adds autonomous turns and per-turn message ordering', () => {
     const sql = readFileSync(join(MIGRATIONS_DIR, '0003_turns.sql'), 'utf-8');
     expect(sql).toContain('CREATE TABLE turns (');
     expect(sql).toMatch(/status IN \('running', 'completed', 'failed', 'interrupted'\)/);
@@ -135,6 +135,21 @@ describe('migrations', () => {
     expect(sql).toContain('ON DELETE SET NULL');
     expect(sql).toContain('uq_capabilities_ui_artifact');
     expect(sql).toContain('WHERE ui_artifact_id IS NOT NULL');
+  });
+
+  it('0006 rejects historical duplicates before enforcing one running turn per session', () => {
+    const sql = readFileSync(
+      join(MIGRATIONS_DIR, '0006_one_running_turn_per_session.sql'),
+      'utf-8',
+    );
+    expect(sql).toMatch(
+      /status = 'running'[\s\S]+GROUP BY session_id[\s\S]+HAVING count\(\*\) > 1/,
+    );
+    expect(sql).toContain('RAISE EXCEPTION');
+    expect(sql).toContain(
+      "CREATE UNIQUE INDEX uq_turns_session_running\n  ON turns (session_id)\n  WHERE status = 'running'",
+    );
+    expect(sql).not.toMatch(/UPDATE\s+turns/i);
   });
 
   it('stream_events use bigserial for resumable ordering', () => {

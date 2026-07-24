@@ -1,5 +1,5 @@
 // 路由注册自检 + session 端点 owner 守卫（非本人与不存在同样 404，不暴露存在性）。
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FastifyReply, FastifyRequest, RouteHandlerMethod } from 'fastify';
 import { ALL_ENDPOINTS } from '../bootstrap/routes.js';
 import {
@@ -30,6 +30,7 @@ import { createTurn, finishTurnCas } from '../modules/agent/turn-repo.js';
 import { createTurnRunner } from '../modules/agent/run-turn.js';
 import { createSessionEventBus } from '../platform/infra/event-bus.js';
 import { createInterruptBus } from '../platform/infra/redis-interrupt-bus.js';
+import type { SandboxBackend } from '../platform/infra/sandbox-backend.js';
 import {
   FakeDb,
   FakeObjectStore,
@@ -40,6 +41,33 @@ import {
 
 const ME = 'user-me';
 const OTHER = 'user-other';
+let directArtifactTurnSequence = 0;
+
+async function createDirectArtifactTool(input: {
+  db: FakeDb;
+  store: FakeObjectStore;
+  sessionId: string;
+  capabilityId?: string;
+  mode?: 'consume' | 'studio';
+}) {
+  directArtifactTurnSequence += 1;
+  const turnId = `route-artifact-turn-${directArtifactTurnSequence}`;
+  await createTurn(input.db, { id: turnId, sessionId: input.sessionId });
+  const controller = new AbortController();
+  return {
+    tool: createArtifactTool({
+      db: input.db,
+      objectStore: input.store,
+      sessionId: input.sessionId,
+      turnId,
+      turnSignal: controller.signal,
+      ...(input.capabilityId ? { capabilityId: input.capabilityId } : {}),
+      ...(input.mode ? { mode: input.mode } : {}),
+      onArtifact: () => undefined,
+    }),
+    finish: () => finishTurnCas(input.db, { id: turnId, status: 'completed' }),
+  };
+}
 
 describe('route registry self-check', () => {
   it('registers exactly 11 endpoints (capability 1 + session 9 + artifact 1)', () => {
@@ -98,6 +126,7 @@ function makeReq(input: {
   params?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
+  sandbox?: SandboxBackend;
 }): FastifyRequest {
   const turns = createTurnRunner({
     db: input.db,
@@ -117,7 +146,11 @@ function makeReq(input: {
     body: input.body,
     log: { ...silentLog, info: () => undefined, warn: () => undefined },
     server: {
-      infra: { db: input.db, objectStore: input.objectStore ?? new FakeObjectStore() },
+      infra: {
+        db: input.db,
+        objectStore: input.objectStore ?? new FakeObjectStore(),
+        ...(input.sandbox ? { sandbox: input.sandbox } : {}),
+      },
       turns,
     },
   } as unknown as FastifyRequest;
@@ -207,23 +240,23 @@ describe('POST /runtime/studio/sessions', () => {
       capabilityId: cap.id,
       ownerUserId: ME,
     });
-    const tool = createArtifactTool({
+    const direct = await createDirectArtifactTool({
       db,
-      objectStore: store,
+      store,
       sessionId: first.id,
       capabilityId: cap.id,
       mode: 'studio',
-      onArtifact: () => undefined,
     });
     const html = `<!doctype html><html><head><style>button{color:red}</style></head><body>
       <button data-combo-key="run-primary">运行</button><script>
       const prompt = '真实任务'; parent.postMessage({type:'combo:run',version:1,prompt}, '*');
       </script></body></html>`;
-    const firstRevision = await tool.execute('tc-studio', {
+    const firstRevision = await direct.tool.execute('tc-studio', {
       kind: 'html',
       title: 'Agent UI',
       content: html,
     });
+    await direct.finish();
     await bindCapabilityUiArtifact(db, {
       capabilityId: cap.id,
       artifactId: firstRevision.details!.artifactId,
@@ -281,22 +314,23 @@ describe('POST /runtime/studio/sessions', () => {
       const prompt = document.querySelector('#goal').value;
       window.parent.postMessage({type:'combo:run',version:1,prompt}, '*');
       </script></body></html>`;
-    const valid = await createArtifactTool({
+    const legacyTool = await createDirectArtifactTool({
       db,
-      objectStore: store,
+      store,
       sessionId: legacy.id,
-      onArtifact: () => undefined,
-    }).execute('legacy-valid', { kind: 'html', title: '旧版 Agent UI', content: validHtml });
-    const invalid = await createArtifactTool({
-      db,
-      objectStore: store,
-      sessionId: legacy.id,
-      onArtifact: () => undefined,
-    }).execute('legacy-invalid', {
+      mode: 'consume',
+    });
+    const valid = await legacyTool.tool.execute('legacy-valid', {
+      kind: 'html',
+      title: '旧版 Agent UI',
+      content: validHtml,
+    });
+    const invalid = await legacyTool.tool.execute('legacy-invalid', {
       kind: 'html',
       title: '普通 HTML 报告',
       content: '<!doctype html><html><body>普通报告</body></html>',
     });
+    await legacyTool.finish();
     db.artifacts.get(valid.details!.artifactId)!.created_at = '2026-07-20T00:00:00.000Z';
     db.artifacts.get(valid.details!.artifactId)!.updated_at = '2026-07-20T00:00:00.000Z';
     db.artifacts.get(invalid.details!.artifactId)!.created_at = '2026-07-21T00:00:00.000Z';
@@ -367,14 +401,19 @@ describe('POST /runtime/sessions capability UI 快照', () => {
       <button data-combo-key="run-primary">运行</button><script>
       const prompt = '真实任务'; window.parent.postMessage({type:'combo:run',version:1,prompt}, '*');
       </script></body></html>`;
-    const currentRevision = await createArtifactTool({
+    const currentTool = await createDirectArtifactTool({
       db,
-      objectStore: store,
+      store,
       sessionId: studio.id,
       capabilityId: withUi.id,
       mode: 'studio',
-      onArtifact: () => undefined,
-    }).execute('tc-studio', { kind: 'html', title: 'Agent UI', content: html });
+    });
+    const currentRevision = await currentTool.tool.execute('tc-studio', {
+      kind: 'html',
+      title: 'Agent UI',
+      content: html,
+    });
+    await currentTool.finish();
     await bindCapabilityUiArtifact(db, {
       capabilityId: withUi.id,
       artifactId: currentRevision.details!.artifactId,
@@ -466,10 +505,23 @@ describe('session 端点 owner 守卫', () => {
       capabilityId: cap.id,
       ownerUserId: ME,
     });
+    const turnId = 'detail-ui-pointer-turn';
+    const turnController = new AbortController();
+    const now = new Date().toISOString();
+    db.turns.set(turnId, {
+      id: turnId,
+      session_id: studio.id,
+      status: 'running',
+      last_error: null,
+      created_at: now,
+      finished_at: null,
+    });
     const revision = await createArtifactTool({
       db,
       objectStore: store,
       sessionId: studio.id,
+      turnId,
+      turnSignal: turnController.signal,
       capabilityId: cap.id,
       mode: 'studio',
       onArtifact: () => undefined,
@@ -486,6 +538,7 @@ describe('session 端点 owner 守卫', () => {
         </script>
       </body></html>`,
     });
+    db.turns.get(turnId)!.status = 'completed';
     await bindCapabilityUiArtifact(db, {
       capabilityId: cap.id,
       artifactId: revision.details!.artifactId,
@@ -563,6 +616,45 @@ describe('session 端点 owner 守卫', () => {
     ).toBeTruthy();
   });
 
+  it('POST /runtime/sessions/:id/messages：已有 running Turn 时返回现有 SESSION_BUSY 409', async () => {
+    const db = new FakeDb();
+    const store = new FakeObjectStore();
+    const sessionId = await seedOwnedSession(db, ME);
+    const session = db.sessions.get(sessionId)!;
+    const capability = db.capabilities.get(session.capability_id)!;
+    store.seedText(
+      CAPABILITY_BUCKET,
+      capability.storage_key,
+      JSON.stringify({
+        version: 1,
+        name: '测试能力',
+        summary: '测试',
+        kind: 'writing',
+        instructions: '测试',
+        inputs: [],
+        starterPrompts: [],
+        meta: {},
+      }),
+    );
+    await createTurn(db, { id: 'turn-running', sessionId });
+
+    const reply = await call(
+      sendMessageHandler(),
+      makeReq({
+        db,
+        objectStore: store,
+        userId: ME,
+        params: { id: sessionId },
+        body: { text: '第二条' },
+      }),
+    );
+    expect(reply.statusCode).toBe(409);
+    expect((reply.body as { error: { userMessage: string } }).error.userMessage).toContain(
+      '等待完成后再发送',
+    );
+    expect(db.turns.size).toBe(1);
+  });
+
   it('POST /runtime/sessions/:id/interrupt：非本人 404', async () => {
     const db = new FakeDb();
     const sessionId = await seedOwnedSession(db, ME);
@@ -623,6 +715,40 @@ describe('session 端点 owner 守卫', () => {
     expect(mine.statusCode).toBe(200);
     expect((mine.body as { data: { status: string } }).data.status).toBe('closed');
     expect(db.sessions.get(sessionId)?.status).toBe('closed');
+  });
+
+  it('DELETE /runtime/sessions/:id：归档成功不等待卡住的沙箱回收', async () => {
+    const db = new FakeDb();
+    const sessionId = await seedOwnedSession(db, ME);
+    const releaseSession = vi.fn(() => new Promise<void>(() => undefined));
+    const sandbox = { enabled: true, releaseSession } as unknown as SandboxBackend;
+
+    const result = await Promise.race([
+      call(
+        archiveSessionHandler(),
+        makeReq({ db, userId: ME, params: { id: sessionId }, sandbox }),
+      ),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 50)),
+    ]);
+
+    expect(result?.statusCode).toBe(200);
+    expect(releaseSession).toHaveBeenCalledWith(sessionId);
+    expect(db.sessions.get(sessionId)?.status).toBe('closed');
+  });
+
+  it('DELETE /runtime/sessions/:id：功能关闭时不触发任何沙箱回收调用', async () => {
+    const db = new FakeDb();
+    const sessionId = await seedOwnedSession(db, ME);
+    const releaseSession = vi.fn(async () => undefined);
+    const sandbox = { enabled: false, releaseSession } as unknown as SandboxBackend;
+
+    const result = await call(
+      archiveSessionHandler(),
+      makeReq({ db, userId: ME, params: { id: sessionId }, sandbox }),
+    );
+
+    expect(result.statusCode).toBe(200);
+    expect(releaseSession).not.toHaveBeenCalled();
   });
 
   it('DELETE /runtime/sessions/:id：运行中返回 SESSION_BUSY 对应的 409 且保持 active', async () => {

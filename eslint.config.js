@@ -108,6 +108,33 @@ export default tseslint.config(
       ],
     },
   },
+  // ④ Runtime 的模型工具与沙箱接线只能调用远端 sandboxd，禁止增加宿主文件或子进程回退。
+  {
+    files: [
+      'apps/runtime/src/modules/agent/**/*.ts',
+      'apps/runtime/src/platform/infra/sandbox-*.ts',
+      'apps/runtime/src/platform/infra/kubernetes-sandbox-backend.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            ...['fs', 'node:fs', 'fs/promises', 'node:fs/promises'].map((name) => ({
+              name,
+              message:
+                'Runtime 模型工具不得访问宿主文件系统；必须经 SandboxBackend 调用 sandboxd Pod。',
+            })),
+            ...['child_process', 'node:child_process'].map((name) => ({
+              name,
+              message:
+                'Runtime 模型工具不得启动宿主进程；必须经 SandboxBackend 调用 sandboxd Pod。',
+            })),
+          ],
+        },
+      ],
+    },
+  },
   // 配置文件 / 脚本宽松
   {
     files: ['**/*.config.{js,ts}', 'scripts/**/*.{js,ts,mjs}'],

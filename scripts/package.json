@@ -9,6 +9,7 @@
     "migrate": "./migrate.sh",
     "smoke": "./smoke.sh",
     "acceptance:smoke": "./acceptance-smoke.sh",
+    "sandbox:e2e": "./integration/sandbox-tools-local.sh",
     "typecheck": "tsc -b",
     "test": "node --test publish-logto-branding.test.mjs"
   },

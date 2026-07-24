@@ -1,32 +1,43 @@
-# db — PostgreSQL 迁移
+# db PostgreSQL 迁移
 
-这个目录是数据库结构的唯一真源。迁移基线是 `migrations/0000_baseline_schema.sql`；此后的结构变更以新编号的迁移文件追加，已执行过的文件不可再改。`0002_drop_stream_events.sql` 删除已经迁移到 Redis Stream 的事件日志表。`0003_turns.sql` 新增自治轮次表，并让新消息按轮次和轮内位置归组。基线里还定义了 `gen_uuid_v7()` 函数，所有表主键默认用它生成时间有序的 UUID。大内容（上传原始件、能力定义、会话产物正文）一律不进库，库里只存 MinIO 对象键和状态。
+这个目录是数据库结构的唯一真源。`migrations/0000_baseline_schema.sql` 是基线，后续结构变化只通过新编号文件追加，已经执行的迁移不可修改。大内容仍放在 MinIO，数据库只保存索引、状态、消息和对象键。
 
-## 表
+## 迁移文件
 
-- `users` 是身份与权限的唯一真源，存外部认证服务的用户对应关系、账号、邮箱和角色，全库所有归属字段都指向它。
-- `tasks` 是一次上传任务的聚合根，用步骤和状态两个正交字段表达进展，并带幂等键、重试计数、最后错误和 worker 租约字段。
-- `uploads` 与任务一对一，记录配对码哈希、分片对账表和原始件清除时间。分片对账表（parts 列）是 worker 逐片读取分片的键清单真源；`storage_key` 列已不再写入（收齐后不再拼接完整原始件），保留只为兼容历史行的清理。
-- `capabilities` 是提取产出的能力项轻量索引，发布标记与分享令牌记在它身上，完整可运行定义按 `storage_key` 存 MinIO。
-- `sessions` 是一次试用对话会话，引用被试用的能力项和会话归属人。
-- `turns` 是会话下的自治任务，以服务端生成的运行编号为主键，只用运行态 CAS 协调收尾。历史只读取已完成轮次，因此运行中、失败或中断轮次的半截消息不可见。
-- `messages` 是会话内的定稿消息，内容是 agent 原生分块格式的 JSON。存量消息永久保留会话序号且不归属轮次；新消息的会话序号为空，改用轮次编号和轮内位置排序，对外序号由合并读路径连续派生。
-- `artifacts` 是会话交互产物的索引，正文存 MinIO，行内只留类型、标题和对象键。
-- `audit_llm_calls` 给每次大模型调用记一行 token 用量与费用，只做审计不是计费真源，任务字段是不设外键的松引用。
-- `schema_migrations` 是 migrate 脚本自建的记账表，记录哪些迁移文件已执行，不在基线文件里。
+- `0000_baseline_schema.sql` 创建用户、上传任务、能力、试用会话、消息、产物和模型审计等基线结构，并提供 UUID v7 函数。
+- `0001_expired_upload_reconciliation.sql` 增加过期上传状态，并为待过期和待清理记录建立部分索引。
+- `0002_drop_stream_events.sql` 删除已经迁移到 Redis Stream 的数据库事件表。
+- `0003_turns.sql` 创建自治 Turn，并让新 Message 使用 Turn 编号和轮内位置归组。
+- `0004_studio_sessions.sql` 给 Session 增加普通运行与界面设计两种模式，并限制同一创作者和能力只有一个 active Studio Session。
+- `0005_capability_current_ui.sql` 让 Capability 保存当前 Studio HTML Artifact 指针，新建普通 Session 可以复制当时的界面快照。
+- `0006_one_running_turn_per_session.sql` 先检查历史上是否存在同一 Session 的重复 running Turn。发现重复时迁移显式失败且不修改旧数据；没有重复时创建部分唯一索引 `uq_turns_session_running`，保证每个 Session 同时最多一个 running Turn。
 
-## migrate 脚本
+迁移 Runner 按文件名字典序执行，每个文件使用独立数据库事务，并把成功文件写入 `schema_migrations`。因此 `0006` 的历史检查和索引创建处于同一个迁移事务中。
 
-脚本在 `scripts/migrate.ts`。在本目录执行 `npm run migrate` 会按文件名字典序执行 `migrations/` 下尚未记账的 SQL 文件，每个文件在一个事务里执行并写入 `schema_migrations`；`npm run migrate:status` 只列出各文件是否已执行。连接串取环境变量 `DATABASE_URL`，缺省连本机的 combo 库；没设 `DATABASE_URL` 时 status 模式不连库、仅列文件清单。
+## 主要表
 
-## 测试
+- `users` 保存外部身份与角色映射。
+- `tasks` 与 `uploads` 保存创作端上传和提取状态。
+- `capabilities` 保存能力轻量索引、定义对象键和当前 Studio UI Artifact 指针。
+- `sessions` 保存试用与 Studio 会话、owner 和模式。
+- `turns` 保存一轮模型运行的状态、错误和时间。部分唯一索引限制单 Session 单运行轮次。
+- `messages` 保存 Pi 原生分块消息。存量消息保留会话序号，新消息使用 Turn 和轮内位置。
+- `artifacts` 保存产物索引，正文仍在 MinIO。
+- `audit_llm_calls` 保存模型调用审计信息。
+- `schema_migrations` 记录已应用迁移。
 
-`__tests__` 下两个测试都不需要真实数据库。`migrations.test.ts` 守护历史基线完整性以及后续迁移文件，核对 tasks 的双轴状态、租约和幂等字段，并核对轮次状态、部分索引与消息归属列。`gen_uuid_v7.test.ts` 静态核对函数里每个 `set_byte` 的字节值都显式转成 int，并用 TypeScript 复刻同一套字节打包逻辑，验证产出是合法且时间有序的 UUID v7。
+沙箱工具不新增数据库表。临时 Pod 和 `/workspace` 不是持久化真源；Session、Turn、Message、Redis SSE 和 Artifact 继续使用现有存储。
 
 ## 读写关系
 
-- `users` 由 authoring 的 `modules/account/repo.ts` 在登录时写入和更新，runtime 的 `platform/middleware/auth.ts` 只读它做鉴权。
-- `tasks` 和 `uploads` 只有 authoring 读写，代码在 `modules/task/repo.ts` 和 `modules/task/service.ts`。
-- `capabilities` 由 authoring 写入（`modules/task/repo.ts` 在提取完成时落库，`modules/capability/repo.ts` 负责列表与发布），runtime 的 `modules/capability/loader.ts` 只读它拿对象键去加载定义。
-- `sessions`、`turns`、`messages`、`artifacts` 只有 runtime 读写，代码在 `modules/session/repo.ts`、`modules/agent/turn-repo.ts` 和 `modules/artifact/repo.ts`。
-- `audit_llm_calls` 只有 authoring 写入，代码在 `platform/infra/llm/audit.ts`。
+`users` 由 authoring 登录流程写入，Runtime 鉴权只读。`tasks`、`uploads` 和 `capabilities` 由 authoring 负责写入，其中 Runtime 只读取 Capability 索引和定义对象键。`sessions`、`turns`、`messages` 和 `artifacts` 由 Runtime 读写。`audit_llm_calls` 由 authoring 写入。
+
+## 命令与测试
+
+```sh
+pnpm -F @cb/db migrate
+pnpm -F @cb/db migrate:status
+pnpm -F @cb/db test
+```
+
+`scripts/integration/db-migrate.sh` 会在真实 PostgreSQL 中执行全部迁移，核对终态表、命名约束、用户唯一索引和 `uq_turns_session_running`。它还会在回滚事务中构造历史重复 running Turn，确认 `0006` 由显式检查失败且不遗留数据，最后再次执行迁移验证幂等。

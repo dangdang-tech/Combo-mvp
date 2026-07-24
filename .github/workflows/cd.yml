@@ -97,11 +97,20 @@ jobs:
             echo "  StrictHostKeyChecking yes"
           } >> ~/.ssh/config
 
-      # 部署清单以仓库为准整目录镜像同步（k8s 清单、observability values、留作回滚的 compose 配置都在其中），
-      # 唯独 .env 不碰：密钥只活在服务器上。
+      # 部署清单以仓库为准同步；.env 受排除规则保护。Sandbox Tools 的镜像定义与
+      # 两个可选 overlay 不传输；同步后只删除服务器上这三个固定路径的旧残留。
       - name: 同步部署清单到服务器
         run: |
-          rsync -az --delete --exclude='.env' infra/ deploy-target:/opt/combo/infra/
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='/Dockerfile.sandboxd' \
+            --exclude='/k8s/overlays/sandbox-tools/' \
+            --exclude='/k8s/overlays/sandbox-tools-fifth-slot/' \
+            infra/ deploy-target:/opt/combo/infra/
+          ssh deploy-target 'rm -rf -- \
+            /opt/combo/infra/Dockerfile.sandboxd \
+            /opt/combo/infra/k8s/overlays/sandbox-tools \
+            /opt/combo/infra/k8s/overlays/sandbox-tools-fifth-slot'
           rsync -az scripts/smoke.sh scripts/deploy-k8s.sh deploy-target:/opt/combo/scripts/
 
       # 镜像由集群内 ghcr-pull Secret 拉取，服务器上不再需要 docker login。
