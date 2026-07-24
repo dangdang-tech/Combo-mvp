@@ -146,6 +146,7 @@ test('fresh reset is constrained to an exact workload and PVC allowlist', () => 
 
 test('new release storage is revalidated before initialization and traffic', () => {
   const foundation = functionBody('apply_foundation');
+  const inventory = functionBody('capture_inventory');
   const storage = functionBody('validate_live_release_storage');
   const evidence = functionBody('write_release_evidence');
   assertBefore(
@@ -175,6 +176,11 @@ test('new release storage is revalidated before initialization and traffic', () 
   ]) {
     assert.ok(storage.includes(contract), `live storage validation must include ${contract}`);
   }
+  assert.match(
+    inventory,
+    /jq -cn[\s\\\n]*--arg claim "\$claim"[\s\S]*>>"\$pvc_inventory"/,
+    'captured PVC records must be one complete JSON object per physical line',
+  );
   assert.match(evidence, /--slurpfile storage "\$release_storage_evidence"/);
   assert.match(evidence, /storage: \$storage\[0\]/);
   assert.match(evidence, /releaseStorage: true/);
