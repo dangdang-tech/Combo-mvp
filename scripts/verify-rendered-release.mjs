@@ -45,6 +45,15 @@ const CONFIG_MAP_DATA_DIGESTS = Object.freeze({
   'release-redis-queue-config': '8d2af3979e00c83bf940f53cc61c4d281bade324f8b7cae46c6575f07f31cd0f',
   'release-minio-init-script': 'd0a07211a19b1e6e09eedf28e6e24487f58c3da74bfbe1520aad6f79f288f5c6',
 });
+const REVIEW_GATE_DATA_DIGEST =
+  'bbe4a4e65e346ef8a1aefa86ca060eae4dadf815a49f2890e6a4af9c1dae9c2f';
+const REVIEW_GATE_COMMAND = Object.freeze(['/bin/sh', '-euc']);
+const REVIEW_GATE_SCRIPT =
+  'case "$REVIEW_ACCESS_TOKEN" in\n' +
+  "  (*[!0-9a-f]*|'') exit 1 ;;\n" +
+  'esac\n' +
+  '[ "${#REVIEW_ACCESS_TOKEN}" -eq 64 ] || exit 1\n' +
+  "exec /docker-entrypoint.sh nginx -g 'daemon off;'\n";
 
 function fail(message) {
   throw new Error(`Rendered release verification failed: ${message}`);
@@ -235,22 +244,25 @@ function validateReleaseWorkload(resource, manifest, manifestDigest) {
 }
 
 function validateApps(resources, options, manifest, manifestDigest) {
-  const config = ENVIRONMENTS[options.environment];
   const prefix = applicationPrefix(options.environment, manifest);
+  const expectedIdentities = [
+    'Service/api',
+    'Service/runtime',
+    'Service/web',
+    'Deployment/api',
+    'Deployment/runtime',
+    'Deployment/web',
+    'Deployment/worker',
+  ].map((identity) => {
+    const [kind, name] = identity.split('/');
+    return `${kind}/${prefix}${name}`;
+  });
+  if (options.environment === 'preview') {
+    expectedIdentities.push(`ConfigMap/${prefix}review-gate`);
+  }
   exactIdentities(
     resources,
-    [
-      'Service/api',
-      'Service/runtime',
-      'Service/web',
-      'Deployment/api',
-      'Deployment/runtime',
-      'Deployment/web',
-      'Deployment/worker',
-    ].map((identity) => {
-      const [kind, name] = identity.split('/');
-      return `${kind}/${prefix}${name}`;
-    }),
+    expectedIdentities,
     'apps',
   );
   const byIdentity = new Map(resources.map((resource) => [resourceIdentity(resource), resource]));
@@ -261,7 +273,11 @@ function validateApps(resources, options, manifest, manifestDigest) {
   assertOneContainer(deployment('web'), 'web', manifest.images.web);
   for (const name of ['api', 'worker', 'runtime', 'web']) {
     const resource = deployment(name);
-    assertCommand(containers(resource)[0], undefined);
+    if (options.environment === 'preview' && name === 'web') {
+      assertCommand(containers(resource)[0], REVIEW_GATE_COMMAND, [REVIEW_GATE_SCRIPT]);
+    } else {
+      assertCommand(containers(resource)[0], undefined);
+    }
     validateReleaseWorkload(resource, manifest, manifestDigest);
     const labels = workloadTemplate(resource)?.metadata?.labels ?? {};
     const expectedSelector = {
@@ -285,6 +301,62 @@ function validateApps(resources, options, manifest, manifestDigest) {
     if (JSON.stringify(service.spec?.selector) !== JSON.stringify(expectedSelector)) {
       fail(`${resourceIdentity(service)} can select legacy Pods`);
     }
+  }
+  const web = deployment('web');
+  const webContainer = containers(web)[0];
+  const reviewToken = (webContainer.env ?? []).filter(
+    (entry) => entry.name === 'REVIEW_ACCESS_TOKEN',
+  );
+  const reviewConfigMaps = (web.spec?.template?.spec?.volumes ?? [])
+    .map((volume) => volume.configMap?.name)
+    .filter(Boolean);
+  const reviewMounts = webContainer.volumeMounts ?? [];
+  if (options.environment === 'preview') {
+    const gateName = `${prefix}review-gate`;
+    const gate = byIdentity.get(`ConfigMap/${gateName}`);
+    const gateKeys = Object.keys(gate?.data ?? {}).sort();
+    const gateDigest = createHash('sha256').update(JSON.stringify(gate?.data)).digest('hex');
+    const expectedMounts = [
+      {
+        mountPath: '/etc/nginx/templates/default.conf.template',
+        name: 'review-nginx',
+        readOnly: true,
+        subPath: 'default.conf.template',
+      },
+      {
+        mountPath: '/usr/share/nginx/html/__review/bootstrap.html',
+        name: 'review-bootstrap-page',
+        readOnly: true,
+        subPath: 'bootstrap.html',
+      },
+      {
+        mountPath: '/usr/share/nginx/html/__review/enter.html',
+        name: 'review-access-page',
+        readOnly: true,
+        subPath: 'enter.html',
+      },
+    ];
+    if (
+      reviewToken.length !== 1 ||
+      reviewToken[0].valueFrom?.secretKeyRef?.name !== 'combo-preview-bootstrap' ||
+      reviewToken[0].valueFrom?.secretKeyRef?.key !== 'REVIEW_ACCESS_TOKEN' ||
+      webContainer.readinessProbe?.httpGet?.path !== '/__review/healthz' ||
+      reviewConfigMaps.length !== 3 ||
+      !reviewConfigMaps.every((name) => name === gateName) ||
+      JSON.stringify(reviewMounts) !== JSON.stringify(expectedMounts) ||
+      gate?.immutable !== true ||
+      JSON.stringify(gateKeys) !==
+        JSON.stringify(['bootstrap.html', 'default.conf.template', 'enter.html']) ||
+      gateDigest !== REVIEW_GATE_DATA_DIGEST
+    ) {
+      fail(`${resourceIdentity(web)} does not preserve the Preview access gate`);
+    }
+  } else if (
+    reviewToken.length !== 0 ||
+    reviewConfigMaps.length !== 0 ||
+    reviewMounts.some((mount) => mount.name?.startsWith('review-'))
+  ) {
+    fail(`${resourceIdentity(web)} unexpectedly contains the Preview access gate`);
   }
 }
 
@@ -409,10 +481,11 @@ function validateFoundation(resources, options) {
   }
 }
 
-function validateInit(resources, manifest, manifestDigest) {
+function validateInit(resources, options, manifest, manifestDigest) {
+  const prefix = applicationPrefix(options.environment, manifest);
   exactIdentities(
     resources,
-    ['ConfigMap/release-minio-init-script', 'Job/release-minio-init'],
+    ['ConfigMap/release-minio-init-script', `Job/${prefix}minio-init`],
     'init',
   );
   const job = resources.find((resource) => resource.kind === 'Job');
@@ -427,7 +500,9 @@ function validateInit(resources, manifest, manifestDigest) {
   for (const [name, value] of Object.entries(
     expectedWorkloadAnnotations(manifest, manifestDigest),
   )) {
-    if (annotations[name] !== value) fail(`Job/release-minio-init has incorrect ${name}`);
+    if (annotations[name] !== value) {
+      fail(`Job/${prefix}minio-init has incorrect ${name}`);
+    }
   }
 }
 
@@ -480,7 +555,7 @@ function run(argv) {
   if (options.phase === 'apps') validateApps(resources, options, manifest, digest);
   else if (options.phase === 'migrate') validateMigrate(resources, options, manifest, digest);
   else if (options.phase === 'foundation') validateFoundation(resources, options);
-  else validateInit(resources, manifest, digest);
+  else validateInit(resources, options, manifest, digest);
   process.stdout.write(`verified ${options.environment}/${options.phase}\n`);
 }
 

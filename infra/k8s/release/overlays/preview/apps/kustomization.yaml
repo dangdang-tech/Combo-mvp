@@ -6,7 +6,17 @@ resources:
   - ../../../base/apps
 patches:
   - path: dev-session.patch.yaml
+  - path: review-gate.patch.yaml
   - path: ../../app-selector-isolation.patch.yaml
+configMapGenerator:
+  - name: review-gate
+    files:
+      - default.conf.template=review-nginx.conf
+      - bootstrap.html=review-bootstrap.html
+      - enter.html=review-access.html
+generatorOptions:
+  disableNameSuffixHash: true
+  immutable: true
 labels:
   - includeSelectors: true
     pairs:

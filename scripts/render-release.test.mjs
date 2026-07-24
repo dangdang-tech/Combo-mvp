@@ -187,6 +187,80 @@ test('Nginx contract rejects missing hashed assets and defines cache policy', ()
   assert.match(nginx, /location = \/version\.json[\s\S]*?no-store/);
 });
 
+test('Preview release carries a SHA-scoped access gate without Secret material', () => {
+  const resources = render('preview', 'apps');
+  const gateName = `${RELEASE_PREFIX}review-gate`;
+  const gate = resources.find(
+    (resource) => resource.kind === 'ConfigMap' && resource.metadata.name === gateName,
+  );
+  assert.equal(gate.immutable, true);
+  assert.deepEqual(Object.keys(gate.data).sort(), [
+    'bootstrap.html',
+    'default.conf.template',
+    'enter.html',
+  ]);
+  assert.match(gate.data['default.conf.template'], /\$\{REVIEW_ACCESS_TOKEN\}/);
+  assert.match(
+    gate.data['default.conf.template'],
+    /location = \/runtime-config\.json[\s\S]*?no-store/,
+  );
+  assert.match(
+    gate.data['default.conf.template'],
+    /location = \/version\.json[\s\S]*?add_header X-Combo-Review-Gate \$combo_review_gate_header always;[\s\S]*?no-store/,
+  );
+  assert.match(
+    gate.data['default.conf.template'],
+    /location \^~ \/assets\/[\s\S]*?try_files \$uri =404;/,
+  );
+  assert.match(
+    gate.data['default.conf.template'],
+    /location \^~ \/try\/assets\/[\s\S]*?alias \/usr\/share\/nginx\/html\/try\/assets\/;[\s\S]*?try_files \$uri =404;/,
+  );
+  assert.match(
+    gate.data['default.conf.template'],
+    /location \^~ \/try\/[\s\S]*?alias \/usr\/share\/nginx\/html\/try\/;/,
+  );
+  assert.match(gate.data['bootstrap.html'], /\/api\/v1\/auth\/dev-login/);
+
+  const web = resources.find(
+    (resource) =>
+      resource.kind === 'Deployment' && resource.metadata.name === `${RELEASE_PREFIX}web`,
+  );
+  const container = web.spec.template.spec.containers[0];
+  assert.deepEqual(
+    container.env.find((entry) => entry.name === 'REVIEW_ACCESS_TOKEN'),
+    {
+      name: 'REVIEW_ACCESS_TOKEN',
+      valueFrom: {
+        secretKeyRef: {
+          key: 'REVIEW_ACCESS_TOKEN',
+          name: 'combo-preview-bootstrap',
+        },
+      },
+    },
+  );
+  assert.deepEqual(
+    web.spec.template.spec.volumes.map((volume) => volume.configMap.name),
+    [gateName, gateName, gateName],
+  );
+  assert.equal(JSON.stringify(resources).includes('kind":"Secret"'), false);
+});
+
+test('Production release contains no Preview access gate', () => {
+  const resources = render('production', 'apps');
+  assert.equal(resources.some((resource) => resource.kind === 'ConfigMap'), false);
+  const web = resources.find(
+    (resource) =>
+      resource.kind === 'Deployment' && resource.metadata.name === `${RELEASE_PREFIX}web`,
+  );
+  const container = web.spec.template.spec.containers[0];
+  assert.equal(
+    (container.env ?? []).some((entry) => entry.name === 'REVIEW_ACCESS_TOKEN'),
+    false,
+  );
+  assert.equal((web.spec.template.spec.volumes ?? []).length, 0);
+});
+
 for (const environment of ['preview', 'production']) {
 test(`${environment} foundation uses fresh release names and no legacy NodePort`, () => {
   const foundation = render(environment, 'foundation');
@@ -229,7 +303,7 @@ test(`${environment} foundation uses fresh release names and no legacy NodePort`
 test(`${environment} bucket initialization targets only the fresh MinIO service`, () => {
   const resources = render(environment, 'init');
   const job = resources.find((resource) => resource.kind === 'Job');
-  assert.equal(job.metadata.name, 'release-minio-init');
+  assert.equal(job.metadata.name, `${RELEASE_PREFIX}minio-init`);
   assert.match(JSON.stringify(job), /http:\/\/release-minio:9000/);
   const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
   assert.equal(JSON.stringify(job).includes(expectedSecret), true);
@@ -285,4 +359,17 @@ test('deployment-side allowlist rejects mutable foundation commands', () => {
   const changedScript = verifyRendered(init, 'preview', 'init');
   assert.notEqual(changedScript.status, 0);
   assert.match(changedScript.stderr, /script differs/);
+});
+
+test('deployment-side allowlist rejects Preview access gate content drift', () => {
+  const apps = render('preview', 'apps');
+  const gate = apps.find(
+    (resource) =>
+      resource.kind === 'ConfigMap' &&
+      resource.metadata.name === `${RELEASE_PREFIX}review-gate`,
+  );
+  gate.data['default.conf.template'] += '\n# unapproved drift\n';
+  const changedGate = verifyRendered(apps, 'preview', 'apps');
+  assert.notEqual(changedGate.status, 0);
+  assert.match(changedGate.stderr, /does not preserve the Preview access gate/);
 });

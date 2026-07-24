@@ -119,6 +119,7 @@ function replaceEnvironmentScalar(value, environment, manifest) {
   if (value === 'ghcr-pull') return config.pullCredentialName;
   if (value === 'combo-release') return releaseMetadataName(manifest);
   if (environment !== 'test') {
+    if (value === 'release-minio-init') return `${prefix}minio-init`;
     for (const name of ['api', 'runtime', 'web', 'worker']) {
       if (value === `release-${name}`) return `${prefix}${name}`;
     }
@@ -149,7 +150,10 @@ function podTemplate(resource) {
 }
 
 function expectedName(environment, name, manifest, phase) {
-  if (['foundation', 'init'].includes(phase)) return `release-${name}`;
+  if (phase === 'foundation' || (phase === 'init' && name === 'minio-init-script')) {
+    return `release-${name}`;
+  }
+  if (phase === 'init') return `${applicationPrefix(environment, manifest)}${name}`;
   return `${applicationPrefix(environment, manifest)}${name}`;
 }
 
@@ -190,16 +194,22 @@ function validateResources(resources, options, manifest, manifestDigest) {
   if (options.phase === 'apps') {
     const deployments = resources.filter((resource) => resource.kind === 'Deployment');
     const services = resources.filter((resource) => resource.kind === 'Service');
+    const configMaps = resources.filter((resource) => resource.kind === 'ConfigMap');
     const expectedDeployments = ['api', 'runtime', 'web', 'worker']
       .map((name) => expectedName(options.environment, name, manifest, options.phase))
       .sort();
     const expectedServices = ['api', 'runtime', 'web']
       .map((name) => expectedName(options.environment, name, manifest, options.phase))
       .sort();
+    const expectedConfigMaps =
+      options.environment === 'preview'
+        ? [expectedName(options.environment, 'review-gate', manifest, options.phase)]
+        : [];
     assertNames(deployments, expectedDeployments, 'Deployment');
     assertNames(services, expectedServices, 'Service');
-    if (resources.length !== deployments.length + services.length) {
-      fail('apps phase may contain only Service and Deployment resources');
+    assertNames(configMaps, expectedConfigMaps, 'ConfigMap');
+    if (resources.length !== deployments.length + services.length + configMaps.length) {
+      fail('apps phase may contain only Service, Deployment, and approved ConfigMap resources');
     }
     const deployment = (name) =>
       deployments.find(
