@@ -39,15 +39,22 @@ server {
 }
 `;
 
-const NGINX_RELEASE = NGINX_OLD
-  .replaceAll(
-    'proxy_pass http://127.0.0.1:30080;',
-    'proxy_pass http://127.0.0.1:18082;',
-  )
-  .replace(
-    'proxy_pass http://127.0.0.1:30900;',
-    'proxy_pass http://127.0.0.1:19002;',
-  );
+const NGINX_RELEASE = NGINX_OLD.replaceAll(
+  'proxy_pass http://127.0.0.1:30080;',
+  'proxy_pass http://127.0.0.1:18082;',
+).replace('proxy_pass http://127.0.0.1:30900;', 'proxy_pass http://127.0.0.1:19002;');
+
+test('Preview traffic proves the access gate without reading or sending its token', () => {
+  const source = readFileSync(SWITCH_TRAFFIC, 'utf8');
+  const gateStart = source.indexOf('preview_gate_ready() {');
+  const gateEnd = source.indexOf('\n}\n', gateStart);
+  assert.ok(gateStart >= 0 && gateEnd > gateStart);
+  const gate = source.slice(gateStart, gateEnd);
+  assert.match(gate, /__review\/healthz/);
+  assert.match(gate, /status_code.*401/s);
+  assert.match(gate, /X-Combo-Review-Gate:\[\[:space:\]\]\*required/);
+  assert.doesNotMatch(gate, /Cookie:|REVIEW_ACCESS_TOKEN|secret/i);
+});
 
 const FAKE_SUDO = String.raw`#!/usr/bin/env node
 const crypto = require('node:crypto');
@@ -257,12 +264,6 @@ function readState(fixture) {
   return JSON.parse(readFileSync(fixture.statePath, 'utf8'));
 }
 
-function writeState(fixture, update) {
-  const state = readState(fixture);
-  update(state);
-  writeFileSync(fixture.statePath, `${JSON.stringify(state, null, 2)}\n`);
-}
-
 function createFixture({
   unitExists = false,
   unitActive = false,
@@ -455,15 +456,12 @@ test('repeating the same activation is idempotent', (t) => {
   assert.equal(secondState.nginxReloads, 1);
   assert.deepEqual(secondState.units[WEB_UNIT], { active: true, enabled: true, pid: 4103 });
   assert.deepEqual(secondState.units[MINIO_UNIT], { active: true, enabled: true, pid: 4104 });
-  assert.deepEqual(
-    JSON.parse(readFileSync(secondResult.evidencePath, 'utf8')).checks,
-    {
-      loopbackWebRelease: true,
-      loopbackMinioReady: true,
-      publicWebRelease: true,
-      publicMinioReady: true,
-    },
-  );
+  assert.deepEqual(JSON.parse(readFileSync(secondResult.evidencePath, 'utf8')).checks, {
+    loopbackWebRelease: true,
+    loopbackMinioReady: true,
+    publicWebRelease: true,
+    publicMinioReady: true,
+  });
   assertNoNonpublicOutput(secondResult);
 });
 

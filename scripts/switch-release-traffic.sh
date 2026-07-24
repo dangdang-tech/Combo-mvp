@@ -11,6 +11,7 @@ ENVIRONMENT=''
 MANIFEST=''
 MANIFEST_DIGEST=''
 EVIDENCE_OUTPUT=''
+KUBECONFIG_PATH=${KUBECONFIG:-"$HOME/.kube/config"}
 
 status() { printf '[release-traffic] %s\n' "$1" >&2; }
 fail() {
@@ -43,6 +44,7 @@ done
 
 case "$ENVIRONMENT" in
   preview)
+    NAMESPACE=combo-review
     NGINX_CONFIG=/etc/nginx/conf.d/combo-cloud-review.conf
     PUBLIC_ORIGIN=https://review.43-160-242-46.sslip.io
     S3_ORIGIN=https://review-s3.43-160-242-46.sslip.io
@@ -57,6 +59,7 @@ case "$ENVIRONMENT" in
     )
     ;;
   production)
+    NAMESPACE=combo
     NGINX_CONFIG=/etc/nginx/conf.d/zz-agora-demo.conf
     PUBLIC_ORIGIN=https://agora.43-160-242-46.sslip.io
     S3_ORIGIN=https://s3.43-160-242-46.sslip.io
@@ -75,7 +78,7 @@ esac
 readonly NGINX_CONFIG PUBLIC_ORIGIN S3_ORIGIN
 
 for command in sudo systemctl ss awk grep sed cmp install mktemp sha256sum curl jq node \
-  realpath stat id sleep seq dirname wc chmod cp rm date; do
+  realpath stat id sleep seq dirname wc chmod cp rm date kubectl; do
   command -v "$command" >/dev/null 2>&1 || fail "missing host command: $command"
 done
 [[ "$(id -un)" == xingzheng ]] || fail 'traffic control must run as xingzheng'
@@ -96,6 +99,7 @@ web_asset_digest=$(jq -er '.webAssetManifest' "$MANIFEST")
   fail 'manifest release identity is invalid'
 release_prefix="release-${source_sha:0:12}-"
 SERVICES=("${release_prefix}web" release-minio)
+K=(kubectl --kubeconfig "$KUBECONFIG_PATH")
 
 install -d -m 0750 "$(dirname "$EVIDENCE_OUTPUT")"
 work=$(mktemp -d)
@@ -265,10 +269,41 @@ metadata_matches() {
     ' "$file" >/dev/null 2>&1
 }
 
-loopback_version="$work/loopback-version.json"
-curl --fail --silent --show-error --max-time 15 \
-  "http://127.0.0.1:${PORTS[0]}/version.json" >"$loopback_version"
-metadata_matches "$loopback_version" || fail 'loopback Web does not identify the release'
+preview_gate_ready() {
+  local origin=$1 label=$2
+  local headers="$work/$label-gate.headers" status_code
+  curl --fail --silent --show-error --output /dev/null --max-time 15 \
+    "$origin/__review/healthz" 2>/dev/null || return 1
+  status_code=$(curl --silent --show-error --output /dev/null --dump-header "$headers" \
+    --write-out '%{http_code}' --max-time 15 "$origin/version.json" 2>/dev/null) ||
+    return 1
+  [[ "$status_code" == 401 ]] || return 1
+  grep -Eqi '^X-Combo-Review-Gate:[[:space:]]*required' "$headers"
+}
+
+preview_authenticated_metadata() {
+  local origin=$1 output=$2
+  # The gate token expands only inside the candidate Web container.
+  # shellcheck disable=SC2016
+  "${K[@]}" -n "$NAMESPACE" exec "deployment/${release_prefix}web" -- \
+    sh -euc 'exec wget --header="Cookie: combo_review_access=$REVIEW_ACCESS_TOKEN" -qO- "$1/version.json"' \
+    sh "$origin" >"$output"
+  metadata_matches "$output"
+}
+
+loopback_origin="http://127.0.0.1:${PORTS[0]}"
+if [[ "$ENVIRONMENT" == preview ]]; then
+  preview_gate_ready "$loopback_origin" loopback ||
+    fail 'loopback Preview Web gate is not healthy and closed'
+  candidate_version="$work/candidate-version.json"
+  preview_authenticated_metadata http://127.0.0.1 "$candidate_version" ||
+    fail 'candidate Preview Web does not identify the release'
+else
+  loopback_version="$work/loopback-version.json"
+  curl --fail --silent --show-error --max-time 15 \
+    "$loopback_origin/version.json" >"$loopback_version"
+  metadata_matches "$loopback_version" || fail 'loopback Web does not identify the release'
+fi
 curl --fail --silent --show-error --output /dev/null --max-time 15 \
   "http://127.0.0.1:${PORTS[1]}/minio/health/ready"
 
@@ -321,15 +356,27 @@ fi
 public_version="$work/public-version.json"
 public_ok=0
 for _ in $(seq 1 20); do
-  if curl --fail --silent --show-error --max-time 15 \
-    "$PUBLIC_ORIGIN/version.json" >"$public_version" 2>/dev/null &&
-    metadata_matches "$public_version"; then
-    public_ok=1
-    break
+  if [[ "$ENVIRONMENT" == preview ]]; then
+    if preview_gate_ready "$PUBLIC_ORIGIN" public; then
+      public_ok=1
+      break
+    fi
+  else
+    if curl --fail --silent --show-error --max-time 15 \
+      "$PUBLIC_ORIGIN/version.json" >"$public_version" 2>/dev/null &&
+      metadata_matches "$public_version"; then
+      public_ok=1
+      break
+    fi
   fi
   sleep 1
 done
 ((public_ok == 1)) || fail 'public Web did not converge to the release'
+if [[ "$ENVIRONMENT" == preview ]]; then
+  public_version="$work/public-version.json"
+  preview_authenticated_metadata "$PUBLIC_ORIGIN" "$public_version" ||
+    fail 'authenticated public Preview does not identify the release'
+fi
 if [[ -n "$S3_ORIGIN" ]]; then
   s3_ok=0
   for _ in $(seq 1 20); do
