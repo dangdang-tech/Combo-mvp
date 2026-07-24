@@ -37,7 +37,7 @@
       }
       h1 {
         margin: 14px 0 8px;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family: Georgia, 'Times New Roman', serif;
         font-size: clamp(30px, 7vw, 42px);
         font-weight: 500;
       }
@@ -120,8 +120,8 @@
       <small>COMBO · CLOUD REVIEW</small>
       <h1>进入云端 Review</h1>
       <p>
-        这里运行当前发布的 Combo Web、API 与 Runtime。账号和数据与生产环境隔离，操作只保留在
-        Cloud Review 中。
+        这里运行当前发布的 Combo Web、API 与 Runtime。账号和数据与生产环境隔离，操作只保留在 Cloud
+        Review 中。
       </p>
       <form id="access-form">
         <label for="access-code">访问码</label>
@@ -140,56 +140,56 @@
       <p id="status" role="status" aria-live="polite"></p>
     </main>
     <script>
-      const form = document.querySelector("#access-form");
-      const input = document.querySelector("#access-code");
-      const button = document.querySelector("#enter");
-      const status = document.querySelector("#status");
+      const form = document.querySelector('#access-form');
+      const input = document.querySelector('#access-code');
+      const button = document.querySelector('#enter');
+      const status = document.querySelector('#status');
       const params = new URLSearchParams(location.search);
-      const requested = params.get("returnTo");
-      let returnTo = "/";
+      const requested = params.get('returnTo');
+      let returnTo = '/';
       try {
-        const target = new URL(requested || "/", location.origin);
+        const target = new URL(requested || '/', location.origin);
         if (target.origin === location.origin) {
           returnTo = `${target.pathname}${target.search}${target.hash}`;
         }
       } catch {
-        returnTo = "/";
+        returnTo = '/';
       }
 
       async function enterReview(token) {
         button.disabled = true;
         input.disabled = true;
-        input.setAttribute("aria-invalid", "false");
-        status.textContent = "正在验证云端 Review…";
+        input.setAttribute('aria-invalid', 'false');
+        status.textContent = '正在验证云端 Review…';
         try {
-          const response = await fetch("/__review/access", {
-            method: "POST",
-            credentials: "include",
-            headers: { "X-Review-Token": token },
+          const response = await fetch('/__review/access', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-Review-Token': token },
           });
           if (!response.ok) {
-            throw new Error(response.status === 403 ? "访问码不正确" : `HTTP ${response.status}`);
+            throw new Error(response.status === 403 ? '访问码不正确' : `HTTP ${response.status}`);
           }
-          input.value = "";
-          status.textContent = "验证通过，正在准备预览身份…";
+          input.value = '';
+          status.textContent = '验证通过，正在准备预览身份…';
           location.replace(`/__review/bootstrap?returnTo=${encodeURIComponent(returnTo)}`);
         } catch (error) {
           status.textContent = `暂时无法进入（${error.message}）。`;
-          input.setAttribute("aria-invalid", "true");
+          input.setAttribute('aria-invalid', 'true');
           button.disabled = false;
           input.disabled = false;
           input.focus();
         }
       }
 
-      form.addEventListener("submit", (event) => {
+      form.addEventListener('submit', (event) => {
         event.preventDefault();
         void enterReview(input.value.trim());
       });
 
       const tokenFromInvite = location.hash.slice(1);
       if (tokenFromInvite) {
-        history.replaceState(null, "", `/__review/enter?returnTo=${encodeURIComponent(returnTo)}`);
+        history.replaceState(null, '', `/__review/enter?returnTo=${encodeURIComponent(returnTo)}`);
         void enterReview(tokenFromInvite);
       }
     </script>

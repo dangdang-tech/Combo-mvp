@@ -45,8 +45,7 @@ const CONFIG_MAP_DATA_DIGESTS = Object.freeze({
   'release-redis-queue-config': '8d2af3979e00c83bf940f53cc61c4d281bade324f8b7cae46c6575f07f31cd0f',
   'release-minio-init-script': 'd0a07211a19b1e6e09eedf28e6e24487f58c3da74bfbe1520aad6f79f288f5c6',
 });
-const REVIEW_GATE_DATA_DIGEST =
-  'bbe4a4e65e346ef8a1aefa86ca060eae4dadf815a49f2890e6a4af9c1dae9c2f';
+const REVIEW_GATE_DATA_DIGEST = 'b062cf0e4ba2a670336a5a77f23faff47c0150576413d67d21ddbcac28316e2f';
 const REVIEW_GATE_COMMAND = Object.freeze(['/bin/sh', '-euc']);
 const REVIEW_GATE_SCRIPT =
   'case "$REVIEW_ACCESS_TOKEN" in\n' +
@@ -260,11 +259,7 @@ function validateApps(resources, options, manifest, manifestDigest) {
   if (options.environment === 'preview') {
     expectedIdentities.push(`ConfigMap/${prefix}review-gate`);
   }
-  exactIdentities(
-    resources,
-    expectedIdentities,
-    'apps',
-  );
+  exactIdentities(resources, expectedIdentities, 'apps');
   const byIdentity = new Map(resources.map((resource) => [resourceIdentity(resource), resource]));
   const deployment = (name) => byIdentity.get(`Deployment/${prefix}${name}`);
   assertOneContainer(deployment('api'), 'api', manifest.images.api);
@@ -285,8 +280,7 @@ function validateApps(resources, options, manifest, manifestDigest) {
       'combo.build/release-track': 'release-v1',
     };
     if (
-      JSON.stringify(resource.spec?.selector?.matchLabels) !==
-        JSON.stringify(expectedSelector) ||
+      JSON.stringify(resource.spec?.selector?.matchLabels) !== JSON.stringify(expectedSelector) ||
       Object.entries(expectedSelector).some(([key, value]) => labels[key] !== value)
     ) {
       fail(`${resourceIdentity(resource)} has unsafe Pod selectors`);
@@ -427,8 +421,7 @@ function validateFoundation(resources, options) {
       'combo.build/environment-foundation': config.foundationTrack,
     };
     if (
-      JSON.stringify(resource.spec?.selector?.matchLabels) !==
-        JSON.stringify(expectedSelector) ||
+      JSON.stringify(resource.spec?.selector?.matchLabels) !== JSON.stringify(expectedSelector) ||
       Object.entries(expectedSelector).some(
         ([key, value]) => resource.spec?.template?.metadata?.labels?.[key] !== value,
       )
@@ -461,8 +454,7 @@ function validateFoundation(resources, options) {
       'combo.build/environment-foundation': config.foundationTrack,
     };
     if (
-      JSON.stringify(resource.spec?.selector?.matchLabels) !==
-        JSON.stringify(expectedSelector) ||
+      JSON.stringify(resource.spec?.selector?.matchLabels) !== JSON.stringify(expectedSelector) ||
       Object.entries(expectedSelector).some(
         ([key, value]) => resource.spec?.template?.metadata?.labels?.[key] !== value,
       )

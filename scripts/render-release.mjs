@@ -349,10 +349,7 @@ function run(argv) {
     const overlay = ['foundation', 'init'].includes(options.phase)
       ? join(copiedK8sRoot, 'environments', options.environment, options.phase)
       : join(copiedRoot, 'overlays', options.environment, options.phase);
-    if (
-      options.environment !== 'test' &&
-      ['apps', 'migrate'].includes(options.phase)
-    ) {
+    if (options.environment !== 'test' && ['apps', 'migrate'].includes(options.phase)) {
       const kustomization = join(overlay, 'kustomization.yaml');
       const source = readFileSync(kustomization, 'utf8');
       if ((source.match(/^namePrefix: release-$/gm) ?? []).length !== 1) {

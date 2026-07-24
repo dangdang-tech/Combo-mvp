@@ -11,7 +11,7 @@ spec:
             - name: NODE_ENV
               value: development
             - name: DEV_LOGIN_ENABLED
-              value: "true"
+              value: 'true'
             - name: DEV_SESSION_SECRET
               valueFrom:
                 secretKeyRef:
@@ -31,7 +31,7 @@ spec:
             - name: NODE_ENV
               value: development
             - name: DEV_LOGIN_ENABLED
-              value: "true"
+              value: 'true'
             - name: DEV_SESSION_SECRET
               valueFrom:
                 secretKeyRef:

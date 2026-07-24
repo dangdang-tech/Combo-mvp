@@ -248,7 +248,10 @@ test('Preview release carries a SHA-scoped access gate without Secret material',
 
 test('Production release contains no Preview access gate', () => {
   const resources = render('production', 'apps');
-  assert.equal(resources.some((resource) => resource.kind === 'ConfigMap'), false);
+  assert.equal(
+    resources.some((resource) => resource.kind === 'ConfigMap'),
+    false,
+  );
   const web = resources.find(
     (resource) =>
       resource.kind === 'Deployment' && resource.metadata.name === `${RELEASE_PREFIX}web`,
@@ -262,54 +265,54 @@ test('Production release contains no Preview access gate', () => {
 });
 
 for (const environment of ['preview', 'production']) {
-test(`${environment} foundation uses fresh release names and no legacy NodePort`, () => {
-  const foundation = render(environment, 'foundation');
-  assert.equal(
-    foundation.some(
-      (resource) =>
-        resource.kind === 'StatefulSet' && resource.metadata.name === 'release-postgres',
-    ),
-    true,
-  );
-  assert.equal(
-    foundation.some(
-      (resource) =>
-        resource.kind === 'StatefulSet' && resource.metadata.name === 'release-redis-queue',
-    ),
-    true,
-  );
-  assert.equal(
-    foundation.some(
-      (resource) => resource.kind === 'StatefulSet' && resource.metadata.name === 'release-minio',
-    ),
-    true,
-  );
-  assert.equal(
-    foundation
-      .filter((resource) => resource.kind === 'Service')
-      .some(
+  test(`${environment} foundation uses fresh release names and no legacy NodePort`, () => {
+    const foundation = render(environment, 'foundation');
+    assert.equal(
+      foundation.some(
         (resource) =>
-          resource.spec.type === 'NodePort' ||
-          resource.spec.ports.some((port) => port.nodePort !== undefined),
+          resource.kind === 'StatefulSet' && resource.metadata.name === 'release-postgres',
       ),
-    false,
-  );
-  const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
-  assert.equal(JSON.stringify(foundation).includes(expectedSecret), true);
-  const verification = verifyRendered(foundation, environment, 'foundation');
-  assert.equal(verification.status, 0, verification.stderr);
-});
+      true,
+    );
+    assert.equal(
+      foundation.some(
+        (resource) =>
+          resource.kind === 'StatefulSet' && resource.metadata.name === 'release-redis-queue',
+      ),
+      true,
+    );
+    assert.equal(
+      foundation.some(
+        (resource) => resource.kind === 'StatefulSet' && resource.metadata.name === 'release-minio',
+      ),
+      true,
+    );
+    assert.equal(
+      foundation
+        .filter((resource) => resource.kind === 'Service')
+        .some(
+          (resource) =>
+            resource.spec.type === 'NodePort' ||
+            resource.spec.ports.some((port) => port.nodePort !== undefined),
+        ),
+      false,
+    );
+    const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
+    assert.equal(JSON.stringify(foundation).includes(expectedSecret), true);
+    const verification = verifyRendered(foundation, environment, 'foundation');
+    assert.equal(verification.status, 0, verification.stderr);
+  });
 
-test(`${environment} bucket initialization targets only the fresh MinIO service`, () => {
-  const resources = render(environment, 'init');
-  const job = resources.find((resource) => resource.kind === 'Job');
-  assert.equal(job.metadata.name, `${RELEASE_PREFIX}minio-init`);
-  assert.match(JSON.stringify(job), /http:\/\/release-minio:9000/);
-  const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
-  assert.equal(JSON.stringify(job).includes(expectedSecret), true);
-  const verification = verifyRendered(resources, environment, 'init');
-  assert.equal(verification.status, 0, verification.stderr);
-});
+  test(`${environment} bucket initialization targets only the fresh MinIO service`, () => {
+    const resources = render(environment, 'init');
+    const job = resources.find((resource) => resource.kind === 'Job');
+    assert.equal(job.metadata.name, `${RELEASE_PREFIX}minio-init`);
+    assert.match(JSON.stringify(job), /http:\/\/release-minio:9000/);
+    const expectedSecret = environment === 'preview' ? 'combo-preview-env' : 'combo-env';
+    assert.equal(JSON.stringify(job).includes(expectedSecret), true);
+    const verification = verifyRendered(resources, environment, 'init');
+    assert.equal(verification.status, 0, verification.stderr);
+  });
 }
 
 test('deployment-side allowlist rejects extra resources and image drift before apply', () => {
@@ -327,8 +330,7 @@ test('deployment-side allowlist rejects extra resources and image drift before a
   const wrongImage = render('production', 'apps');
   const worker = wrongImage.find(
     (resource) =>
-      resource.kind === 'Deployment' &&
-      resource.metadata.name === `${RELEASE_PREFIX}worker`,
+      resource.kind === 'Deployment' && resource.metadata.name === `${RELEASE_PREFIX}worker`,
   );
   worker.spec.template.spec.containers[0].image =
     'ghcr.io/dangdang-tech/combo-api@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
@@ -365,8 +367,7 @@ test('deployment-side allowlist rejects Preview access gate content drift', () =
   const apps = render('preview', 'apps');
   const gate = apps.find(
     (resource) =>
-      resource.kind === 'ConfigMap' &&
-      resource.metadata.name === `${RELEASE_PREFIX}review-gate`,
+      resource.kind === 'ConfigMap' && resource.metadata.name === `${RELEASE_PREFIX}review-gate`,
   );
   gate.data['default.conf.template'] += '\n# unapproved drift\n';
   const changedGate = verifyRendered(apps, 'preview', 'apps');
